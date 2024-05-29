@@ -46,13 +46,13 @@ data_location = {
 ws = WorkflowStage(
     name="word_count",
     model=AnaPerfModel(1, "word_count"),
-    function=word_occurrence_count,  # Correct parameter name
-    input_data=data_location,  # Ensure this is a list
+    function=word_occurrence_count,
+    input_data=data_location,
     output_data="test-bucket/tiny_shakespeare.txt",
     config=config,
 )
 
-ws.run()
+# ws.run()
 
 dataset_size = (
     int(
@@ -69,7 +69,7 @@ ws.profile(
     num_iter=2,
 )
 
-# ws.train()
+ws.train()
 # ws.generate_objective_function()
 
 # scheduler = Scheduler(ws)
