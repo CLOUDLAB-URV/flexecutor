@@ -1,8 +1,7 @@
+import numpy as np
 import operator
 import random
-import numpy as np
-import json
-from deap import algorithms, base, creator, tools, gp
+from deap import creator, base, tools, gp, algorithms
 
 
 def protected_div(left, right):
@@ -38,6 +37,8 @@ class GAPerfModel:
         pset.addPrimitive(operator.mul, 2)
         pset.addPrimitive(protected_div, 2)
         pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
+        pset.renameArguments(ARG0="cpus", ARG1="memory", ARG2="workers")
+
         self.toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
         self.toolbox.register(
             "individual", tools.initIterate, creator.Individual, self.toolbox.expr
@@ -62,14 +63,15 @@ class GAPerfModel:
 
     def evaluate(self, individual):
         func = self.toolbox.compile(expr=individual)
-        errors = [
-            (func(mem, cpus, workers) - actual) ** 2
-            for mem, cpus, workers, actual in self.data
-        ]
+        errors = []
+        for cpus, memory, workers, actual in self.data:
+            predicted = func(cpus, memory, workers)
+            errors.append((predicted - actual) ** 2)
         return (np.mean(errors),)
 
     def train(self, data):
-        self.data = data
+        processed_data = preprocess_profiling_data(data)
+        self.data = processed_data
         pop = self.toolbox.population(n=self.population_size)
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -90,15 +92,116 @@ class GAPerfModel:
         )
         self.best_individual = hof[0]
 
-    def predict(self, memory, cpus, workers):
+    def predict(self, cpus, memory, workers):
         func = self.toolbox.compile(expr=self.best_individual)
-        return func(memory, cpus, workers)
+        return func(cpus, memory, workers)
 
     def generate_objective_function(self):
         return str(self.best_individual)
 
 
-if __name__ == "__main__":
-    model = GAPerfModel()
+def preprocess_profiling_data(profiling_data):
+    processed_data = []
+    for config, executions in profiling_data.items():
+        cpus, memory, workers = config
+        latencies = [
+            worker_data["read"]
+            + worker_data["compute"]
+            + worker_data["write"]
+            + worker_data["cold_start_time"]
+            for run in executions
+            for worker_data in run
+        ]
 
-    data = json.loads()
+        # Hay stagglers cuando hacemos profiling, la idea con esto es escoger percentiles no utilizar stagglers
+        q1 = np.percentile(latencies, 25)
+        q3 = np.percentile(latencies, 75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+
+        filtered_latencies = [
+            latency for latency in latencies if lower_bound <= latency <= upper_bound
+        ]
+
+        for latency in filtered_latencies:
+            processed_data.append((cpus, memory, workers, latency))
+
+    return processed_data
+
+
+if __name__ == "__main__":
+    profiling_data = {
+        (2, 400, 5): [
+            [
+                {
+                    "read": 0.13607573509216309,
+                    "compute": 0.6712195873260498,
+                    "write": 0.21655988693237305,
+                    "cold_start_time": 2.6361682415008545,
+                },
+                {
+                    "read": 0.11152410507202148,
+                    "compute": 0.6449689865112305,
+                    "write": 0.313230037689209,
+                    "cold_start_time": 2.7001962661743164,
+                },
+                {
+                    "read": 0.12084269523620605,
+                    "compute": 0.6611623764038086,
+                    "write": 0.37512636184692383,
+                    "cold_start_time": 2.8119142055511475,
+                },
+                {
+                    "read": 0.12781190872192383,
+                    "compute": 0.680020809173584,
+                    "write": 0.44702625274658203,
+                    "cold_start_time": 2.8189210891723633,
+                },
+                {
+                    "read": 0.10123634338378906,
+                    "compute": 0.7658612728118896,
+                    "write": 0.3391242027282715,
+                    "cold_start_time": 3.142885684967041,
+                },
+            ],
+            [
+                {
+                    "read": 0.12205648422241211,
+                    "compute": 0.663583517074585,
+                    "write": 0.2964909076690674,
+                    "cold_start_time": 2.5462496280670166,
+                },
+                {
+                    "read": 0.0889730453491211,
+                    "compute": 0.649554967880249,
+                    "write": 0.32325196266174316,
+                    "cold_start_time": 2.6483700275421143,
+                },
+                {
+                    "read": 0.09708809852600098,
+                    "compute": 0.6580414772033691,
+                    "write": 0.2654855251312256,
+                    "cold_start_time": 2.767951011657715,
+                },
+                {
+                    "read": 0.09705781936645508,
+                    "compute": 0.6754159927368164,
+                    "write": 0.24427175521850586,
+                    "cold_start_time": 2.821345567703247,
+                },
+                {
+                    "read": 0.08011627197265625,
+                    "compute": 0.7627818584442139,
+                    "write": 0.2672877311706543,
+                    "cold_start_time": 2.9759883880615234,
+                },
+            ],
+        ]
+    }
+
+    model = GAPerfModel()
+    model.train(profiling_data)
+    print("Objective Function:", model.generate_objective_function())
+    prediction = model.predict(2, 400, 5)
+    print("Predicted Latency for (2 CPUs, 400 Memory, 5 Workers):", prediction)

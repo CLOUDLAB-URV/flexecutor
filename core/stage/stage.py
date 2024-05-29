@@ -1,13 +1,15 @@
-import time
-import logging
-import functools
-import json
 from lithops import FunctionExecutor, Storage
 from typing import Optional, List, Tuple, Dict, Callable, Any, Union
 from contextlib import contextmanager
 from flexexecutor.core.modelling import AnaPerfModel
+import time
+import logging
+import functools
+import json
 import collections
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 def setup_logging(level):
@@ -192,7 +194,6 @@ class WorkflowStage:
             res["cold_start_time"] = cold_start_time
             worker_results.append(res)
 
-        self.logger.info(f"Execution results: {worker_results}")
         if activate_profiling:
             results = self.load_profiling_results()
             config_key = (
@@ -207,64 +208,57 @@ class WorkflowStage:
 
         return worker_results
 
-    # In jolteon is implemented under the scheduler, and the scheduler recieves the workflow and optimizes the stages.
-    # This is a much much simpler version of the optimal config. The find optimal config that jolteon first models the stage and then uses optimization methods (PCPSolver class)
-    # Jolteon can also consider cost as well as latency, for now we just consider latency.
-    def find_optimal_config_latency(self, bucket, key, function, dummy_configs):
-        # Profile stage with the following configurations
-        profiling_results_file = "profiling_results.json"
+    def generate_objective_function(self):
+        return self.perf_model.generate_objective_function()
 
-        if not os.path.exists(profiling_results_file):
-            dataset_size = (
-                int(Storage().head_object(bucket=bucket, key=key)["content-length"])
-                / 1024**2
-            )
-            config_space = [
-                (2, 400, 5),  # 2 CPUs, 200MB memory, 5 workers
-                (8, 1600, 4),  # 8 CPUs, 1600MB memory, 4 workers
-                (16, 3200, 2),  # 16 CPUs, 3200MB memory, 2 workers
-                (32, 6400, 1),  # 32 CPUs, 6400MB memory, 1 worker
-                (3, 600, 4),  # 3 CPUs, 600MB memory, 4 workers
-                (6, 1200, 3),  # 6 CPUs, 1200MB memory, 3 workers
-                (12, 2400, 2),  # 12 CPUs, 2400MB memory, 2 workers
-                (24, 4800, 1),  # 24 CPUs, 4800MB memory, 1 worker
-                (6, 600, 6),  # 6 CPUs, 600MB memory, 6 workers
-                (9, 900, 3),  # 9 CPUs, 900MB memory, 3 workers
-                (18, 1800, 2),  # 18 CPUs, 1800MB memory, 2 workers
-            ]
+    def plot_model_performance(self, config_space):
+        actual_latencies = []
+        predicted_latencies = []
+        configurations = []
 
-            self.profile(
-                config_space,
-                num_iter=2,
-                data_location=f"{bucket}/{key}",
-            )
+        profiling_data = self.load_profiling_results()
 
-        self.perf_model.train(self.load_profiling_results("profiling_results.json"))
+        for config in config_space:
+            cpus, memory, workers = config
+            total_latencies = []
 
-        # Predict the optimal configuration in new configs out of the training stage, using the trained model
-        best_config = None
-        best_metric = float("inf")
+            if config in profiling_data:
+                executions = profiling_data[config]
+                for run in executions:
+                    for worker_data in run:
+                        total_latency = (
+                            worker_data["read"]
+                            + worker_data["compute"]
+                            + worker_data["write"]
+                            + worker_data["cold_start_time"]
+                        )
+                        total_latencies.append(total_latency)
 
-        for config in dummy_configs:
-            num_vcpu, memory, workers = config
-            prediction = self.perf_model.predict(num_vcpu, memory, workers)
-            total_time = prediction["total_predicted_time"]
+                avg_actual_latency = np.mean(total_latencies)
+                actual_latencies.append(avg_actual_latency)
+            else:
+                actual_latencies.append(None)
 
-            if total_time < best_metric:
-                best_metric = total_time
-                best_config = config
+            predicted_latency = self.perf_model.predict(cpus, memory, workers)
+            predicted_latencies.append(predicted_latency)
+            configurations.append(f"({cpus}, {memory}, {workers})")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(configurations))
 
-        self.logger.info(
-            f"Optimal configuration found: CPUs={best_config[0]}, Memory={best_config[1]}MB, Workers={best_config[2]}, Total Latency={best_metric}"
-        )
-        return best_config
+        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
 
-    def generate_objective_function(ftype: str):
-        if ftype == "latency":
-            return "Dummy objective function for latency"
+        if any(actual_latencies):
+            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
 
-        if ftype == "cost":
-            return "Dummy objective function for cost"
+        ax.set_xlabel("Configurations")
+        ax.set_ylabel("Latency")
+        ax.set_title("Model Performance Comparison")
+        ax.set_xticks(x)
+        ax.set_xticklabels(configurations, rotation=45, ha="right")
+        ax.legend()
+
+        plt.tight_layout()
+        plt.savefig("model_performance.png")
 
 
 if __name__ == "__main__":

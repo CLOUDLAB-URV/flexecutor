@@ -120,3 +120,4 @@ dmypy.json
 # Pyright type checker
 .pyright/
 
+/home/users/ayman/ayman/extract-project/serverlessextract/flexexecutor/examples/predictions_without_profiling.png
