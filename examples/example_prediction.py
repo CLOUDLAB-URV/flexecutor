@@ -67,6 +67,8 @@ dataset_size = (
 
 
 config_space = [
+    (2, 2048, 7),  # 2 vCPUs, 2048 MB per worker, 7 workers
+    (3, 3072, 5),  # 3 vCPUs, 3072 MB per worker, 5 workers
     (1, 512, 15),  # 1 vCPU, 512 MB per worker, 15 workers
     (1, 1024, 10),  # 1 vCPU, 1024 MB per worker, 10 workers
     (2, 2048, 5),  # 2 vCPUs, 2048 MB per worker, 5 workers
@@ -81,13 +83,11 @@ config_space = [
     (4, 8192, 4),  # 4 vCPUs, 8192 MB per worker, 4 workers
     (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
     (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
-    (2, 2048, 7),  # 2 vCPUs, 2048 MB per worker, 7 workers
-    (3, 3072, 5),  # 3 vCPUs, 3072 MB per worker, 5 workers
 ]
-ws.profile(
-    config_space=config_space,
-    num_iter=2,
-)
+# ws.profile(
+#     config_space=config_space,
+#     num_iter=3,
+# )
 
 
 ws.train()
