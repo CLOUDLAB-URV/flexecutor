@@ -26,7 +26,8 @@ RUN pip install --upgrade setuptools six pip \
         tblib \
         psutil \
         scipy \
-        matplotlib
+        matplotlib \
+        deap
 
 # Set environment variable to keep Python output unbuffered
 ENV PYTHONUNBUFFERED TRUE

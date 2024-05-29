@@ -88,8 +88,10 @@ class WorkflowStage:
     def get_perf_model(self):
         return self.perf_model
 
-    def train(self, profiling_results: List[Dict]):
+    def train(self):
         self.logger.info("Training model with profiling results")
+        profiling_results = self.load_profiling_results()
+        self.logger.info(profiling_results)
         self.perf_model.train(profiling_results)
 
     def predict(self):
