@@ -44,6 +44,7 @@ data_location = {
 
 
 ws = WorkflowStage(
+    name="word_count",
     model=AnaPerfModel(1, "word_count"),
     function=word_occurrence_count,  # Correct parameter name
     input_data=data_location,  # Ensure this is a list
@@ -63,11 +64,10 @@ dataset_size = (
 )
 
 # Uncomment this section if profiling is needed
-# ws.profile(
-#     config_space=[(2, 400, 5)],  # Example configuration
-#     num_iter=2,
-#     data_location="test-bucket/tiny_shakespeare.txt",
-# )
+ws.profile(
+    config_space=[(2, 400, 5)],  # Example configuration
+    num_iter=2,
+)
 
 # ws.train()
 # ws.generate_objective_function()
