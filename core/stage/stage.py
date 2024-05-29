@@ -62,6 +62,7 @@ def reset_timings(timings: dict):
 class WorkflowStage:
     def __init__(
         self,
+        name: str,
         function: Callable,
         input_data,
         output_data,
@@ -76,6 +77,7 @@ class WorkflowStage:
         self.logger = setup_logging(self.log_level)
         self.function = function
         self.input_data = input_data
+        self.profiling_file_name = f"{name}_profiling_results.json"
         self.output_data = output_data
         self.perf_model = model
         self.logger.info("WorkflowStage initialized")
@@ -96,91 +98,44 @@ class WorkflowStage:
         self.logger.info(f"Predicted best configuration: {best_config}")
         return best_config
 
-    def save_profiling_results(self, results, filename):
-        with open(filename, "w") as f:
-            json.dump(results, f, indent=4)
+    def save_profiling_results(self, results):
+        serializable_results = {str(k): v for k, v in results.items()}
+        with open(self.profiling_file_name, "w") as f:
+            json.dump(serializable_results, f, indent=4)
 
-    def load_profiling_results(self, filename):
-        if not os.path.exists(filename):
+    def load_profiling_results(self):
+        if not os.path.exists(self.profiling_file_name):
             self.logger.info(
-                f"No existing profiling results found at {filename}. Initializing empty results."
+                f"No existing profiling results found at {self.profiling_file_name}. Initializing empty results."
             )
-            return []
+            return {}
         try:
-            with open(filename, "r") as f:
-                return json.load(f)
+            with open(self.profiling_file_name, "r") as f:
+                data = json.load(f)
+                results = {eval(k): v for k, v in data.items()}
+                return results
         except json.JSONDecodeError:
             self.logger.error(
-                f"Error decoding JSON from {filename}. Initializing empty results."
+                f"Error decoding JSON from {self.profiling_file_name}. Initializing empty results."
             )
-            return []
+            return {}
 
-    def profile(
-        self,
-        config_space: List[Tuple[int, int, int]],
-        num_iter: int,
-        data_location: str,
-        profiling_results_file: str = "profiling_results.json",
-    ):
-        existing_results = self.load_profiling_results(profiling_results_file)
-        results = existing_results.copy()
+    def profile(self, config_space: List[Tuple[int, int, int]], num_iter: int):
+        for num_cpu, runtime_memory, num_workers in config_space:
+            self.config["runtime_memory"] = runtime_memory
+            self.config["runtime_cpu"] = num_cpu
+            self.config["workers"] = num_workers
 
-        for (
-            num_cpu,
-            runtime_memory,
-            num_workers,
-        ) in config_space:
-            try:
-                self.config["runtime_memory"] = runtime_memory
-                self.config["runtime_cpu"] = num_cpu
-                self.config["workers"] = num_workers
+            self.logger.debug(
+                f"Profiling with config: CPUs={num_cpu}, Memory={runtime_memory}MB, Workers={num_workers}"
+            )
 
-                self.logger.debug(
-                    f"Profiling with config: CPUs={num_cpu}, Memory={runtime_memory}MB, Workers={num_workers}"
-                )
-
-                execution_results = []
-
-                for _ in range(num_iter):
-                    self.logger.info(f"Partitioning data into {num_workers} chunks.")
-                    result = self.run(
-                        obj_chunk_number=num_workers, data_location=data_location
-                    )
-
-                    worker_stats = [
-                        {
-                            "read": r["read"],
-                            "compute": r["compute"],
-                            "write": r["write"],
-                            "cold_start_time": r["cold_start_time"],
-                        }
-                        for r in result
-                    ]
-                    execution_results.append(worker_stats)
-
-                results.append(
-                    {
-                        "config": (
-                            num_cpu,
-                            runtime_memory,
-                            num_workers,
-                        ),
-                        "execution_results": execution_results,
-                    }
-                )
-
-                self.logger.debug(
-                    f"Config: {num_cpu} CPUs, {runtime_memory}MB Memory, {num_workers} Workers"
-                )
-                self.logger.debug(f"Execution results: {execution_results}")
-
-                self.save_profiling_results(results, profiling_results_file)
-            except Exception as e:
-                self.logger.error(f"Error occurred: {e}")
-                self.save_profiling_results(results, profiling_results_file)
-                raise
-
-        return results
+            for _ in range(num_iter):
+                self.logger.info(f"Partitioning data into {num_workers} chunks.")
+                self.run(obj_chunk_number=num_workers, activate_profiling=True)
+            self.logger.debug(
+                f"Config: {num_cpu} CPUs, {runtime_memory}MB Memory, {num_workers} Workers"
+            )
 
     def wrap_user_function(self, fn: Callable):
         @functools.wraps(fn)
@@ -202,7 +157,7 @@ class WorkflowStage:
         timeout: Optional[int] = None,
         include_modules: Optional[List[str]] = [],
         exclude_modules: Optional[List[str]] = [],
-        data_location: Optional[str] = None,
+        activate_profiling: Optional[bool] = None,
     ):
         include_modules = include_modules or []
         exclude_modules = exclude_modules or []
@@ -226,14 +181,29 @@ class WorkflowStage:
 
         result = self.__fexec.get_result(fs=futures)
 
+        worker_results = []
         for future, res in zip(futures, result):
             stats = future.stats
             host_submit_tstamp = stats["host_submit_tstamp"]
             worker_start_tstamp = stats["worker_start_tstamp"]
             cold_start_time = worker_start_tstamp - host_submit_tstamp
             res["cold_start_time"] = cold_start_time
+            worker_results.append(res)
 
-        return result
+        self.logger.info(f"Execution results: {worker_results}")
+        if activate_profiling:
+            results = self.load_profiling_results()
+            config_key = (
+                self.config["runtime_cpu"],
+                self.config["runtime_memory"],
+                self.config["workers"],
+            )
+            if config_key not in results:
+                results[config_key] = []
+            results[config_key].append(worker_results)
+            self.save_profiling_results(results)
+
+        return worker_results
 
     # In jolteon is implemented under the scheduler, and the scheduler recieves the workflow and optimizes the stages.
     # This is a much much simpler version of the optimal config. The find optimal config that jolteon first models the stage and then uses optimization methods (PCPSolver class)
