@@ -121,3 +121,6 @@ dmypy.json
 .pyright/
 
 /home/users/ayman/ayman/extract-project/serverlessextract/flexexecutor/examples/predictions_without_profiling.png
+
+# profiling
+examples/*.json
