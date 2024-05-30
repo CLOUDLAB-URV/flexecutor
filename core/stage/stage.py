@@ -1,17 +1,17 @@
-from lithops import FunctionExecutor, Storage
-from typing import Optional, List, Tuple, Dict, Callable, Any, Union
-from contextlib import contextmanager
-from flexexecutor.core.modelling import AnaPerfModel
-from flexexecutor.core.utils import setup_logging
-
-import time
-import logging
+import collections
 import functools
 import json
-import collections
 import os
-import numpy as np
+import time
+from contextlib import contextmanager
+from typing import Optional, List, Tuple, Dict, Callable, Any, Union
+
 import matplotlib.pyplot as plt
+import numpy as np
+from lithops import FunctionExecutor, Storage
+
+from core.modelling import AnaPerfModel
+from core.utils import setup_logging
 
 
 @contextmanager
@@ -159,14 +159,14 @@ class WorkflowStage:
 
         result = self.__fexec.get_result(fs=futures)
 
-        worker_results = []
+        worker_results = {"read": [], "compute": [], "write": [], "cold_start_time": []}
         for future, res in zip(futures, result):
             stats = future.stats
             host_submit_tstamp = stats["host_submit_tstamp"]
             worker_start_tstamp = stats["worker_start_tstamp"]
-            cold_start_time = worker_start_tstamp - host_submit_tstamp
-            res["cold_start_time"] = cold_start_time
-            worker_results.append(res)
+            res["cold_start_time"] = worker_start_tstamp - host_submit_tstamp
+            for key, value in res.items():
+                worker_results[key].append(value)
 
         if activate_profiling:
             results = self.load_profiling_results()
@@ -176,8 +176,9 @@ class WorkflowStage:
                 self.config["workers"],
             )
             if config_key not in results:
-                results[config_key] = []
-            results[config_key].append(worker_results)
+                results[config_key] = {"read": [], "compute": [], "write": [], "cold_start_time": []}
+            for i, value in worker_results.items():
+                results[config_key][i].append(value)
             self.save_profiling_results(results)
 
         return worker_results
@@ -272,6 +273,7 @@ if __name__ == "__main__":
         return timings
 
     ws = WorkflowStage(
+        name="word_count",
         model=AnaPerfModel(1, "word_count"),
         function=word_occurrence_count,
         input_data="test-bucket/tiny_shakespeare.txt",
@@ -284,5 +286,5 @@ if __name__ == "__main__":
     ws.profile(
         config_space=[(2, 400, 5)],
         num_iter=2,
-        data_location="test-bucket/tiny_shakespeare.txt",
+        # data_location="test-bucket/tiny_shakespeare.txt",
     )

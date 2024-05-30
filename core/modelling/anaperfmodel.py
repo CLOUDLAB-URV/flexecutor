@@ -1,6 +1,8 @@
+from itertools import chain
+from typing import Dict
+
 import numpy as np
 import scipy.optimize as scipy_opt
-from typing import List, Dict
 
 
 def io_func(x, a, b, c):
@@ -53,22 +55,22 @@ class AnaPerfModel:
         coeffs = np.polyfit(x, y, degree)
         return np.poly1d(coeffs)
 
-    def train(self, profiling_results: List[Dict]) -> None:
+    def train(self, profiling_results: Dict) -> None:
         print("Training Analytical performance model for %s" % self.stage_name)
 
-        read_arr = np.array([res["avg_read_time"] for res in profiling_results])
-        comp_arr = np.array([res["avg_compute_time"] for res in profiling_results])
-        write_arr = np.array([res["avg_write_time"] for res in profiling_results])
-        cold_arr = np.array([res["avg_cold_start_time"] for res in profiling_results])
+        average_dict = {}
+        for i in ['read', 'compute', 'write', 'cold_start_time']:
+            average_dict[i] = np.array(
+                [np.mean(i) for i in list(chain(*([value[i] for key, value in profiling_results.items()])))])
 
-        self.cold_params = np.mean(cold_arr)
+        self.cold_params = np.mean(average_dict['cold_start_time'])
 
         size2points_read = {}
         size2points_comp = {}
         size2points_write = {}
 
-        for idx, res in enumerate(profiling_results):
-            config = res["config"]
+        for idx, [config, res] in enumerate(profiling_results.items()):
+            config = eval(config)
             num_vcpu = config[0]
             runtime_memory = config[1]
             num_workers = config[2]
@@ -78,15 +80,15 @@ class AnaPerfModel:
 
             if key not in size2points_read:
                 size2points_read[key] = []
-            size2points_read[key].append(read_arr[idx])
+            size2points_read[key].append(average_dict['read'][idx])
 
             if key not in size2points_comp:
                 size2points_comp[key] = []
-            size2points_comp[key].append(comp_arr[idx])
+            size2points_comp[key].append(average_dict['compute'][idx])
 
             if key not in size2points_write:
                 size2points_write[key] = []
-            size2points_write[key].append(write_arr[idx])
+            size2points_write[key].append(average_dict['write'][idx])
 
         for config in size2points_read:
             size2points_read[config] = np.mean(size2points_read[config])
@@ -129,11 +131,11 @@ class AnaPerfModel:
         return a, b, c
 
     def predict(
-        self,
-        num_vcpu,
-        runtime_memory,
-        num_workers,
-        chunk_size,
+            self,
+            num_vcpu,
+            runtime_memory,
+            num_workers,
+            chunk_size,
     ):
         assert num_workers > 0
         key = num_vcpu + runtime_memory + num_workers + chunk_size
@@ -141,10 +143,10 @@ class AnaPerfModel:
         predicted_comp_time = comp_func(key, *self.comp_params) / num_workers
         predicted_write_time = io_func(key, *self.write_params) / num_workers
         total_predicted_time = (
-            predicted_read_time
-            + predicted_comp_time
-            + predicted_write_time
-            + self.cold_params
+                predicted_read_time
+                + predicted_comp_time
+                + predicted_write_time
+                + self.cold_params
         )
         return {
             "predicted_read_time": predicted_read_time,
@@ -188,38 +190,36 @@ class AnaPerfModel:
 
 
 if __name__ == "__main__":
-    profiling_results = [
-        {
-            "config": (1, 1024, 4, 64),
-            "avg_read_time": 0.5,
-            "avg_compute_time": 1.0,
-            "avg_write_time": 0.3,
-            "avg_cold_start_time": 0.2,
+    profiling_results = {
+        "(1, 1024, 4, 64)": {
+            "read": [[0.45, 0.55]],
+            "compute": [[1.0]],
+            "write": [[0.3]],
+            "cold_start_time": [[0.2]],
         },
-        {
-            "config": (2, 2048, 8, 128),
-            "avg_read_time": 0.4,
-            "avg_compute_time": 0.9,
-            "avg_write_time": 0.25,
-            "avg_cold_start_time": 0.15,
+        "(2, 2048, 8, 128)": {
+            "read": [[0.4]],
+            "compute": [[0.9]],
+            "write": [[0.25]],
+            "cold_start_time": [[0.15]],
         },
-        {
-            "config": (3, 3072, 16, 256),
-            "avg_read_time": 0.3,
-            "avg_compute_time": 0.8,
-            "avg_write_time": 0.2,
-            "avg_cold_start_time": 0.1,
-        },
-    ]
+        "(3, 3072, 16, 256)": {
+            "read": [[0.3]],
+            "compute": [[0.8]],
+            "write": [[0.2]],
+            "cold_start_time": [[0.1]],
+        }
+    }
+
     perfmodel = AnaPerfModel(1, "stage1")
     perfmodel.update_allow_parallel(True)
     perfmodel.train(profiling_results)
 
     print(perfmodel.get_params())
 
-    perfmodel.visualize(step="compute", degree=2)
-    perfmodel.visualize(step="read", degree=2)
-    perfmodel.visualize(step="write", degree=2)
+    # perfmodel.visualize(step="compute", degree=2)
+    # perfmodel.visualize(step="read", degree=2)
+    # perfmodel.visualize(step="write", degree=2)
 
     # Generate function code for latency
-    print(perfmodel.generate_func_code())
+    # print(perfmodel.generate_func_code())
