@@ -215,10 +215,18 @@ class WorkflowStage:
         actual_latencies = []
         predicted_latencies = []
         configurations = []
+        resources = []
 
         profiling_data = self.load_profiling_results()
 
         for config in config_space:
+            cpus, memory, workers = config
+            total_resources = cpus * workers + memory * workers
+            resources.append((total_resources, config))
+
+        resources.sort()
+
+        for total_resources, config in resources:
             cpus, memory, workers = config
             total_latencies = []
 
@@ -242,6 +250,7 @@ class WorkflowStage:
             predicted_latency = self.perf_model.predict(cpus, memory, workers)
             predicted_latencies.append(predicted_latency)
             configurations.append(f"({cpus}, {memory}, {workers})")
+
         fig, ax = plt.subplots(figsize=(10, 6))
         x = np.arange(len(configurations))
 

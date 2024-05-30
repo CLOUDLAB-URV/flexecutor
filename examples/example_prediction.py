@@ -41,7 +41,7 @@ def word_occurrence_count(obj):
 
 
 data_location = {
-    "obj": "test-bucket/tiny_shakespeare.txt",
+    "obj": "test-bucket/corpus.txt",
 }
 
 
@@ -50,7 +50,7 @@ ws = WorkflowStage(
     model=GAPerfModel(),
     function=word_occurrence_count,
     input_data=data_location,
-    output_data="test-bucket/tiny_shakespeare.txt",
+    output_data="test-bucket/combined_file.txt",
     config=config,
 )
 
@@ -84,20 +84,18 @@ config_space = [
     (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
     (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
 ]
-# ws.profile(
-#     config_space=config_space,
-#     num_iter=3,
-# )
+ws.profile(
+    config_space=config_space,
+    num_iter=3,
+)
 
 
 ws.train()
 
 
+ws.plot_model_performance(config_space)
 print(f"Objective function {ws.generate_objective_function()}")
 
-
-ws.plot_model_performance(config_space)
-# ws.generate_objective_function()
 
 # scheduler = Scheduler(ws)
 # scheduler.search_config()
