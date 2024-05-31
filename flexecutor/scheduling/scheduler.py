@@ -1,5 +1,5 @@
-from flexexecutor.core.stage import WorkflowStage
-from flexexecutor.core.optimization import OptimizationProblemSolver
+from flexecutor.stage import WorkflowStage
+from flexecutor.optimization import OptimizationProblemSolver
 
 
 class Scheduler:

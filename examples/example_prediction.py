@@ -1,16 +1,16 @@
-from flexexecutor.core.stage import (
+from flexecutor.stage import (
     WorkflowStage,
     initialize_timings,
     operation,
 )
-from flexexecutor.core.modelling import AnaPerfModel, GAPerfModel
+from flexecutor.modelling import AnaPerfModel, GAPerfModel
 
 from lithops.storage import Storage
 
-from flexexecutor.core.optimization import (
+from flexecutor.optimization import (
     OptimizationProblemSolver,
 )
-from flexexecutor.core.scheduling import Scheduler
+from flexecutor.scheduling import Scheduler
 import collections
 import numpy as np
 import matplotlib.pyplot as plt

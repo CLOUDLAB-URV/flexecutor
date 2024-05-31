@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lithops import FunctionExecutor, Storage
 
-from core.modelling import AnaPerfModel
-from core.utils import setup_logging
+from flexecutor.modelling import AnaPerfModel
+from flexecutor.utils import setup_logging
 
 
 @contextmanager
@@ -207,16 +207,16 @@ class WorkflowStage:
 
             if config in profiling_data:
                 executions = profiling_data[config]
-                for run in executions:
-                    for worker_data in run:
-                        total_latency = (
-                            worker_data["read"]
-                            + worker_data["compute"]
-                            + worker_data["write"]
-                            + worker_data["cold_start_time"]
-                        )
-                        total_latencies.append(total_latency)
-
+                total_latencies = [
+                    sum(lats)
+                    for breaks in zip(
+                        executions["read"],
+                        executions["compute"],
+                        executions["write"],
+                        executions["cold_start_time"],
+                    )
+                    for lats in zip(*breaks)
+                ]
                 avg_actual_latency = np.mean(total_latencies)
                 actual_latencies.append(avg_actual_latency)
             else:
