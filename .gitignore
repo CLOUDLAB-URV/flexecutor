@@ -122,5 +122,9 @@ dmypy.json
 
 # profiling
 examples/*.json
+
+# model
+examples/*.pkl
+
 # images (maybe provisinal)
 examples/*.png

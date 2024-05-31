@@ -123,7 +123,9 @@ class GAPerfModel(PerfModel):
                 upper_bound = q3 + 1.5 * iqr
 
                 filtered_latencies = [
-                    latency for latency in latencies if lower_bound <= latency <= upper_bound
+                    latency
+                    for latency in latencies
+                    if lower_bound <= latency <= upper_bound
                 ]
 
                 for latency in filtered_latencies:
@@ -154,7 +156,9 @@ class GAPerfModel(PerfModel):
         def objective_func(x):
             cpus, memory, workers = np.round(x).astype(int)
             try:
-                value = self._toolbox.compile(expr=self._best_individual)(cpus, memory, workers)
+                value = self._toolbox.compile(expr=self._best_individual)(
+                    cpus, memory, workers
+                )
                 if not np.isfinite(value):
                     raise ValueError("Non-finite value")
                 if value > 100 or value <= 0:
@@ -171,11 +175,12 @@ class GAPerfModel(PerfModel):
     def parameters(self):
         return "Yet to be implemented"
 
-    def predict(self, num_cpu, runtime_memory, num_workers, chunk_size=None) -> Prediction:
+    def predict(
+        self, num_cpu, runtime_memory, num_workers, chunk_size=None
+    ) -> Prediction:
         func = self._toolbox.compile(expr=self._best_individual)
         try:
             return Prediction(func(num_cpu, runtime_memory, num_workers))
         except Exception as e:
             logger.error(f"Error predicting: {e}")
             return Prediction(np.nan)
-
