@@ -5,13 +5,10 @@ from flexexecutor.core.modelling import AnaPerfModel
 from flexexecutor.core.utils import setup_logging
 
 import time
-import logging
 import functools
 import json
 import collections
 import os
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 @contextmanager
@@ -64,13 +61,30 @@ class WorkflowStage:
     def get_perf_model(self):
         return self.perf_model
 
+    def update_config(self, cpu, memory, workers):
+        self.config["runtime_cpu"] = cpu
+        self.config["runtime_memory"] = memory
+        self.config["workers"] = workers
+
+    def profile(self, config_space: List[Tuple[int, int, int]], num_iter: int):
+        for num_cpu, runtime_memory, num_workers in config_space:
+            self.config["runtime_memory"] = runtime_memory
+            self.config["runtime_cpu"] = num_cpu
+            self.config["workers"] = num_workers
+            for _ in range(num_iter):
+                self.logger.info(f"Partitioning data into {num_workers} chunks.")
+                self.run(obj_chunk_number=num_workers, activate_profiling=True)
+
     def train(self):
         self.logger.info("Training model with profiling results")
         profiling_results = self.load_profiling_results()
         self.logger.info(profiling_results)
         self.perf_model.train(profiling_results)
 
-    def predict(self):
+    def predict_latency(self, cpu, memory, workers):
+        return self.perf_model.predict_latency(cpu, memory, workers)
+
+    def predict_best_config(self):
         self.logger.info("Predicting best configuration using the trained model")
         best_config = self.perf_model.predict()
         self.logger.info(f"Predicted best configuration: {best_config}")
@@ -98,23 +112,6 @@ class WorkflowStage:
             )
             return {}
 
-    def profile(self, config_space: List[Tuple[int, int, int]], num_iter: int):
-        for num_cpu, runtime_memory, num_workers in config_space:
-            self.config["runtime_memory"] = runtime_memory
-            self.config["runtime_cpu"] = num_cpu
-            self.config["workers"] = num_workers
-
-            self.logger.info(
-                f"Profiling with config: CPUs={num_cpu}, Memory={runtime_memory}MB, Workers={num_workers}"
-            )
-
-            for _ in range(num_iter):
-                self.logger.info(f"Partitioning data into {num_workers} chunks.")
-                self.run(obj_chunk_number=num_workers, activate_profiling=True)
-            self.logger.debug(
-                f"Config: {num_cpu} CPUs, {runtime_memory}MB Memory, {num_workers} Workers"
-            )
-
     def wrap_user_function(self, fn: Callable):
         @functools.wraps(fn)
         def wrapper(parameters):
@@ -137,6 +134,10 @@ class WorkflowStage:
         exclude_modules: Optional[List[str]] = [],
         activate_profiling: Optional[bool] = None,
     ):
+
+        self.logger.info(
+            f"Running with configuration #CPUs: {self.config['runtime_cpu']}, Memory: {self.config['runtime_memory']}MB, Workers: {self.config['workers']}"
+        )
         include_modules = include_modules or []
         exclude_modules = exclude_modules or []
 
@@ -150,7 +151,7 @@ class WorkflowStage:
             extra_env=extra_env,
             runtime_memory=runtime_memory,
             obj_chunk_size=obj_chunk_size,
-            obj_chunk_number=obj_chunk_number,
+            obj_chunk_number=self.config["workers"],
             obj_newline=obj_newline,
             timeout=timeout,
             include_modules=include_modules,
@@ -182,66 +183,8 @@ class WorkflowStage:
 
         return worker_results
 
-    def generate_objective_function(self):
-        return self.perf_model.generate_objective_function()
-
-    def plot_model_performance(self, config_space):
-        actual_latencies = []
-        predicted_latencies = []
-        configurations = []
-        resources = []
-
-        profiling_data = self.load_profiling_results()
-
-        for config in config_space:
-            cpus, memory, workers = config
-            total_resources = cpus * workers + memory * workers
-            resources.append((total_resources, config))
-
-        resources.sort()
-
-        for total_resources, config in resources:
-            cpus, memory, workers = config
-            total_latencies = []
-
-            if config in profiling_data:
-                executions = profiling_data[config]
-                for run in executions:
-                    for worker_data in run:
-                        total_latency = (
-                            worker_data["read"]
-                            + worker_data["compute"]
-                            + worker_data["write"]
-                            + worker_data["cold_start_time"]
-                        )
-                        total_latencies.append(total_latency)
-
-                avg_actual_latency = np.mean(total_latencies)
-                actual_latencies.append(avg_actual_latency)
-            else:
-                actual_latencies.append(None)
-
-            predicted_latency = self.perf_model.predict(cpus, memory, workers)
-            predicted_latencies.append(predicted_latency)
-            configurations.append(f"({cpus}, {memory}, {workers})")
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(configurations))
-
-        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
-
-        if any(actual_latencies):
-            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
-
-        ax.set_xlabel("Configurations")
-        ax.set_ylabel("Latency")
-        ax.set_title("Model Performance Comparison")
-        ax.set_xticks(x)
-        ax.set_xticklabels(configurations, rotation=45, ha="right")
-        ax.legend()
-
-        plt.tight_layout()
-        plt.savefig("model_performance.png")
+    def get_objective_function(self):
+        return self.perf_model.get_objective_function()
 
 
 if __name__ == "__main__":

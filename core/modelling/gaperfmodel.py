@@ -1,17 +1,22 @@
 import numpy as np
 import operator
 import random
+import pickle
+import logging
 from deap import creator, base, tools, gp, algorithms
+from scipy.optimize import differential_evolution
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def protected_div(left, right):
-    try:
-        return left / right
-    except ZeroDivisionError:
-        return 1
+    return left / right if right != 0 else 1e10
 
 
 class GAPerfModel:
+    RANDOM_SEED = 42
+
     def __init__(
         self,
         population_size=300,
@@ -19,12 +24,18 @@ class GAPerfModel:
         mutation_prob=0.2,
         n_generations=40,
     ):
+        random.seed(self.RANDOM_SEED)
         self.population_size = population_size
         self.crossover_prob = crossover_prob
         self.mutation_prob = mutation_prob
         self.n_generations = n_generations
         self.data = None
         self.toolbox = base.Toolbox()
+        self.bounds = [
+            (1, 6),
+            (512, 10240),
+            (1, 20),
+        ]  # Bounds for CPUs, Memory, and Workers
         self.setup_genetic_algorithm()
 
     def setup_genetic_algorithm(self):
@@ -65,8 +76,16 @@ class GAPerfModel:
         func = self.toolbox.compile(expr=individual)
         errors = []
         for cpus, memory, workers, actual in self.data:
-            predicted = func(cpus, memory, workers)
-            errors.append((predicted - actual) ** 2)
+            try:
+                predicted = func(cpus, memory, workers)
+                if not np.isfinite(predicted) or predicted > 100 or predicted <= 0:
+                    penalty = 1e10
+                else:
+                    penalty = (predicted - actual) ** 2
+                errors.append(penalty)
+            except Exception as e:
+                logger.error(f"Error evaluating individual: {e}")
+                errors.append(1e10)
         return (np.mean(errors),)
 
     def train(self, data):
@@ -79,7 +98,6 @@ class GAPerfModel:
         stats.register("std", np.std)
         stats.register("min", np.min)
         stats.register("max", np.max)
-
         algorithms.eaSimple(
             pop,
             self.toolbox,
@@ -92,40 +110,125 @@ class GAPerfModel:
         )
         self.best_individual = hof[0]
 
-    def predict(self, cpus, memory, workers):
+    def predict_latency(self, cpus, memory, workers):
         func = self.toolbox.compile(expr=self.best_individual)
-        return func(cpus, memory, workers)
+        try:
+            return func(cpus, memory, workers)
+        except Exception as e:
+            logger.error(f"Error predicting configuration: {e}")
+            return np.nan
 
-    def generate_objective_function(self):
-        return str(self.best_individual)
+    def get_objective_function(self):
+        compiled_func = self.toolbox.compile(expr=self.best_individual)
+
+        def objective_func(x):
+            cpus, memory, workers = np.round(x).astype(int)
+            try:
+                value = compiled_func(cpus, memory, workers)
+                if not np.isfinite(value):
+                    raise ValueError("Non-finite value")
+                if value > 100 or value <= 0:
+                    return 1e10
+                return value
+            except Exception as e:
+                logger.error(f"Error in objective function: {e}")
+                return 1e10
+
+        return objective_func
+
+    def save_model(self, filename):
+        with open(filename, "wb") as file:
+            pickle.dump(self.best_individual, file)
+
+    def load_model(self, filename):
+        with open(filename, "rb") as file:
+            self.best_individual = pickle.load(file)
+
+    def get_objective_function(self):
+        logger.info(f"Objective function: {self.best_individual}")
+        compiled_func = self.toolbox.compile(expr=self.best_individual)
+
+        def objective_func(x):
+            cpus, memory, workers = np.round(x).astype(int)
+            try:
+                value = compiled_func(cpus, memory, workers)
+                logger.debug(
+                    f"Objective function evaluated with (cpus={cpus}, memory={memory}, workers={workers}): value={value}"
+                )
+                if not np.isfinite(value):
+                    raise ValueError("Non-finite value")
+                if value > 100 or value <= 0:
+                    penalty = 1e10
+                else:
+                    penalty = 0
+                return value + penalty
+            except Exception as e:
+                logger.error(
+                    f"Error in objective function with (cpus={cpus}, memory={memory}, workers={workers}): {e}"
+                )
+                return 1e10
+
+        return objective_func
+
+
+# def preprocess_profiling_data(profiling_data):
+#     processed_data = []
+#     for config, executions in profiling_data.items():
+#         cpus, memory, workers = config
+#         all_run_latencies = []
+#         all_cold_starts = []
+
+#         for run in executions:
+#             run_latencies = [
+#                 worker_data["read"] + worker_data["compute"] + worker_data["write"]
+#                 for worker_data in run
+#             ]
+#             run_cold_starts = [worker_data["cold_start_time"] for worker_data in run]
+
+#             # Considerare que la latencia del run es la latencia del worker con mayor latencia
+#             max_latency = max(run_latencies)
+#             # mediana de coldstarts, por alguna razon en el profiling el dato de coldstart varia demasiado
+#             median_cold_start = np.median(run_cold_starts)
+
+#             total_latency = max_latency + median_cold_start
+#             all_run_latencies.append(total_latency)
+#             all_cold_starts.extend(run_cold_starts)
+
+#         # Hay stagglers cuando hacemos profiling, la idea con esto es escoger percentiles no utilizar stagglers
+#         q1 = np.percentile(all_run_latencies, 25)
+#         q3 = np.percentile(all_run_latencies, 75)
+#         iqr = q3 - q1
+#         lower_bound = q1 - 1.5 * iqr
+#         upper_bound = q3 + 1.5 * iqr
+
+#         filtered_latencies = [
+#             latency
+#             for latency in all_run_latencies
+#             if lower_bound <= latency <= upper_bound
+#         ]
+
+#         for latency in filtered_latencies:
+#             processed_data.append((cpus, memory, workers, latency))
+
+#     return processed_data
 
 
 def preprocess_profiling_data(profiling_data):
     processed_data = []
     for config, executions in profiling_data.items():
         cpus, memory, workers = config
-        latencies = [
-            worker_data["read"]
-            + worker_data["compute"]
-            + worker_data["write"]
-            + worker_data["cold_start_time"]
-            for run in executions
-            for worker_data in run
-        ]
+        for run in executions:
+            run_latencies = [
+                worker_data["read"] + worker_data["compute"] + worker_data["write"]
+                for worker_data in run
+            ]
+            average_latency = np.mean(run_latencies)
 
-        # Hay stagglers cuando hacemos profiling, la idea con esto es escoger percentiles no utilizar stagglers
-        q1 = np.percentile(latencies, 25)
-        q3 = np.percentile(latencies, 75)
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
+            run_cold_starts = [worker_data["cold_start_time"] for worker_data in run]
+            median_cold_start = np.median(run_cold_starts)
 
-        filtered_latencies = [
-            latency for latency in latencies if lower_bound <= latency <= upper_bound
-        ]
-
-        for latency in filtered_latencies:
-            processed_data.append((cpus, memory, workers, latency))
+            total_latency = average_latency + median_cold_start
+            processed_data.append((cpus, memory, workers, total_latency))
 
     return processed_data
 
@@ -202,6 +305,6 @@ if __name__ == "__main__":
 
     model = GAPerfModel()
     model.train(profiling_data)
-    print("Objective Function:", model.generate_objective_function())
+    print("Objective Function:", model.get_objective_function())
     prediction = model.predict(2, 400, 5)
     print("Predicted Latency for (2 CPUs, 400 Memory, 5 Workers):", prediction)

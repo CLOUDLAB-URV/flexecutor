@@ -1,44 +1,36 @@
-from flexexecutor.core.stage import WorkflowStage
-from flexexecutor.core.optimization import OptimizationProblemSolver
+from scipy.optimize import differential_evolution
+import numpy as np
+
+
+class OptimizationProblemSolver:
+    def __init__(self, workflow_stage):
+        self.workflow_stage = workflow_stage
+
+    def search_config(self, bounds):
+        objective_func = self.workflow_stage.get_objective_function()
+
+        def integer_objective_func(x):
+            x_int = np.round(x).astype(int)
+            return objective_func(x_int)
+
+        res = differential_evolution(
+            integer_objective_func,
+            bounds,
+            strategy="best1bin",
+            mutation=(0.5, 1),
+            recombination=0.7,
+            disp=True,
+        )
+        return res
 
 
 class Scheduler:
-    def __init__(
-        self,
-        workflow_stage: WorkflowStage,
-        memory_configs=[1792, 2560, 3584, 5120, 7168, 10240],
-        vcpu_configs=[0.6, 1, 1.5, 2, 2.5, 3, 4],
-        parallel_configs=[1, 4, 6, 8, 16, 32],
-    ):
-        self.num_funcs = []
-        self.num_vcpus = []
-        self.mem_configs = []
-        self.bound_type = None
-        self.bound = None
+    def __init__(self, workflow_stage):
         self.workflow_stage = workflow_stage
-        self.optimization_problem_solver = OptimizationProblemSolver()
-
-    def search_config(self):
-        """
-        objective_func = None
-        constraint_func = None
-        self.obj_params = self.worklof_stage.obj_params
-
-        self.solver(
-            self.workflowstage,
-            objective_func,
-            constraint_func,
-            self.bound,
-            self.obj_params,
-            self.cons_params,
+        self.optimization_problem_solver = OptimizationProblemSolver(
+            self.workflow_stage
         )
-        res = self.solver.iter_solve(init_vals, x_bound)
-        """
 
-        print("num_funcs:", 20)
-        print("num_vcpus:", 10)
-        print("mem:", 1024)
-        print("chunk_size:", 1024)
-
-    def predict(self):
-        pass
+    def search_config(self, bounds):
+        res = self.optimization_problem_solver.search_config(bounds)
+        return res

@@ -4,16 +4,10 @@ from flexexecutor.core.stage import (
     operation,
 )
 from flexexecutor.core.modelling import AnaPerfModel, GAPerfModel
-
 from lithops.storage import Storage
-
-from flexexecutor.core.optimization import (
-    OptimizationProblemSolver,
-)
 from flexexecutor.core.scheduling import Scheduler
 import collections
 import numpy as np
-import matplotlib.pyplot as plt
 
 config = {"log_level": "INFO"}
 
@@ -44,7 +38,6 @@ data_location = {
     "obj": "test-bucket/corpus.txt",
 }
 
-
 ws = WorkflowStage(
     name="word_count",
     model=GAPerfModel(),
@@ -53,8 +46,6 @@ ws = WorkflowStage(
     output_data="test-bucket/combined_file.txt",
     config=config,
 )
-
-# ws.run()
 
 dataset_size = (
     int(
@@ -65,8 +56,9 @@ dataset_size = (
     / 1024**2
 )
 
-
 config_space = [
+    (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
+    (1, 200, 10),  # 1 vCPU, 200 MB per worker, 10 workers
     (2, 2048, 7),  # 2 vCPUs, 2048 MB per worker, 7 workers
     (3, 3072, 5),  # 3 vCPUs, 3072 MB per worker, 5 workers
     (1, 512, 15),  # 1 vCPU, 512 MB per worker, 15 workers
@@ -84,18 +76,54 @@ config_space = [
     (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
     (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
 ]
-ws.profile(
-    config_space=config_space,
-    num_iter=3,
+ws.profile(config_space)
+
+ws.train()
+objective_function = ws.get_objective_function()
+print(f"Objective function {objective_function}")
+
+x_bound = [
+    (1, 6),
+    (512, 4096),
+    (1, 3),
+]
+
+scheduler = Scheduler(ws)
+result = scheduler.search_config(x_bound)
+optimal_configuration = np.round(result.x).astype(int)
+print("Integer Optimal Configuration:", optimal_configuration)
+pred_latency = objective_function(optimal_configuration)
+print(
+    "Predicted latency with optimal configuration",
+    pred_latency,
+)
+
+ws.update_config(
+    cpu=optimal_configuration[0],
+    memory=optimal_configuration[1],
+    workers=optimal_configuration[2],
 )
 
 
-ws.train()
+def calculate_actual_latency(act_latency):
+    read_latencies = [item["read"] for item in act_latency]
+    compute_latencies = [item["compute"] for item in act_latency]
+    write_latencies = [item["write"] for item in act_latency]
+    cold_start_times = [item["cold_start_time"] for item in act_latency]
+    average_read = np.mean(read_latencies)
+    average_compute = np.mean(compute_latencies)
+    average_write = np.mean(write_latencies)
+
+    median_cold_start = np.median(cold_start_times)
+
+    total_latency = average_read + average_compute + average_write + median_cold_start
+
+    return total_latency
 
 
-ws.plot_model_performance(config_space)
-print(f"Objective function {ws.generate_objective_function()}")
+act_latency = ws.run()
 
+act_latency = calculate_actual_latency(act_latency)
+print("Actual latency:", act_latency)
 
-# scheduler = Scheduler(ws)
-# scheduler.search_config()
+print(f"Accuracy {100 - (act_latency - pred_latency) / pred_latency * 100} %")
