@@ -3,6 +3,10 @@ from typing import Dict
 
 import numpy as np
 import scipy.optimize as scipy_opt
+from overrides import overrides
+
+from flexecutor.modelling.perfmodel import PerfModel
+from flexecutor.modelling.prediction import Prediction
 
 
 def io_func(x, a, b, c):
@@ -13,68 +17,52 @@ def comp_func(x, a, b, c):
     return a / (x + c) + b
 
 
-class AnaPerfModel:
-    def __init__(self, _stage_id, _stage_name) -> None:
-        assert isinstance(_stage_name, str)
-        assert isinstance(_stage_id, int) and _stage_id >= 0
-        self.stage_name = _stage_name
-        self.stage_id = _stage_id
+class AnaPerfModel(PerfModel):
+    def __init__(self, stage_id, stage_name) -> None:
+        assert isinstance(stage_name, str)
+        assert isinstance(stage_id, int) and stage_id >= 0
+        super().__init__("analytic")
 
-        self.allow_parallel = True
+        self._stage_name = stage_name
+        self._stage_id = stage_id
+        self._objective_func = "dummy_func(x, a, b, c)"
+
+        self._allow_parallel = True
 
         # Init in train, list with size three
-        self.write_params = None
-        self.read_params = None
-        self.comp_params = None
-        self.cold_params = None
+        self._write_params = None
+        self._read_params = None
+        self._comp_params = None
+        self._cold_params = None
 
-        self.profiling_results = None
+        self._profiling_results = None
 
+    # TODO: review that and rethink
     def update_allow_parallel(self, allow_parallel) -> None:
         assert isinstance(allow_parallel, bool)
-        self.allow_parallel = allow_parallel
+        self._allow_parallel = allow_parallel
 
-    def fit_params(self, data, func):
-        assert isinstance(data, dict)
-        arr_x = list(data.keys())
-        arr_y = [data[x] for x in arr_x]
-
-        arr_x = np.array(arr_x)
-        arr_y = np.array(arr_y).flatten()
-
-        initial_guess = [1, 1, 1]
-
-        def residuals(para, x, y):
-            return func(x, *para) - y
-
-        params, _ = scipy_opt.leastsq(residuals, initial_guess, args=(arr_x, arr_y))
-
-        return params.tolist()
-
-    def fit_polynomial(self, x, y, degree):
-        coeffs = np.polyfit(x, y, degree)
-        return np.poly1d(coeffs)
-
+    @overrides
     def train(self, profiling_results: Dict) -> None:
-        print("Training Analytical performance model for %s" % self.stage_name)
+        print("Training Analytical performance model for %s" % self._stage_name)
 
         average_dict = {}
         for i in ['read', 'compute', 'write', 'cold_start_time']:
             average_dict[i] = np.array(
                 [np.mean(i) for i in list(chain(*([value[i] for key, value in profiling_results.items()])))])
 
-        self.cold_params = np.mean(average_dict['cold_start_time'])
+        self._cold_params = np.mean(average_dict['cold_start_time'])
 
         size2points_read = {}
         size2points_comp = {}
         size2points_write = {}
 
-        for idx, [config, res] in enumerate(profiling_results.items()):
-            config = eval(config)
+        for idx, config in enumerate(profiling_results.keys()):
+            # config = eval(config)
             num_vcpu = config[0]
             runtime_memory = config[1]
             num_workers = config[2]
-            chunk_size = config[3]  # Include chunk size in the config
+            chunk_size = config[3] if len(config) > 3 else 256
 
             key = (num_vcpu, runtime_memory, num_workers, chunk_size)
 
@@ -117,17 +105,36 @@ class AnaPerfModel:
             for vcpu, mem, workers, chunk in size2points_write
         }
 
+        def fit_params(data, func):
+            assert isinstance(data, dict)
+            arr_x = list(data.keys())
+            arr_y = [data[x] for x in arr_x]
+
+            arr_x = np.array(arr_x)
+            arr_y = np.array(arr_y).flatten()
+
+            initial_guess = [1, 1, 1]
+
+            def residuals(para, x, y):
+                return func(x, *para) - y
+
+            params, _ = scipy_opt.leastsq(residuals, initial_guess, args=(arr_x, arr_y))
+
+            return params.tolist()
+
         # Fit the parameters
-        self.read_params = self.fit_params(flattened_read, io_func)
-        self.comp_params = self.fit_params(flattened_comp, comp_func)
-        self.write_params = self.fit_params(flattened_write, io_func)
+        self._read_params = fit_params(flattened_read, io_func)
+        self._comp_params = fit_params(flattened_comp, comp_func)
+        self._write_params = fit_params(flattened_write, io_func)
 
-        self.profiling_results = profiling_results
+        self._profiling_results = profiling_results
 
-    def get_params(self):
-        a = sum([self.read_params[0], self.comp_params[0], self.write_params[0]])
-        b = sum([self.read_params[1], self.comp_params[1], self.write_params[1]])
-        c = sum([self.read_params[2], self.comp_params[2], self.write_params[2]])
+    @property
+    @overrides
+    def parameters(self):
+        a = sum([self._read_params[0], self._comp_params[0], self._write_params[0]])
+        b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
+        c = sum([self._read_params[2], self._comp_params[2], self._write_params[2]])
         return a, b, c
 
     def predict(
@@ -135,26 +142,30 @@ class AnaPerfModel:
             num_vcpu,
             runtime_memory,
             num_workers,
-            chunk_size,
-    ):
+            chunk_size=None,
+    ) -> Prediction:
         assert num_workers > 0
         key = num_vcpu + runtime_memory + num_workers + chunk_size
-        predicted_read_time = io_func(key, *self.read_params) / num_workers
-        predicted_comp_time = comp_func(key, *self.comp_params) / num_workers
-        predicted_write_time = io_func(key, *self.write_params) / num_workers
+        predicted_read_time = io_func(key, *self._read_params) / num_workers
+        predicted_comp_time = comp_func(key, *self._comp_params) / num_workers
+        predicted_write_time = io_func(key, *self._write_params) / num_workers
         total_predicted_time = (
                 predicted_read_time
                 + predicted_comp_time
                 + predicted_write_time
-                + self.cold_params
+                + self._cold_params
         )
-        return {
-            "predicted_read_time": predicted_read_time,
-            "predicted_comp_time": predicted_comp_time,
-            "predicted_write_time": predicted_write_time,
-            "predicted_cold_start_time": self.cold_params,
-            "total_predicted_time": total_predicted_time,
-        }
+        return Prediction(
+            total_time=total_predicted_time,
+            read_time=predicted_read_time,
+            compute_time=predicted_comp_time,
+            write_time=predicted_write_time,
+            cold_start_time=self._cold_params,
+        )
+
+    # def fit_polynomial(self, x, y, degree):
+    #     coeffs = np.polyfit(x, y, degree)
+    #     return np.poly1d(coeffs)
 
     # def visualize(self, step="compute", degree=2):
     #     assert step in ["read", "compute", "write"]
@@ -184,42 +195,3 @@ class AnaPerfModel:
     #         plt.grid(True)
     #         plt.savefig(f"{step}_time_vs_{label}.png")
     #         plt.show()
-
-    def generate_obj_func_code(self):
-        return "dummy_func(x, a, b, c)"
-
-
-if __name__ == "__main__":
-    profiling_results = {
-        "(1, 1024, 4, 64)": {
-            "read": [[0.45, 0.55]],
-            "compute": [[1.0]],
-            "write": [[0.3]],
-            "cold_start_time": [[0.2]],
-        },
-        "(2, 2048, 8, 128)": {
-            "read": [[0.4]],
-            "compute": [[0.9]],
-            "write": [[0.25]],
-            "cold_start_time": [[0.15]],
-        },
-        "(3, 3072, 16, 256)": {
-            "read": [[0.3]],
-            "compute": [[0.8]],
-            "write": [[0.2]],
-            "cold_start_time": [[0.1]],
-        }
-    }
-
-    perfmodel = AnaPerfModel(1, "stage1")
-    perfmodel.update_allow_parallel(True)
-    perfmodel.train(profiling_results)
-
-    print(perfmodel.get_params())
-
-    # perfmodel.visualize(step="compute", degree=2)
-    # perfmodel.visualize(step="read", degree=2)
-    # perfmodel.visualize(step="write", degree=2)
-
-    # Generate function code for latency
-    # print(perfmodel.generate_func_code())

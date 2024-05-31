@@ -1,6 +1,11 @@
 import logging
 
 
+def initialize_timings():
+    return {"read": 0, "compute": 0, "write": 0}
+
+
+# TODO: review if this function will alive here
 def setup_logging(level):
     logger = logging.getLogger(__name__)
     logger.handlers.clear()

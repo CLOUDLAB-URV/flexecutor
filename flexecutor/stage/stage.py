@@ -1,4 +1,3 @@
-import collections
 import functools
 import json
 import os
@@ -10,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lithops import FunctionExecutor, Storage
 
-from flexecutor.modelling import AnaPerfModel
+from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils import setup_logging
 
 
@@ -20,10 +19,6 @@ def operation(op_type: str, timings: dict):
     yield
     end_time = time.time()
     timings[op_type] += end_time - start_time
-
-
-def initialize_timings():
-    return {"read": 0, "compute": 0, "write": 0}
 
 
 def get_timings(timings: dict):
@@ -42,7 +37,7 @@ class WorkflowStage:
         function: Callable,
         input_data,
         output_data,
-        model,
+        model: PerfModel,
         config=None,
         storage_config=None,
     ):
@@ -53,7 +48,8 @@ class WorkflowStage:
         self.logger = setup_logging(self.log_level)
         self.function = function
         self.input_data = input_data
-        self.profiling_file_name = f"{name}_profiling_results.json"
+        # TODO: give user the option to specify the path to save the profiling results
+        self.profiling_file_name = f"profiling/{name}_profiling_results.json"
         self.output_data = output_data
         self.perf_model = model
         self.logger.info("WorkflowStage initialized")
@@ -183,10 +179,11 @@ class WorkflowStage:
 
         return worker_results
 
-    def generate_objective_function(self):
-        return self.perf_model.generate_objective_function()
+    @property
+    def objective_func(self):
+        return self.perf_model.objective_func
 
-    def plot_model_performance(self, config_space):
+    def plot_model_performance(self, config_space, path='./flexecutor-model-performance.png'):
         actual_latencies = []
         predicted_latencies = []
         configurations = []
@@ -222,7 +219,7 @@ class WorkflowStage:
             else:
                 actual_latencies.append(None)
 
-            predicted_latency = self.perf_model.predict(cpus, memory, workers)
+            predicted_latency = self.perf_model.predict(cpus, memory, workers).total_time
             predicted_latencies.append(predicted_latency)
             configurations.append(f"({cpus}, {memory}, {workers})")
 
@@ -242,49 +239,4 @@ class WorkflowStage:
         ax.legend()
 
         plt.tight_layout()
-        plt.savefig("model_performance.png")
-
-
-if __name__ == "__main__":
-    config = {"log_level": "INFO"}
-    logger = setup_logging(config["log_level"])
-
-    def word_occurrence_count(obj):
-        timings = initialize_timings()
-        storage = Storage()
-
-        with operation("read", timings):
-            data = obj.data_stream.read().decode("utf-8")
-
-        with operation("compute", timings):
-            words = data.split()
-            word_count = collections.Counter(words)
-
-        with operation("write", timings):
-            result_key = (
-                f"results_{obj.data_byte_range[0]}-{obj.data_byte_range[1]}.txt"
-            )
-            result_data = (
-                f"Word Count: {len(word_count)}\nWord Frequencies: {dict(word_count)}\n"
-            )
-
-            storage.put_object(obj.bucket, result_key, result_data.encode("utf-8"))
-
-        return timings
-
-    ws = WorkflowStage(
-        name="word_count",
-        model=AnaPerfModel(1, "word_count"),
-        function=word_occurrence_count,
-        input_data="test-bucket/tiny_shakespeare.txt",
-        output_data="test-bucket/tiny_shakespeare.txt",
-        config=config,
-    )
-
-    ws(obj_chunk_number=5)
-
-    ws.profile(
-        config_space=[(2, 400, 5)],
-        num_iter=2,
-        # data_location="test-bucket/tiny_shakespeare.txt",
-    )
+        plt.savefig(path)

@@ -3,14 +3,12 @@ from s3path import S3Path, register_configuration_parameter
 from pathlib import Path
 import boto3
 import os
-from utils import setup_logging
+from flexecutor.utils import setup_logging
 from lithops import Storage
 from typing import Callable
 import time
 
-# Initialize the timings dictionary
-def initialize_timings():
-    return {"read": 0, "compute": 0, "write": 0}
+from flexecutor.utils.utils import initialize_timings
 
 
 # Helper functions to retrieve and reset timings

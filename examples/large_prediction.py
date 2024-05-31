@@ -1,44 +1,12 @@
-from flexecutor.stage import (
-    WorkflowStage,
-    initialize_timings,
-    operation,
-)
-from flexecutor.modelling import AnaPerfModel, GAPerfModel
-
 from lithops.storage import Storage
 
-from flexecutor.optimization import (
-    OptimizationProblemSolver,
+from examples.functions.word_occurrence import word_occurrence_count
+from flexecutor.modelling.perfmodel import PerfModel
+from flexecutor.stage import (
+    WorkflowStage,
 )
-from flexecutor.scheduling import Scheduler
-import collections
-import numpy as np
-import matplotlib.pyplot as plt
 
 config = {"log_level": "INFO"}
-
-
-def word_occurrence_count(obj):
-    timings = initialize_timings()
-    storage = Storage()
-
-    with operation("read", timings):
-        data = obj.data_stream.read().decode("utf-8")
-
-    with operation("compute", timings):
-        words = data.split()
-        word_count = collections.Counter(words)
-
-    with operation("write", timings):
-        result_key = f"results_{obj.data_byte_range[0]}-{obj.data_byte_range[1]}.txt"
-        result_data = (
-            f"Word Count: {len(word_count)}\nWord Frequencies: {dict(word_count)}\n"
-        )
-
-        storage.put_object(obj.bucket, result_key, result_data.encode("utf-8"))
-
-    return timings
-
 
 data_location = {
     "obj": "test-bucket/corpus.txt",
@@ -47,7 +15,7 @@ data_location = {
 
 ws = WorkflowStage(
     name="word_count",
-    model=GAPerfModel(),
+    model=PerfModel.instance("genetic"),
     function=word_occurrence_count,
     input_data=data_location,
     output_data="test-bucket/combined_file.txt",
@@ -64,7 +32,6 @@ dataset_size = (
     )
     / 1024**2
 )
-
 
 config_space = [
     (2, 2048, 7),  # 2 vCPUs, 2048 MB per worker, 7 workers
@@ -89,13 +56,10 @@ ws.profile(
     num_iter=3,
 )
 
-
 ws.train()
 
-
-ws.plot_model_performance(config_space)
-print(f"Objective function {ws.generate_objective_function()}")
-
+ws.plot_model_performance(config_space, path='images/generated.png')
+print(f"Objective function {ws.objective_func}")
 
 # scheduler = Scheduler(ws)
 # scheduler.search_config()
