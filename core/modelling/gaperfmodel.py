@@ -31,11 +31,6 @@ class GAPerfModel:
         self.n_generations = n_generations
         self.data = None
         self.toolbox = base.Toolbox()
-        self.bounds = [
-            (1, 6),
-            (512, 10240),
-            (1, 20),
-        ]  # Bounds for CPUs, Memory, and Workers
         self.setup_genetic_algorithm()
 
     def setup_genetic_algorithm(self):

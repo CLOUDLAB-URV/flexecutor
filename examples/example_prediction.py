@@ -76,7 +76,7 @@ config_space = [
     (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
     (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
 ]
-ws.profile(config_space)
+# ws.profile(config_space, num_iter=2)
 
 ws.train()
 objective_function = ws.get_objective_function()
@@ -93,10 +93,7 @@ result = scheduler.search_config(x_bound)
 optimal_configuration = np.round(result.x).astype(int)
 print("Integer Optimal Configuration:", optimal_configuration)
 pred_latency = objective_function(optimal_configuration)
-print(
-    "Predicted latency with optimal configuration",
-    pred_latency,
-)
+
 
 ws.update_config(
     cpu=optimal_configuration[0],
@@ -124,6 +121,10 @@ def calculate_actual_latency(act_latency):
 act_latency = ws.run()
 
 act_latency = calculate_actual_latency(act_latency)
+print(
+    "Predicted latency with optimal configuration",
+    pred_latency,
+)
 print("Actual latency:", act_latency)
 
 print(f"Accuracy {100 - (act_latency - pred_latency) / pred_latency * 100} %")
