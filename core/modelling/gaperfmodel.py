@@ -2,7 +2,7 @@ import operator
 import random
 
 import numpy as np
-from deap import creator, base, tools, gp, algorithms
+from deap import algorithms, base, creator, gp, tools
 
 
 def protected_div(left, right):
@@ -14,11 +14,11 @@ def protected_div(left, right):
 
 class GAPerfModel:
     def __init__(
-            self,
-            population_size=300,
-            crossover_prob=0.7,
-            mutation_prob=0.2,
-            n_generations=40,
+        self,
+        population_size=300,
+        crossover_prob=0.7,
+        mutation_prob=0.2,
+        n_generations=40,
     ):
         self.population_size = population_size
         self.crossover_prob = crossover_prob
@@ -106,15 +106,19 @@ def preprocess_profiling_data(profiling_data):
     for config, executions in profiling_data.items():
         cpus, memory, workers = config
         latencies = [
-            executions["read"][exec_id][worker_id]
-            + executions["compute"][exec_id][worker_id]
-            + executions["write"][exec_id][worker_id]
-            + executions["cold_start_time"][exec_id][worker_id]
-            for exec_id in range(len(executions['read']))
-            for worker_id in range(len(executions['read'][0]))
+            sum(lats)
+            for breaks in zip(
+                executions["read"],
+                executions["compute"],
+                executions["write"],
+                executions["cold_start_time"],
+            )
+            for lats in zip(*breaks)
         ]
         # adapt to new profiling_data structure
         # latencies = [latency for run in executions for latency in run]
+
+        # print(latencies)
 
         # Hay stagglers cuando hacemos profiling, la idea con esto es escoger percentiles no utilizar stagglers
         q1 = np.percentile(latencies, 25)
@@ -136,7 +140,7 @@ def preprocess_profiling_data(profiling_data):
 if __name__ == "__main__":
     profiling_data = {
         (2, 400, 5): {
-            'read': [
+            "read": [
                 [
                     0.13607573509216309,
                     0.11152410507202148,
@@ -149,57 +153,57 @@ if __name__ == "__main__":
                     0.0889730453491211,
                     0.09708809852600098,
                     0.09705781936645508,
-                    0.08011627197265625
-                ]
+                    0.08011627197265625,
+                ],
             ],
-            'write': [
+            "write": [
                 [
                     0.21655988693237305,
                     0.313230037689209,
                     0.37512636184692383,
                     0.44702625274658203,
-                    0.3391242027282715
+                    0.3391242027282715,
                 ],
                 [
                     0.2964909076690674,
                     0.32325196266174316,
                     0.2654855251312256,
                     0.24427175521850586,
-                    0.2672877311706543
-                ]
+                    0.2672877311706543,
+                ],
             ],
-            'compute': [
+            "compute": [
                 [
                     0.6712195873260498,
                     0.6449689865112305,
                     0.6611623764038086,
                     0.680020809173584,
-                    0.7658612728118896
+                    0.7658612728118896,
                 ],
                 [
                     0.663583517074585,
                     0.649554967880249,
                     0.6580414772033691,
                     0.6754159927368164,
-                    0.7627818584442139
-                ]
+                    0.7627818584442139,
+                ],
             ],
-            'cold_start_time': [
+            "cold_start_time": [
                 [
                     2.6361682415008545,
                     2.7001962661743164,
                     2.8119142055511475,
                     2.8189210891723633,
-                    3.142885684967041
+                    3.142885684967041,
                 ],
                 [
                     2.5462496280670166,
                     2.6483700275421143,
                     2.767951011657715,
                     2.821345567703247,
-                    2.9759883880615234
-                ]
-            ]
+                    2.9759883880615234,
+                ],
+            ],
         }
     }
 
