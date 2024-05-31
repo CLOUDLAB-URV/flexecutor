@@ -1,9 +1,10 @@
+import logging
+from pathlib import Path
+
 import boto3
 from botocore.client import Config
-from s3path import S3Path, register_configuration_parameter
-from pathlib import Path
 from lithops import Storage
-import logging
+from s3path import S3Path, register_configuration_parameter
 
 
 def setup_logging(log_level="INFO"):

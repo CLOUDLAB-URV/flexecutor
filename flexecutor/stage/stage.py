@@ -1,14 +1,17 @@
-from lithops import FunctionExecutor, Storage
-from typing import Optional, List, Tuple, Dict, Callable, Any, Union
-from contextlib import contextmanager
-from flexexecutor.core.modelling import AnaPerfModel
-from flexexecutor.core.utils import setup_logging
-
-import time
 import functools
 import json
-import collections
 import os
+import time
+from contextlib import contextmanager
+from typing import Optional, List, Tuple, Dict, Callable, Any, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+from lithops import FunctionExecutor, Storage
+
+from flexecutor.modelling import AnaPerfModel
+from flexecutor.modelling.perfmodel import PerfModel
+from flexecutor.utils import setup_logging
 
 
 @contextmanager
@@ -17,10 +20,6 @@ def operation(op_type: str, timings: dict):
     yield
     end_time = time.time()
     timings[op_type] += end_time - start_time
-
-
-def initialize_timings():
-    return {"read": 0, "compute": 0, "write": 0}
 
 
 def get_timings(timings: dict):
@@ -39,7 +38,7 @@ class WorkflowStage:
         function: Callable,
         input_data,
         output_data,
-        model,
+        model: PerfModel,
         config=None,
         storage_config=None,
     ):
@@ -50,8 +49,9 @@ class WorkflowStage:
         self.logger = setup_logging(self.log_level)
         self.function = function
         self.input_data = input_data
-        self.profiling_file_name = f"{name}_profiling_results.json"
         self.model_file_name = f"{name}_model.pkl"
+        # TODO: give user the option to specify the path to save the profiling results
+        self.profiling_file_name = f"profiling/{name}_profiling_results.json"
         self.output_data = output_data
         self.perf_model = model
         self.logger.info("WorkflowStage initialized")
@@ -59,15 +59,16 @@ class WorkflowStage:
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
 
-    def __save_model(self, file_name):
-        self.perf_model.save_model(file_name)
+    # TODO-AYMAN: solve this issue - take into account that GA is hidden behind an interface (PerfModel)
+    # def __save_model(self, file_name):
+    #     self.perf_model.save_model(file_name)
 
-    def __load_model(self, file_name):
-        self.perf_model.load_model(file_name)
+    # def __load_model(self, file_name):
+    #     self.perf_model.load_model(file_name)
 
     # TODO: implement the api so there's no need to interact with the performance model directly, but through wrapping methods
-    def get_perf_model(self):
-        return self.perf_model
+    # def get_perf_model(self):
+    #     return self.perf_model
 
     def update_config(self, cpu, memory, workers):
         self.config["runtime_cpu"] = cpu
@@ -88,10 +89,10 @@ class WorkflowStage:
         profiling_results = self.load_profiling_results()
         self.logger.info(profiling_results)
         self.perf_model.train(profiling_results)
-        self.__save_model(self.model_file_name)
+        # self.__save_model(self.model_file_name)
 
     def predict_latency(self, cpu, memory, workers):
-        return self.perf_model.predict_latency(cpu, memory, workers)
+        return self.perf_model.predict(cpu, memory, workers)
 
     def save_profiling_results(self, results):
         serializable_results = {str(k): v for k, v in results.items()}
@@ -163,14 +164,14 @@ class WorkflowStage:
 
         result = self.__fexec.get_result(fs=futures)
 
-        worker_results = []
+        worker_results = {"read": [], "compute": [], "write": [], "cold_start_time": []}
         for future, res in zip(futures, result):
             stats = future.stats
             host_submit_tstamp = stats["host_submit_tstamp"]
             worker_start_tstamp = stats["worker_start_tstamp"]
-            cold_start_time = worker_start_tstamp - host_submit_tstamp
-            res["cold_start_time"] = cold_start_time
-            worker_results.append(res)
+            res["cold_start_time"] = worker_start_tstamp - host_submit_tstamp
+            for key, value in res.items():
+                worker_results[key].append(value)
 
         if activate_profiling:
             results = self.load_profiling_results()
@@ -180,56 +181,71 @@ class WorkflowStage:
                 self.config["workers"],
             )
             if config_key not in results:
-                results[config_key] = []
-            results[config_key].append(worker_results)
+                results[config_key] = {"read": [], "compute": [], "write": [], "cold_start_time": []}
+            for i, value in worker_results.items():
+                results[config_key][i].append(value)
             self.save_profiling_results(results)
 
         return worker_results
 
-    def get_objective_function(self):
-        self.__load_model(self.model_file_name)
-        return self.perf_model.get_objective_function()
+    @property
+    def objective_func(self):
+        return self.perf_model.objective_func
 
+    def plot_model_performance(self, config_space, path='./flexecutor-model-performance.png'):
+        actual_latencies = []
+        predicted_latencies = []
+        configurations = []
+        resources = []
 
-if __name__ == "__main__":
-    config = {"log_level": "INFO"}
-    logger = setup_logging(config["log_level"])
+        profiling_data = self.load_profiling_results()
 
-    def word_occurrence_count(obj):
-        timings = initialize_timings()
-        storage = Storage()
+        for config in config_space:
+            cpus, memory, workers = config
+            total_resources = cpus * workers + memory * workers
+            resources.append((total_resources, config))
 
-        with operation("read", timings):
-            data = obj.data_stream.read().decode("utf-8")
+        resources.sort()
 
-        with operation("compute", timings):
-            words = data.split()
-            word_count = collections.Counter(words)
+        for total_resources, config in resources:
+            cpus, memory, workers = config
+            total_latencies = []
 
-        with operation("write", timings):
-            result_key = (
-                f"results_{obj.data_byte_range[0]}-{obj.data_byte_range[1]}.txt"
-            )
-            result_data = (
-                f"Word Count: {len(word_count)}\nWord Frequencies: {dict(word_count)}\n"
-            )
+            if config in profiling_data:
+                executions = profiling_data[config]
+                total_latencies = [
+                    sum(lats)
+                    for breaks in zip(
+                        executions["read"],
+                        executions["compute"],
+                        executions["write"],
+                        executions["cold_start_time"],
+                    )
+                    for lats in zip(*breaks)
+                ]
+                avg_actual_latency = np.mean(total_latencies)
+                actual_latencies.append(avg_actual_latency)
+            else:
+                actual_latencies.append(None)
 
-            storage.put_object(obj.bucket, result_key, result_data.encode("utf-8"))
+            predicted_latency = self.perf_model.predict(cpus, memory, workers).total_time
+            predicted_latencies.append(predicted_latency)
+            configurations.append(f"({cpus}, {memory}, {workers})")
 
-        return timings
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(configurations))
 
-    ws = WorkflowStage(
-        model=AnaPerfModel(1, "word_count"),
-        function=word_occurrence_count,
-        input_data="test-bucket/tiny_shakespeare.txt",
-        output_data="test-bucket/tiny_shakespeare.txt",
-        config=config,
-    )
+        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
 
-    ws(obj_chunk_number=5)
+        if any(actual_latencies):
+            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
 
-    ws.profile(
-        config_space=[(2, 400, 5)],
-        num_iter=2,
-        data_location="test-bucket/tiny_shakespeare.txt",
-    )
+        ax.set_xlabel("Configurations")
+        ax.set_ylabel("Latency")
+        ax.set_title("Model Performance Comparison")
+        ax.set_xticks(x)
+        ax.set_xticklabels(configurations, rotation=45, ha="right")
+        ax.legend()
+
+        plt.tight_layout()
+        plt.savefig(path)

@@ -1,14 +1,9 @@
 import collections
-from lithops.storage import Storage
-from flexexecutor.core.stage import (
-    WorkflowStage,
-    initialize_timings,
-    operation,
-)
-from flexexecutor.core.modelling import GAPerfModel
 
+from lithops import Storage
 
-config = {"log_level": "INFO"}
+from flexecutor.stage import operation
+from flexecutor.utils.utils import initialize_timings
 
 
 def word_occurrence_count(obj):
@@ -31,17 +26,3 @@ def word_occurrence_count(obj):
         storage.put_object(obj.bucket, result_key, result_data.encode("utf-8"))
 
     return timings
-
-
-data_location = {
-    "obj": "test-bucket/corpus.txt",
-}
-
-ws = WorkflowStage(
-    name="word_count",
-    model=GAPerfModel(),
-    function=word_occurrence_count,
-    input_data=data_location,
-    output_data="test-bucket/combined_file.txt",
-    config=config,
-)

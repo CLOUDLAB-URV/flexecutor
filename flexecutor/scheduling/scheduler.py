@@ -1,5 +1,5 @@
-from scipy.optimize import differential_evolution
 import numpy as np
+from scipy.optimize import differential_evolution
 
 
 class OptimizationProblemSolver:
@@ -7,7 +7,7 @@ class OptimizationProblemSolver:
         self.workflow_stage = workflow_stage
 
     def search_config(self, bounds):
-        objective_func = self.workflow_stage.get_objective_function()
+        objective_func = self.workflow_stage.objective_func
 
         def integer_objective_func(x):
             x_int = np.round(x).astype(int)
