@@ -14,8 +14,12 @@ def protected_div(left, right):
     return left / right if right != 0 else 1e10
 
 
+def rand101():
+    return random.randint(-1, 1)
+
+
+# TODO: Find a way to always return the same objective function
 class GAPerfModel:
-    RANDOM_SEED = 42
 
     def __init__(
         self,
@@ -24,7 +28,6 @@ class GAPerfModel:
         mutation_prob=0.2,
         n_generations=40,
     ):
-        random.seed(self.RANDOM_SEED)
         self.population_size = population_size
         self.crossover_prob = crossover_prob
         self.mutation_prob = mutation_prob
@@ -42,7 +45,7 @@ class GAPerfModel:
         pset.addPrimitive(operator.sub, 2)
         pset.addPrimitive(operator.mul, 2)
         pset.addPrimitive(protected_div, 2)
-        pset.addEphemeralConstant("rand101", lambda: random.randint(-1, 1))
+        pset.addEphemeralConstant("rand101", rand101)
         pset.renameArguments(ARG0="cpus", ARG1="memory", ARG2="workers")
 
         self.toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
@@ -147,7 +150,7 @@ class GAPerfModel:
             cpus, memory, workers = np.round(x).astype(int)
             try:
                 value = compiled_func(cpus, memory, workers)
-                logger.debug(
+                logger.info(
                     f"Objective function evaluated with (cpus={cpus}, memory={memory}, workers={workers}): value={value}"
                 )
                 if not np.isfinite(value):

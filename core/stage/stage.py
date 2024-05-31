@@ -51,6 +51,7 @@ class WorkflowStage:
         self.function = function
         self.input_data = input_data
         self.profiling_file_name = f"{name}_profiling_results.json"
+        self.model_file_name = f"{name}_model.pkl"
         self.output_data = output_data
         self.perf_model = model
         self.logger.info("WorkflowStage initialized")
@@ -58,6 +59,13 @@ class WorkflowStage:
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
 
+    def __save_model(self, file_name):
+        self.perf_model.save_model(file_name)
+
+    def __load_model(self, file_name):
+        self.perf_model.load_model(file_name)
+
+    # TODO: implement the api so there's no need to interact with the performance model directly, but through wrapping methods
     def get_perf_model(self):
         return self.perf_model
 
@@ -73,22 +81,17 @@ class WorkflowStage:
             self.config["workers"] = num_workers
             for _ in range(num_iter):
                 self.logger.info(f"Partitioning data into {num_workers} chunks.")
-                self.run(obj_chunk_number=num_workers, activate_profiling=True)
+                self.run(activate_profiling=True)
 
     def train(self):
         self.logger.info("Training model with profiling results")
         profiling_results = self.load_profiling_results()
         self.logger.info(profiling_results)
         self.perf_model.train(profiling_results)
+        self.__save_model(self.model_file_name)
 
     def predict_latency(self, cpu, memory, workers):
         return self.perf_model.predict_latency(cpu, memory, workers)
-
-    def predict_best_config(self):
-        self.logger.info("Predicting best configuration using the trained model")
-        best_config = self.perf_model.predict()
-        self.logger.info(f"Predicted best configuration: {best_config}")
-        return best_config
 
     def save_profiling_results(self, results):
         serializable_results = {str(k): v for k, v in results.items()}
@@ -127,7 +130,7 @@ class WorkflowStage:
         extra_env: Optional[Dict[str, str]] = None,
         runtime_memory: Optional[int] = None,
         obj_chunk_size: Optional[int] = None,
-        obj_chunk_number: Optional[int] = None,
+        # obj_chunk_number: Optional[int] = None,
         obj_newline: Optional[str] = "\n",
         timeout: Optional[int] = None,
         include_modules: Optional[List[str]] = [],
@@ -184,6 +187,7 @@ class WorkflowStage:
         return worker_results
 
     def get_objective_function(self):
+        self.__load_model(self.model_file_name)
         return self.perf_model.get_objective_function()
 
 
