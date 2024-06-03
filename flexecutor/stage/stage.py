@@ -21,6 +21,7 @@ class WorkflowStage:
         model: PerfModel,
         config=None,
         storage_config=None,
+        profiling_file_name: Optional[str] = None,
     ):
         self.config = config if config else {}
         self.storage_config = storage_config if storage_config else {}
@@ -30,18 +31,15 @@ class WorkflowStage:
         self.function = function
         self.input_data = input_data
         self.model_file_name = f"{name}_model.pkl"
-        # TODO: give user the option to specify the path to save the profiling results
-        self.profiling_file_name = f"profiling/{name}_profiling_results.json"
+        self.profiling_file_name = (
+            profiling_file_name or f"profiling/{name}_profiling_results.json"
+        )
         self.output_data = output_data
         self.perf_model = model
         self.logger.info("WorkflowStage initialized")
 
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
-
-    # TODO: implement the api so there's no need to interact with the performance model directly, but through wrapping methods
-    # def get_perf_model(self):
-    #     return self.perf_model
 
     def update_config(self, cpu, memory, workers):
         self.config["runtime_cpu"] = cpu
@@ -62,7 +60,7 @@ class WorkflowStage:
         profiling_results = self.load_profiling_results()
         self.logger.info(profiling_results)
         self.perf_model.train(profiling_results)
-        # TODO: check if model need to be saved here
+        # We save the performance model after training so it can be reused.
         self.perf_model.save_model()
 
     def predict_latency(self, cpu, memory, workers):
