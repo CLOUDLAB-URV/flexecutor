@@ -59,13 +59,6 @@ class WorkflowStage:
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
 
-    # TODO-AYMAN: solve this issue - take into account that GA is hidden behind an interface (PerfModel)
-    # def __save_model(self, file_name):
-    #     self.perf_model.save_model(file_name)
-
-    # def __load_model(self, file_name):
-    #     self.perf_model.load_model(file_name)
-
     # TODO: implement the api so there's no need to interact with the performance model directly, but through wrapping methods
     # def get_perf_model(self):
     #     return self.perf_model
@@ -89,7 +82,8 @@ class WorkflowStage:
         profiling_results = self.load_profiling_results()
         self.logger.info(profiling_results)
         self.perf_model.train(profiling_results)
-        # self.__save_model(self.model_file_name)
+        # TODO: check if model need to be saved here
+        self.perf_model.save_model()
 
     def predict_latency(self, cpu, memory, workers):
         return self.perf_model.predict(cpu, memory, workers)
