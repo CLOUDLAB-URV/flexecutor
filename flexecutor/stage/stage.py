@@ -1,8 +1,6 @@
 import functools
 import json
 import os
-import time
-from contextlib import contextmanager
 from typing import Optional, List, Tuple, Dict, Callable, Any, Union
 
 import matplotlib.pyplot as plt
@@ -11,23 +9,6 @@ from lithops import FunctionExecutor, Storage
 
 from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils import setup_logging
-
-
-@contextmanager
-def operation(op_type: str, timings: dict):
-    start_time = time.time()
-    yield
-    end_time = time.time()
-    timings[op_type] += end_time - start_time
-
-
-def get_timings(timings: dict):
-    return timings
-
-
-def reset_timings(timings: dict):
-    for key in timings:
-        timings[key] = 0
 
 
 class WorkflowStage:

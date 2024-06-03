@@ -1,1 +1,1 @@
-from .stage import WorkflowStage, operation
+from .stage import WorkflowStage
