@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="flexecutor",
     version="0.1.0",
-    author="Daniel Barcelona, Ayman Bourramouss, Enrique Molina",
+    author="Daniel Barcelona, Ayman Bourramouss, Enrique Molina, Stepan Klymonchuk (DAGium donation)",
     author_email="daniel.barcelona@urv.cat, ayman.bourramouss@urv.cat, enrique.molina@urv.cat",
     description="A flexible and DAG-optimized executor over Lithops",
     url="https://github.com/abourramouss/smart-datastaging-layer/",
