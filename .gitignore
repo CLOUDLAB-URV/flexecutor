@@ -128,3 +128,6 @@ examples/*.pkl
 
 # images (maybe provisinal)
 examples/*.png
+
+examples/profiling/*.json
+examples/docs/
