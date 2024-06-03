@@ -18,10 +18,14 @@ def comp_func(x, a, b, c):
 
 
 class AnaPerfModel(PerfModel):
-    def __init__(self, stage_id, stage_name) -> None:
+    def __init__(self,
+                 model_name,
+                 model_dst,
+                 stage_id,
+                 stage_name) -> None:
         assert isinstance(stage_name, str)
         assert isinstance(stage_id, int) and stage_id >= 0
-        super().__init__("analytic")
+        super().__init__("analytic", model_name, model_dst)
 
         self._stage_name = stage_name
         self._stage_id = stage_id
@@ -41,6 +45,14 @@ class AnaPerfModel(PerfModel):
     def update_allow_parallel(self, allow_parallel) -> None:
         assert isinstance(allow_parallel, bool)
         self._allow_parallel = allow_parallel
+
+    @overrides
+    def save_model(self):
+        pass
+
+    @overrides
+    def load_model(self):
+        pass
 
     @overrides
     def train(self, profiling_results: Dict) -> None:

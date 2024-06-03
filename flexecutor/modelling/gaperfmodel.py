@@ -1,5 +1,6 @@
 import logging
 import operator
+import pickle
 import random
 from typing import Dict
 
@@ -29,12 +30,14 @@ def rand101():
 class GAPerfModel(PerfModel):
     def __init__(
         self,
+        model_name,
+        model_dst,
         population_size=300,
         crossover_prob=0.7,
         mutation_prob=0.2,
         n_generations=40,
     ):
-        super().__init__("genetic")
+        super().__init__("genetic", model_name, model_dst)
         self._population_size = population_size
         self._crossover_prob = crossover_prob
         self._mutation_prob = mutation_prob
@@ -77,6 +80,16 @@ class GAPerfModel(PerfModel):
         self._toolbox.decorate(
             "mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17)
         )
+
+    @overrides
+    def save_model(self):
+        with open(self._model_dst, "wb") as file:
+            pickle.dump(self._best_individual, file)
+
+    @overrides
+    def load_model(self):
+        with open(self._model_dst, "rb") as file:
+            self._best_individual = pickle.load(file)
 
     def _evaluate(self, individual):
         func = self._toolbox.compile(expr=individual)
