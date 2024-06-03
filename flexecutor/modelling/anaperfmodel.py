@@ -1,4 +1,3 @@
-from itertools import chain
 from typing import Dict
 
 import numpy as np
@@ -9,27 +8,30 @@ from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.modelling.prediction import Prediction
 
 
-def io_func(x, a, b, c):
-    return a / (x + c) + b
+def io_func(x, a, b):
+    return a / x + b
 
 
-def comp_func(x, a, b, c):
-    return a / (x + c) + b
+def comp_func(x, a, b):
+    return a / x + b
 
 
 class AnaPerfModel(PerfModel):
-    def __init__(self,
-                 model_name,
-                 model_dst,
-                 stage_id,
-                 stage_name) -> None:
+    """
+    AnaPerfModel records the mean parameter value.
+    Advantage: it is fast and accurate enough to optimize the average performance.
+    Shortcoming: it does not guarantee the bounded performance.
+
+    Ditto, Caerus model. Adapted from https://github.com/pkusys/Jolteon/blob/main/workflow/perf_model_analytic.py
+    """
+
+    def __init__(self, model_name, model_dst, stage_id, stage_name) -> None:
         assert isinstance(stage_name, str)
         assert isinstance(stage_id, int) and stage_id >= 0
         super().__init__("analytic", model_name, model_dst)
 
         self._stage_name = stage_name
         self._stage_id = stage_id
-        self._objective_func = "dummy_func(x, a, b, c)"
 
         self._allow_parallel = True
 
@@ -55,41 +57,56 @@ class AnaPerfModel(PerfModel):
         pass
 
     @overrides
-    def train(self, profiling_results: Dict) -> None:
+    def train(self, stage_profile_data: Dict) -> None:
+        self._profiling_results = stage_profile_data
+        # print(profiling_results)
+        assert (
+            isinstance(stage_profile_data, dict)
+            and "read" in stage_profile_data
+            and "compute" in stage_profile_data
+            and "write" in stage_profile_data
+        )
+
         print("Training Analytical performance model for %s" % self._stage_name)
 
-        average_dict = {}
-        for i in ['read', 'compute', 'write', 'cold_start_time']:
-            average_dict[i] = np.array(
-                [np.mean(i) for i in list(chain(*([value[i] for key, value in profiling_results.items()])))])
+        cold_arr = np.array(
+            [data["cold_start_time"] for _, data in stage_profile_data.items()]
+        )
+        self._cold_params = np.mean(cold_arr)
 
-        self._cold_params = np.mean(average_dict['cold_start_time'])
+        # print(cold_arr)
 
         size2points_read = {}
         size2points_comp = {}
         size2points_write = {}
 
-        for idx, config in enumerate(profiling_results.keys()):
-            # config = eval(config)
-            num_vcpu = config[0]
-            runtime_memory = config[1]
-            num_workers = config[2]
-            chunk_size = config[3] if len(config) > 3 else 256
+        for config, data in stage_profile_data.items():
+            num_vcpu, memory, num_func = config
+            # config = round(num_vcpu * memory * num_func, 1)
 
-            key = (num_vcpu, runtime_memory, num_workers, chunk_size)
+            # adapt to parallel mode
+            # if the stage does not allow more than one function, ignore num_func
+            if self._allow_parallel:
+                config = round(num_vcpu * memory * num_func, 1)
+            else:
+                config = round(num_vcpu * memory, 1)
 
-            if key not in size2points_read:
-                size2points_read[key] = []
-            size2points_read[key].append(average_dict['read'][idx])
+            # collect data for read step
+            if config not in size2points_read:
+                size2points_read[config] = []
+            size2points_read[config].append(data["read"])
 
-            if key not in size2points_comp:
-                size2points_comp[key] = []
-            size2points_comp[key].append(average_dict['compute'][idx])
+            # collect data for comp step
+            if config not in size2points_comp:
+                size2points_comp[config] = []
+            size2points_comp[config].append(data["compute"])
 
-            if key not in size2points_write:
-                size2points_write[key] = []
-            size2points_write[key].append(average_dict['write'][idx])
+            # collect data for write step
+            if config not in size2points_write:
+                size2points_write[config] = []
+            size2points_write[config].append(data["write"])
 
+        # average the data
         for config in size2points_read:
             size2points_read[config] = np.mean(size2points_read[config])
         for config in size2points_comp:
@@ -97,25 +114,9 @@ class AnaPerfModel(PerfModel):
         for config in size2points_write:
             size2points_write[config] = np.mean(size2points_write[config])
 
-        # Flatten the keys and corresponding values for fitting
-        flattened_read = {
-            sum([vcpu, mem, workers, chunk]): size2points_read[
-                (vcpu, mem, workers, chunk)
-            ]
-            for vcpu, mem, workers, chunk in size2points_read
-        }
-        flattened_comp = {
-            sum([vcpu, mem, workers, chunk]): size2points_comp[
-                (vcpu, mem, workers, chunk)
-            ]
-            for vcpu, mem, workers, chunk in size2points_comp
-        }
-        flattened_write = {
-            sum([vcpu, mem, workers, chunk]): size2points_write[
-                (vcpu, mem, workers, chunk)
-            ]
-            for vcpu, mem, workers, chunk in size2points_write
-        }
+        print(size2points_read)
+        print(size2points_comp)
+        print(size2points_write)
 
         def fit_params(data, func):
             assert isinstance(data, dict)
@@ -123,9 +124,9 @@ class AnaPerfModel(PerfModel):
             arr_y = [data[x] for x in arr_x]
 
             arr_x = np.array(arr_x)
-            arr_y = np.array(arr_y).flatten()
+            arr_y = np.array(arr_y)
 
-            initial_guess = [1, 1, 1]
+            initial_guess = [1, 1]
 
             def residuals(para, x, y):
                 return func(x, *para) - y
@@ -135,26 +136,28 @@ class AnaPerfModel(PerfModel):
             return params.tolist()
 
         # Fit the parameters
-        self._read_params = fit_params(flattened_read, io_func)
-        self._comp_params = fit_params(flattened_comp, comp_func)
-        self._write_params = fit_params(flattened_write, io_func)
+        self._read_params = fit_params(size2points_read, io_func)
+        self._comp_params = fit_params(size2points_comp, comp_func)
+        self._write_params = fit_params(size2points_write, io_func)
 
-        self._profiling_results = profiling_results
+        print(self._read_params)
+        print(self._comp_params)
+        print(self._write_params)
 
     @property
     @overrides
     def parameters(self):
         a = sum([self._read_params[0], self._comp_params[0], self._write_params[0]])
         b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
-        c = sum([self._read_params[2], self._comp_params[2], self._write_params[2]])
-        return a, b, c
+        # c = sum([self._read_params[2], self._comp_params[2], self._write_params[2]])
+        return a, b
 
     def predict(
-            self,
-            num_vcpu,
-            runtime_memory,
-            num_workers,
-            chunk_size=None,
+        self,
+        num_vcpu,
+        runtime_memory,
+        num_workers,
+        chunk_size=None,
     ) -> Prediction:
         assert num_workers > 0
         key = num_vcpu + runtime_memory + num_workers + chunk_size
@@ -162,10 +165,10 @@ class AnaPerfModel(PerfModel):
         predicted_comp_time = comp_func(key, *self._comp_params) / num_workers
         predicted_write_time = io_func(key, *self._write_params) / num_workers
         total_predicted_time = (
-                predicted_read_time
-                + predicted_comp_time
-                + predicted_write_time
-                + self._cold_params
+            predicted_read_time
+            + predicted_comp_time
+            + predicted_write_time
+            + self._cold_params
         )
         return Prediction(
             total_time=total_predicted_time,

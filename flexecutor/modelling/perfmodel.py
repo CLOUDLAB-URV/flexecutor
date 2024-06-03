@@ -12,7 +12,7 @@ class PerfModel(ABC):
         self._objective_func = None
 
     @abstractmethod
-    def train(self, profiling_results: Dict) -> None:
+    def train(self, stage_profile_data: Dict) -> None:
         raise NotImplementedError
 
     @abstractmethod

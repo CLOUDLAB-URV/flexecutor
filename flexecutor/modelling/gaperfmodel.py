@@ -107,7 +107,7 @@ class GAPerfModel(PerfModel):
                 errors.append(1e10)
         return (np.mean(errors),)
 
-    def train(self, profiling_results: Dict) -> None:
+    def train(self, stage_profile_data: Dict) -> None:
         def preprocess_profiling_data(profiling_data):
             processed_data = []
             for config, executions in profiling_data.items():
@@ -144,7 +144,7 @@ class GAPerfModel(PerfModel):
 
             return processed_data
 
-        self._data = preprocess_profiling_data(profiling_results)
+        self._data = preprocess_profiling_data(stage_profile_data)
         pop = self._toolbox.population(n=self._population_size)
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
