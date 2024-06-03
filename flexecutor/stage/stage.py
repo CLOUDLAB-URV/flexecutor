@@ -1,8 +1,6 @@
 import functools
 import json
 import os
-import time
-from contextlib import contextmanager
 from typing import Optional, List, Tuple, Dict, Callable, Any, Union
 
 import matplotlib.pyplot as plt
@@ -12,23 +10,6 @@ from lithops import FunctionExecutor, Storage
 from flexecutor.modelling import AnaPerfModel
 from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils import setup_logging
-
-
-@contextmanager
-def operation(op_type: str, timings: dict):
-    start_time = time.time()
-    yield
-    end_time = time.time()
-    timings[op_type] += end_time - start_time
-
-
-def get_timings(timings: dict):
-    return timings
-
-
-def reset_timings(timings: dict):
-    for key in timings:
-        timings[key] = 0
 
 
 class WorkflowStage:
@@ -181,7 +162,12 @@ class WorkflowStage:
                 self.config["workers"],
             )
             if config_key not in results:
-                results[config_key] = {"read": [], "compute": [], "write": [], "cold_start_time": []}
+                results[config_key] = {
+                    "read": [],
+                    "compute": [],
+                    "write": [],
+                    "cold_start_time": [],
+                }
             for i, value in worker_results.items():
                 results[config_key][i].append(value)
             self.save_profiling_results(results)
@@ -192,7 +178,9 @@ class WorkflowStage:
     def objective_func(self):
         return self.perf_model.objective_func
 
-    def plot_model_performance(self, config_space, path='./flexecutor-model-performance.png'):
+    def plot_model_performance(
+        self, config_space, path="./flexecutor-model-performance.png"
+    ):
         actual_latencies = []
         predicted_latencies = []
         configurations = []
@@ -228,7 +216,9 @@ class WorkflowStage:
             else:
                 actual_latencies.append(None)
 
-            predicted_latency = self.perf_model.predict(cpus, memory, workers).total_time
+            predicted_latency = self.perf_model.predict(
+                cpus, memory, workers
+            ).total_time
             predicted_latencies.append(predicted_latency)
             configurations.append(f"({cpus}, {memory}, {workers})")
 

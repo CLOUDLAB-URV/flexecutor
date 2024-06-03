@@ -1,8 +1,27 @@
 import logging
+import time
+from contextlib import contextmanager
 
 
 def initialize_timings():
     return {"read": 0, "compute": 0, "write": 0}
+
+
+@contextmanager
+def operation(op_type: str, timings: dict):
+    start_time = time.time()
+    yield
+    end_time = time.time()
+    timings[op_type] += end_time - start_time
+
+
+def get_timings(timings: dict):
+    return timings
+
+
+def reset_timings(timings: dict):
+    for key in timings:
+        timings[key] = 0
 
 
 # TODO: review if this function will alive here

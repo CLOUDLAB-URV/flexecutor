@@ -1,9 +1,6 @@
 import collections
-
-from lithops import Storage
-
-from flexecutor.stage import operation
-from flexecutor.utils.utils import initialize_timings
+from lithops.storage import Storage
+from flexecutor.utils import initialize_timings, operation
 
 
 def word_occurrence_count(obj):
