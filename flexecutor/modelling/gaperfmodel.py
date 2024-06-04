@@ -109,43 +109,35 @@ class GAPerfModel(PerfModel):
     def train(self, stage_profile_data: Dict) -> None:
         def preprocess_profiling_data(profiling_data):
             processed_data = []
-            for config, executions in profiling_data.items():
-                cpus, memory, workers = config
+            cold_start_times = []
+
+            for config, data in profiling_data.items():
+                num_vcpu, memory, num_func = config
+
+                config_key = (num_vcpu, memory, num_func)
+
+                cold_start_times.extend(
+                    [np.mean(times) for times in data["cold_start_time"]]
+                )
+
+                read_times = [np.mean(times) for times in data["read"]]
+                compute_times = [np.mean(times) for times in data["compute"]]
+                write_times = [np.mean(times) for times in data["write"]]
+
                 latencies = [
-                    sum(lats)
-                    for breaks in zip(
-                        executions["read"],
-                        executions["compute"],
-                        executions["write"],
-                        executions["cold_start_time"],
+                    sum(times) + np.mean(cold_start_times)
+                    for times in zip(read_times, compute_times, write_times)
+                ]
+
+                for latency in latencies:
+                    processed_data.append(
+                        (config_key[0], config_key[1], config_key[2], latency)
                     )
-                    for lats in zip(*breaks)
-                ]
-                # TODO-AYMAN: review if that makes sense after merge
-                # adapt to new profiling_data structure
-                # latencies = [latency for run in executions for latency in run]
-
-                # print(latencies)
-
-                # Hay stagglers cuando hacemos profiling, la idea con esto es escoger percentiles no utilizar stagglers
-                q1 = np.percentile(latencies, 25)
-                q3 = np.percentile(latencies, 75)
-                iqr = q3 - q1
-                lower_bound = q1 - 1.5 * iqr
-                upper_bound = q3 + 1.5 * iqr
-
-                filtered_latencies = [
-                    latency
-                    for latency in latencies
-                    if lower_bound <= latency <= upper_bound
-                ]
-
-                for latency in filtered_latencies:
-                    processed_data.append((cpus, memory, workers, latency))
 
             return processed_data
-
+        
         self._data = preprocess_profiling_data(stage_profile_data)
+        print(self._data)
         pop = self._toolbox.population(n=self._population_size)
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)

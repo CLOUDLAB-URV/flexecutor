@@ -72,7 +72,9 @@ if __name__ == "__main__":
 
     model = PerfModel.instance(PerfModelEnum.GENETIC)
     model.train(profiling_data)
-    model.save_model()
+    # model.save_model()
     print("Objective Function:", model.objective_func)
     prediction = model.predict(2, 400, 5)
-    print("Predicted Latency for (2 CPUs, 400 Memory, 5 Workers):", prediction.total_time)
+    print(
+        "Predicted Latency for (2 CPUs, 400 Memory, 5 Workers):", prediction.total_time
+    )

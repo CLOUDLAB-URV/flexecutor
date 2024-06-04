@@ -59,13 +59,14 @@ class AnaPerfModel(PerfModel):
     @overrides
     def train(self, stage_profile_data: Dict) -> None:
         self._profiling_results = stage_profile_data
-        # print(profiling_results)
-        assert (
-            isinstance(stage_profile_data, dict)
-            and "read" in stage_profile_data
-            and "compute" in stage_profile_data
-            and "write" in stage_profile_data
-        )
+
+        for config_data in stage_profile_data.values():
+            assert (
+                "read" in config_data
+                and "compute" in config_data
+                and "write" in config_data
+                and "cold_start_time" in config_data
+            ), "Each configuration's data must contain 'read', 'compute', 'write', and 'cold_start_time' keys."
 
         print("Training Analytical performance model for %s" % self._stage_name)
 
@@ -74,37 +75,34 @@ class AnaPerfModel(PerfModel):
         )
         self._cold_params = np.mean(cold_arr)
 
-        # print(cold_arr)
-
         size2points_read = {}
         size2points_comp = {}
         size2points_write = {}
 
         for config, data in stage_profile_data.items():
             num_vcpu, memory, num_func = config
-            # config = round(num_vcpu * memory * num_func, 1)
 
             # adapt to parallel mode
             # if the stage does not allow more than one function, ignore num_func
             if self._allow_parallel:
-                config = round(num_vcpu * memory * num_func, 1)
+                config_key = round(num_vcpu * memory * num_func, 1)
             else:
-                config = round(num_vcpu * memory, 1)
+                config_key = round(num_vcpu * memory, 1)
 
             # collect data for read step
-            if config not in size2points_read:
-                size2points_read[config] = []
-            size2points_read[config].append(data["read"])
+            if config_key not in size2points_read:
+                size2points_read[config_key] = []
+            size2points_read[config_key].extend(data["read"])
 
             # collect data for comp step
-            if config not in size2points_comp:
-                size2points_comp[config] = []
-            size2points_comp[config].append(data["compute"])
+            if config_key not in size2points_comp:
+                size2points_comp[config_key] = []
+            size2points_comp[config_key].extend(data["compute"])
 
             # collect data for write step
-            if config not in size2points_write:
-                size2points_write[config] = []
-            size2points_write[config].append(data["write"])
+            if config_key not in size2points_write:
+                size2points_write[config_key] = []
+            size2points_write[config_key].extend(data["write"])
 
         # average the data
         for config in size2points_read:
@@ -149,7 +147,6 @@ class AnaPerfModel(PerfModel):
     def parameters(self):
         a = sum([self._read_params[0], self._comp_params[0], self._write_params[0]])
         b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
-        # c = sum([self._read_params[2], self._comp_params[2], self._write_params[2]])
         return a, b
 
     def predict(
@@ -160,7 +157,8 @@ class AnaPerfModel(PerfModel):
         chunk_size=None,
     ) -> Prediction:
         assert num_workers > 0
-        key = num_vcpu + runtime_memory + num_workers + chunk_size
+        # for now +chunk size is not needed, since it's not used
+        key = num_vcpu + runtime_memory + num_workers
         predicted_read_time = io_func(key, *self._read_params) / num_workers
         predicted_comp_time = comp_func(key, *self._comp_params) / num_workers
         predicted_write_time = io_func(key, *self._write_params) / num_workers
