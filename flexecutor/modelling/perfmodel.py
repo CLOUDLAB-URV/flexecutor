@@ -1,7 +1,7 @@
 from abc import abstractmethod, ABC
 from typing import Dict
 
-from flexecutor.modelling.prediction import Prediction
+from flexecutor.utils.dataclass import Prediction
 
 
 class PerfModel(ABC):

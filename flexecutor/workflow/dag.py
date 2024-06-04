@@ -2,7 +2,7 @@ import networkx as nx
 from matplotlib import pyplot as plt
 from networkx.drawing.nx_agraph import graphviz_layout
 
-from flexecutor.operator import Operator
+from flexecutor.workflow.task import Task
 
 
 class DAG:
@@ -22,12 +22,12 @@ class DAG:
         return self._dag_id
 
     @property
-    def tasks(self) -> set[Operator]:
+    def tasks(self) -> set[Task]:
         """Return all tasks in the DAG"""
         return self._tasks
 
     @property
-    def root_tasks(self) -> set[Operator]:
+    def root_tasks(self) -> set[Task]:
         """
         Return all root tasks in the DAG
 
@@ -36,7 +36,7 @@ class DAG:
         return {task for task in self.tasks if not task.parents}
 
     @property
-    def leaf_tasks(self) -> set[Operator]:
+    def leaf_tasks(self) -> set[Task]:
         """
         Return all leaf tasks in the DAG
 
@@ -44,19 +44,21 @@ class DAG:
         """
         return {task for task in self.tasks if not task.children}
 
-    def add_task(self, task: Operator):
+    def add_task(self, task: Task):
         """
         Add a task to this DAG
 
         :param task: Task to add
         :raises ValueError: if the task is already in the DAG
         """
+        task.dag_id = self.dag_id
+
         if task.task_id in {t.task_id for t in self.tasks}:
             raise ValueError(f"Task with id {task.task_id} already exists in DAG {self._dag_id}")
 
         self._tasks.add(task)
 
-    def add_tasks(self, tasks: list[Operator]):
+    def add_tasks(self, tasks: list[Task]):
         """
         Add a list of tasks to this DAG
 

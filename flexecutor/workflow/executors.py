@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 from typing import Dict, Optional
 
 from flexecutor.future import Future
-from flexecutor.operator import Operator
+from flexecutor.workflow.task import Task
 
 
 class Executor(ABC):
@@ -16,7 +16,7 @@ class Executor(ABC):
     @abstractmethod
     def execute(
             self,
-            task: Operator,
+            task: Task,
             input_data: Optional[Dict[str, Future]] = None,
             *args,
             **kwargs
@@ -41,7 +41,7 @@ class CallableExecutor(Executor):
 
     def execute(
             self,
-            task: Operator,
+            task: Task,
             input_data: Optional[Dict[str, Future]] = None,
             *args,
             **kwargs

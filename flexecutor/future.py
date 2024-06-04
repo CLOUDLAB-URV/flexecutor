@@ -9,6 +9,7 @@ from lithops.utils import FuturesList
 LithopsFuture = Union[ResponseFuture, FuturesList, List[ResponseFuture]]
 
 
+# TODO: move this to other file
 class Future:
     def __init__(self, future: Optional[LithopsFuture] = None):
         if future is not None:
@@ -23,6 +24,18 @@ class Future:
             return self.__future.get_result()
         elif isinstance(self.__future, list):
             return [f.result() for f in self.__future]
+        else:
+            raise TypeError(f"Future type {type(self.__future)} not supported")
+
+    @property
+    def stats(self):
+        if isinstance(self.__future, ResponseFuture):
+            return self.__future.stats
+        # TODO: load stats from FuturesList
+        # elif isinstance(self.__future, FuturesList):
+        #     return self.__future.stats
+        elif isinstance(self.__future, list):
+            return [f.stats for f in self.__future]
         else:
             raise TypeError(f"Future type {type(self.__future)} not supported")
 
@@ -46,6 +59,10 @@ class InputData(Future):
     def __init__(self, data: Any):
         super().__init__()
         self._data = data
+
+    @property
+    def data(self) -> Any:
+        return self._data
 
     def result(self) -> Any:
         return self._data

@@ -3,13 +3,11 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, wait
-from typing import List, Dict, Callable, Collection, Sequence
+from typing import Dict, Callable, Sequence
 
-from flexecutor.future import Future, LithopsFuture
-from flexecutor.execution.executors import Executor
-
-from flexecutor.operator import Operator
-from flexecutor.operator.operator import (TaskState)
+from flexecutor.future import Future
+from flexecutor.workflow.task import Task, TaskState
+from flexecutor.workflow.executors import Executor
 
 logger = logging.getLogger(__name__)
 MAX_CONCURRENCY = 64
@@ -26,10 +24,10 @@ class Processor(ABC):
     @abstractmethod
     def process(
             self,
-            tasks: Sequence[Operator],
+            tasks: Sequence[Task],
             executor: Executor,
             input_data: Dict[str, Dict[str, Future]] = None,
-            on_future_done: Callable[[Operator, Future], None] = None,
+            on_future_done: Callable[[Task, Future], None] = None,
     ) -> dict[str, Future]:
         """
         Process a list of tasks
@@ -59,10 +57,10 @@ class ThreadPoolProcessor(Processor):
 
     def process(
             self,
-            tasks: Sequence[Operator],
+            tasks: Sequence[Task],
             executor: Executor,
             input_data: Dict[str, Dict[str, Future]] = None,
-            on_future_done: Callable[[Operator, Future], None] = None,
+            on_future_done: Callable[[Task, Future], None] = None,
     ) -> dict[str, Future]:
         """
         Process a list of tasks
@@ -103,15 +101,15 @@ class ThreadPoolProcessor(Processor):
 
 
 def _process_task(
-        task: Operator,
+        task: Task,
         executor: Executor,
         input_data: Dict[str, Future] = None,
-        on_future_done: Callable[[Operator, Future], None] = None,
+        on_future_done: Callable[[Task, Future], None] = None,
 ) -> Future:
     """
     Process a task
 
-    :param task: Task to process
+    :param task: task to process
     :param input_data: Input data
     :param on_future_done: Callback to execute every time a future is done
     """

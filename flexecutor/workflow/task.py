@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC
 from enum import Enum
 from typing import Any, Dict, Set, List, Optional, Callable
 
@@ -22,7 +21,7 @@ class TaskState(Enum):
     FAILED = 5
 
 
-class Operator:
+class Task:
     """
 
     :param task_id: Task ID
@@ -35,13 +34,14 @@ class Operator:
     def __init__(
             self,
             task_id: str,
-            executor: FunctionExecutor,
-            func: Callable[[Future, ...], Any] | Callable[[Future, str, ...], Any],
+            func: Callable[[...], Any],
+            executor: FunctionExecutor | None = None,
             input_data: Optional[Dict[str, Future] | Future] = None,
             output_data: Optional[Dict[str, Future] | Future] = None,
             *args,
             **kwargs
     ):
+        self._task_unique_id = None
         self._task_id = task_id
         self._executor = executor
         self._input_data = input_data if isinstance(input_data, dict)\
@@ -49,10 +49,31 @@ class Operator:
         self._output_data = output_data
         self._args = args
         self._kwargs = kwargs
-        self._children: Set[Operator] = set()
-        self._parents: Set[Operator] = set()
+        self._children: Set[Task] = set()
+        self._parents: Set[Task] = set()
         self._state = TaskState.NONE
         self._map_func = func
+        self.dag_id = None
+
+    @property
+    def executor(self) -> FunctionExecutor:
+        """Return the executor."""
+        return self._executor
+
+    @executor.setter
+    def executor(self, value: FunctionExecutor):
+        """Set the executor."""
+        self._executor = value
+
+    @property
+    def dag_id(self) -> str:
+        """Return the DAG ID."""
+        return self._dag_id
+
+    @dag_id.setter
+    def dag_id(self, value: str):
+        self._dag_id = value
+        self._task_unique_id = f'{self._dag_id}-{self._task_id}'
 
     def __call__(
             self,
@@ -69,32 +90,18 @@ class Operator:
 
         input_data = input_data or self._input_data
 
-        iterdata = [(v, k) for k, v in input_data.items()]
+        if 'obj' in input_data:
+            iterdata = input_data['obj'].data
+            self._kwargs['obj_chunk_number'] = self._executor.config['workers']
+        else:
+            iterdata = [(v, k) for k, v in input_data.items()]
 
         return self._executor.map(
-            self._wrap(self._map_func, input_data),
+            self._map_func,
             iterdata,
             *self._args,
             **self._kwargs
         )
-
-    def _wrap(
-            self,
-            func: Callable[[Future, ...], Any] | Callable[[Future, str, ...], Any],
-            in_data: Optional[Dict[str, Future]] = None,
-    ) -> Callable[[Future], Any] | Callable[[str, Future], Any]:
-        """
-        Wrap a function to be executed in the operator
-
-        :param func: Function to wrap
-        :param in_data: Input data
-        :return: Wrapped function
-        """
-
-        def wrapped_func(input_data: Future, parent_id: Optional[str] = None, *args, **kwargs):
-            return func(input_data, parent_id, *args, **kwargs)
-
-        return wrapped_func
 
     @property
     def task_id(self) -> str:
@@ -102,17 +109,12 @@ class Operator:
         return self._task_id
 
     @property
-    def executor(self) -> FunctionExecutor:
-        """Return the executor."""
-        return self._executor
-
-    @property
-    def parents(self) -> Set[Operator]:
+    def parents(self) -> Set[Task]:
         """Return the parents of this operator."""
         return self._parents
 
     @property
-    def children(self) -> Set[Operator]:
+    def children(self) -> Set[Task]:
         """Return the children of this operator."""
         return self._children
 
@@ -131,14 +133,14 @@ class Operator:
         """Set the state of the task."""
         self._state = value
 
-    def _set_relation(self, operator_or_operators: Operator | List[Operator], upstream: bool = False):
+    def _set_relation(self, operator_or_operators: Task | List[Task], upstream: bool = False):
         """
         Set relation between this operator and another operator or list of operator
 
         :param operator_or_operators: Operator or list of operator
         :param upstream: Whether to set the relation as upstream or downstream
         """
-        if isinstance(operator_or_operators, Operator):
+        if isinstance(operator_or_operators, Task):
             operator_or_operators = [operator_or_operators]
 
         for operator in operator_or_operators:
@@ -149,36 +151,36 @@ class Operator:
                 self.children.add(operator)
                 operator.parents.add(self)
 
-    def add_parent(self, operator: Operator | List[Operator]):
+    def add_parent(self, operator: Task | List[Task]):
         """
         Add a parent to this operator.
         :param operator: Operator or list of operator
         """
         self._set_relation(operator, upstream=True)
 
-    def add_child(self, operator: Operator | List[Operator]):
+    def add_child(self, operator: Task | List[Task]):
         """
         Add a child to this operator.
         :param operator: Operator or list of operator
         """
         self._set_relation(operator, upstream=False)
 
-    def __lshift__(self, other: Operator | List[Operator]) -> Operator | List[Operator]:
+    def __lshift__(self, other: Task | List[Task]) -> Task | List[Task]:
         """Overload the << operator to add a parent to this operator."""
         self.add_parent(other)
         return other
 
-    def __rshift__(self, other: Operator | List[Operator]) -> Operator | List[Operator]:
+    def __rshift__(self, other: Task | List[Task]) -> Task | List[Task]:
         """Overload the >> operator to add a child to this operator."""
         self.add_child(other)
         return other
 
-    def __rrshift__(self, other: Operator | List[Operator]) -> Operator:
+    def __rrshift__(self, other: Task | List[Task]) -> Task:
         """Overload the >> operator for lists of operator. """
         self.add_parent(other)
         return self
 
-    def __rlshift__(self, other: Operator | List[Operator]) -> Operator:
+    def __rlshift__(self, other: Task | List[Task]) -> Task:
         """Overload the << operator for lists of operator."""
         self.add_child(other)
         return self

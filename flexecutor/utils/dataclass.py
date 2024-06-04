@@ -2,6 +2,31 @@ from dataclasses import dataclass
 
 
 @dataclass
+class ConfigSpace:
+    """
+    Configuration space for the task
+    """
+    cpu: float
+    memory: float
+    workers: int
+
+    @property
+    def key(self) -> tuple[float, float, int]:
+        return self.cpu, self.memory, self.workers
+
+
+@dataclass
+class FunctionProfiling:
+    """
+    Timing of the function
+    """
+    read: float
+    compute: float
+    write: float
+    cold_start_time: float
+
+
+@dataclass
 class Prediction:
     read_time: float | None
     compute_time: float | None

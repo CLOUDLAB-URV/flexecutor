@@ -33,7 +33,8 @@ setup(
         "deap",
         "scipy",
         "numpy",
-        "matplotlib"
+        "matplotlib",
+        "networkx",
     ],
     extras_require={
         "examples": [
