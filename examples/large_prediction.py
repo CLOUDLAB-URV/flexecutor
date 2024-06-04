@@ -1,7 +1,7 @@
 import numpy as np
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.modelling.perfmodel import PerfModel
+from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.workflow import Scheduler
 from flexecutor.stage import WorkflowStage
 
@@ -13,7 +13,7 @@ data_location = {
 
 ws = WorkflowStage(
     name="word_count",
-    model=PerfModel.instance("genetic"),
+    model=PerfModel.instance(PerfModelEnum.GENETIC),
     function=word_occurrence_count,
     input_data=data_location,
     output_data="test-bucket/combined_file.txt",

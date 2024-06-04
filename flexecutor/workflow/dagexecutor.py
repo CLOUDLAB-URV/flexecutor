@@ -34,7 +34,6 @@ class DAGExecutor:
             executor: Executor = CallableExecutor(),
             task_executor: FunctionExecutor | None = None,
     ):
-        self.profiling_base_path = "./profiling"
         self._dag = dag
         self._processor = processor or ThreadPoolProcessor(math.inf)
         self._executor = executor
@@ -94,8 +93,8 @@ class DAGExecutor:
                 self._task_executor.config['runtime_memory'] = config_space.memory
                 self._task_executor.config['workers'] = config_space.workers
                 logger.info(f'Profiling task {task.task_id} with config {config_space}')
-                os.makedirs(f"{self.profiling_base_path}/{self._dag.dag_id}", exist_ok=True)
-                profiling_file = f"{self.profiling_base_path}/{self._dag.dag_id}/{task.task_id}.json"
+                os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
+                profiling_file = f"profiling/{self._dag.dag_id}/{task.task_id}.json"
                 # Execute the task
                 for iteration in range(num_iterations):
                     logger.debug(f'Running iteration {iteration + 1}')
@@ -104,8 +103,14 @@ class DAGExecutor:
                     timings = self._get_timings(futures)
                     self._store_profiling(profiling_file, timings, config_space)
 
-    def train(self):
-        pass
+    def train(self) -> None:
+        """Train the DAG."""
+        for task in self._dag.tasks:
+            profile_data = load_profiling_results(
+                f"profiling/{self._dag.dag_id}/{task.task_id}.json", logger
+            )
+            task.perf_model.train(profile_data)
+            task.perf_model.save_model()
 
     def execute(self) -> Dict[str, Future]:
         """

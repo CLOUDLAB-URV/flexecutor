@@ -9,8 +9,7 @@ from deap import algorithms, base, creator, gp, tools
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.modelling.prediction import Prediction
-
+from flexecutor.utils.dataclass import Prediction
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

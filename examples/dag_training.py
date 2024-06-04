@@ -7,7 +7,7 @@ from lithops import LocalhostExecutor
 from examples.functions.sleepy_func import sleepy_func
 from flexecutor.future import InputData
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor, ConfigSpace
+from flexecutor.workflow.dagexecutor import DAGExecutor
 from flexecutor.workflow.task import Task
 
 config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
@@ -21,12 +21,6 @@ NUM_ITERATIONS = 1
 
 
 if __name__ == '__main__':
-    config_spaces = [
-        ConfigSpace(2, 1024, 3),
-        ConfigSpace(0.5, 1568, 5),
-        # ...
-    ]
-
     dag = DAG('mini-dag')
 
     task1 = Task(
@@ -45,7 +39,7 @@ if __name__ == '__main__':
     dag.add_tasks([task1, task2])
 
     executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
-    executor.profile(config_spaces, num_iterations=NUM_ITERATIONS)
+    executor.train()
     executor.shutdown()
     print('Tasks completed')
 

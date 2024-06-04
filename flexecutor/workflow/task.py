@@ -7,6 +7,7 @@ from lithops import FunctionExecutor
 from lithops.utils import FuturesList
 
 from flexecutor.future import Future
+from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 
 
 class TaskState(Enum):
@@ -35,6 +36,7 @@ class Task:
             self,
             task_id: str,
             func: Callable[[...], Any],
+            perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
             executor: FunctionExecutor | None = None,
             input_data: Optional[Dict[str, Future] | Future] = None,
             output_data: Optional[Dict[str, Future] | Future] = None,
@@ -44,6 +46,8 @@ class Task:
         self._task_unique_id = None
         self._task_id = task_id
         self._executor = executor
+        self._perf_model = None     # Lazy init
+        self._perf_model_type = perf_model_type
         self._input_data = input_data if isinstance(input_data, dict)\
             else {'root': input_data} if input_data else dict()
         self._output_data = output_data
@@ -74,6 +78,9 @@ class Task:
     def dag_id(self, value: str):
         self._dag_id = value
         self._task_unique_id = f'{self._dag_id}-{self._task_id}'
+        self._perf_model = PerfModel.instance(model_type=self._perf_model_type,
+                                              model_name=self._task_unique_id,
+                                              model_dst=f"models/{self._dag_id}/{self._task_id}.pkl")
 
     def __call__(
             self,
@@ -102,6 +109,10 @@ class Task:
             *self._args,
             **self._kwargs
         )
+
+    @property
+    def perf_model(self) -> PerfModel:
+        return self._perf_model
 
     @property
     def task_id(self) -> str:

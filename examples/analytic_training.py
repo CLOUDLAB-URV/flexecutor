@@ -1,4 +1,4 @@
-from flexecutor.modelling.perfmodel import PerfModel
+from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 
 if __name__ == "__main__":
     profiling_results = {
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         },
     }
 
-    perfmodel = PerfModel.instance("analytic")
+    perfmodel = PerfModel.instance(PerfModelEnum.ANALYTIC)
     perfmodel.update_allow_parallel(True)
     perfmodel.train(profiling_results)
 

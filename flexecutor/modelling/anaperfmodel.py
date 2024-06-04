@@ -5,7 +5,7 @@ import scipy.optimize as scipy_opt
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.modelling.prediction import Prediction
+from flexecutor.utils.dataclass import Prediction
 
 
 def io_func(x, a, b):

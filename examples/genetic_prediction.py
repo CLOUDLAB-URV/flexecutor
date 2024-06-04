@@ -1,4 +1,4 @@
-from flexecutor.modelling.perfmodel import PerfModel
+from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 
 if __name__ == "__main__":
     profiling_data = {
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         }
     }
 
-    model = PerfModel.instance("genetic")
+    model = PerfModel.instance(PerfModelEnum.GENETIC)
     model.train(profiling_data)
     model.save_model()
     print("Objective Function:", model.objective_func)
