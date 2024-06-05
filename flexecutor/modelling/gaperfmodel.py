@@ -8,9 +8,10 @@ from typing import Dict
 import numpy as np
 from deap import algorithms, base, creator, gp, tools
 from overrides import overrides
+from scipy.optimize import differential_evolution
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import Prediction
+from flexecutor.utils.dataclass import Prediction, ConfigBounds, ConfigSpace
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -93,6 +94,23 @@ class GAPerfModel(PerfModel):
     def load_model(self):
         with open(self._model_dst, "rb") as file:
             self._best_individual = pickle.load(file)
+
+    def optimize(self, config: ConfigBounds) -> ConfigSpace:
+        objective_func = self._objective_func
+
+        def integer_objective_func(x):
+            x_int = np.round(x).astype(int)
+            return objective_func(x_int)
+
+        res = differential_evolution(
+            integer_objective_func,
+            config.to_tuple_list(),
+            strategy="best1bin",
+            mutation=(0.5, 1),
+            recombination=0.7,
+            disp=True,
+        )
+        return ConfigSpace(*np.round(res.x).astype(int))
 
     def _evaluate(self, individual):
         func = self._toolbox.compile(expr=individual)

@@ -16,6 +16,19 @@ class ConfigSpace:
 
 
 @dataclass
+class ConfigBounds:
+    """
+    Configuration space bounds for the task
+    """
+    cpu: tuple[float, float]
+    memory: tuple[float, float]
+    workers: tuple[int, int]
+
+    def to_tuple_list(self) -> list[tuple]:
+        return [self.cpu, self.memory, self.workers]
+
+
+@dataclass
 class FunctionProfiling:
     """
     Timing of the function

@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 from enum import Enum
 from typing import Dict
 
-from flexecutor.utils.dataclass import Prediction, ConfigSpace
+from flexecutor.utils.dataclass import Prediction, ConfigSpace, ConfigBounds
 
 
 class PerfModelEnum(Enum):
@@ -23,6 +23,10 @@ class PerfModel(ABC):
 
     @abstractmethod
     def predict(self, config: ConfigSpace) -> Prediction:
+        raise NotImplementedError
+
+    @abstractmethod
+    def optimize(self, config: ConfigBounds) -> ConfigSpace:
         raise NotImplementedError
 
     @abstractmethod

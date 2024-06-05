@@ -171,23 +171,3 @@ class DAGExecutor:
         self._processor.shutdown()
 
 
-class OptimizationProblemSolver:
-    def __init__(self, workflow_stage):
-        self.workflow_stage = workflow_stage
-
-    def search_config(self, bounds):
-        objective_func = self.workflow_stage.objective_func
-
-        def integer_objective_func(x):
-            x_int = np.round(x).astype(int)
-            return objective_func(x_int)
-
-        res = differential_evolution(
-            integer_objective_func,
-            bounds,
-            strategy="best1bin",
-            mutation=(0.5, 1),
-            recombination=0.7,
-            disp=True,
-        )
-        return res

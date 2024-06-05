@@ -13,7 +13,7 @@ from pandas import DataFrame
 
 from flexecutor.future import Future
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.utils.dataclass import ConfigSpace, Prediction
+from flexecutor.utils.dataclass import ConfigSpace, Prediction, ConfigBounds
 from flexecutor.utils.utils import load_profiling_results
 
 
@@ -205,6 +205,9 @@ class Task:
         """Overload the << operator for lists of operator."""
         self.add_child(other)
         return self
+
+    def optimize(self, config_bounds: ConfigBounds) -> ConfigSpace:
+        return self._perf_model.optimize(config_bounds)
 
     def model_perf_metrics(self, config_spaces: List[ConfigSpace]) -> DataFrame:
         actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)

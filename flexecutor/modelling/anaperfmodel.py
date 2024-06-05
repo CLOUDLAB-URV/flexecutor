@@ -5,7 +5,7 @@ import scipy.optimize as scipy_opt
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import Prediction, ConfigSpace
+from flexecutor.utils.dataclass import Prediction, ConfigSpace, ConfigBounds
 
 
 def io_func(x, a, b):
@@ -170,6 +170,9 @@ class AnaPerfModel(PerfModel):
             write_time=predicted_write_time,
             cold_start_time=self._cold_params,
         )
+
+    def optimize(self, config: ConfigBounds) -> ConfigSpace:
+        raise NotImplementedError
 
     # def fit_polynomial(self, x, y, degree):
     #     coeffs = np.polyfit(x, y, degree)
