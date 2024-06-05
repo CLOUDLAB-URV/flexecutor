@@ -1,8 +1,7 @@
-import numpy as np
 from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.future import InputData
+from flexecutor.workflow.taskfuture import InputFile
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import ConfigSpace, ConfigBounds
 from flexecutor.workflow.dag import DAG
@@ -18,7 +17,7 @@ if __name__ == "__main__":
         'task1',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_data={'obj': InputData("test-bucket/corpus.txt")}
+        input_file=InputFile("test-bucket/corpus.txt")
     )
 
     dag.add_tasks([task1])

@@ -1,8 +1,7 @@
 from abc import abstractmethod, ABC
-from typing import Dict, Optional
 
-from flexecutor.future import Future
 from flexecutor.workflow.task import Task
+from flexecutor.workflow.taskfuture import TaskFuture
 
 
 class Executor(ABC):
@@ -17,15 +16,13 @@ class Executor(ABC):
     def execute(
             self,
             task: Task,
-            input_data: Optional[Dict[str, Future]] = None,
             *args,
             **kwargs
-    ) -> Future:
+    ) -> TaskFuture:
         """
         Execute a task and wait for it to finish
 
         :param task: Task to execute
-        :param input_data: Input data
         :return: Output data of the tasks
         """
         pass
@@ -42,17 +39,15 @@ class CallableExecutor(Executor):
     def execute(
             self,
             task: Task,
-            input_data: Optional[Dict[str, Future]] = None,
             *args,
             **kwargs
-    ) -> Future:
+    ) -> TaskFuture:
         """
         Execute a task and wait for it to finish
 
         :param task: Task to execute
-        :param input_data: Input data
         :return: Output data of the tasks
         """
-        future = task(input_data, *args, **kwargs)
+        future = task(*args, **kwargs)
         task.executor.wait(future)
-        return Future(future)
+        return TaskFuture(future)

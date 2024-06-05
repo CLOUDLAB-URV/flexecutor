@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from typing import Any, Dict, Set, List, Optional, Callable
+from typing import Any, Set, List, Optional, Callable
 
 import numpy as np
 import pandas as pd
@@ -11,10 +11,10 @@ from lithops.utils import FuturesList
 from matplotlib import pyplot as plt
 from pandas import DataFrame
 
-from flexecutor.future import Future
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import ConfigSpace, Prediction, ConfigBounds
 from flexecutor.utils.utils import load_profiling_results
+from flexecutor.workflow.taskfuture import TaskFuture
 
 
 class TaskState(Enum):
@@ -34,7 +34,7 @@ class Task:
 
     :param task_id: Task ID
     :param executor: Executor to use
-    :param input_data: Input data for the operator
+    :param input_file: Input data for the operator
     :param args: Arguments to pass to the operator
     :param kwargs: Keyword arguments to pass to the operator
     """
@@ -45,8 +45,8 @@ class Task:
             func: Callable[[...], Any],
             perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
             executor: FunctionExecutor | None = None,
-            input_data: Optional[Dict[str, Future] | Future] = None,
-            output_data: Optional[Dict[str, Future] | Future] = None,
+            input_file: Optional[TaskFuture] = None,
+            output_file: Optional[TaskFuture] = None,
             *args,
             **kwargs
     ):
@@ -55,9 +55,8 @@ class Task:
         self._executor = executor
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_data = input_data if isinstance(input_data, dict) \
-            else {'root': input_data} if input_data else dict()
-        self._output_data = output_data
+        self._input_file = input_file
+        self._output_file = output_file
         self._args = args
         self._kwargs = kwargs
         self._children: Set[Task] = set()
@@ -91,28 +90,22 @@ class Task:
 
     def __call__(
             self,
-            input_data: Dict[str, Future] = None,
             *args,
             **kwargs
     ) -> FuturesList:
         """
         Execute the operator and return a future object.
 
-        :param input_data: Input data
+        :param input_file: Input data
         :return: the future object
         """
 
-        input_data = input_data or self._input_data
-
-        if 'obj' in input_data:
-            iterdata = input_data['obj'].data
-            self._kwargs['obj_chunk_number'] = self._executor.config['workers']
-        else:
-            iterdata = [(v, k) for k, v in input_data.items()]
+        file_key = self._input_file.file
+        self._kwargs['obj_chunk_number'] = self._executor.config['workers']
 
         return self._executor.map(
-            self._map_func,
-            iterdata,
+            map_function=self._map_func,
+            map_iterdata=file_key,
             *self._args,
             **self._kwargs
         )
@@ -140,9 +133,9 @@ class Task:
         return self._children
 
     @property
-    def input_data(self) -> Dict[str, Future]:
+    def input_file(self) -> TaskFuture:
         """Return the input data."""
-        return self._input_data
+        return self._input_file
 
     @property
     def state(self) -> TaskState:

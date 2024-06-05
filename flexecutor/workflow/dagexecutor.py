@@ -1,20 +1,17 @@
 import logging
 import math
 import os
-from dataclasses import asdict
 from typing import Dict, Set, List, Iterable
 
-import numpy as np
 from lithops import FunctionExecutor
-from scipy.optimize import differential_evolution
 
-from flexecutor.future import Future
 from flexecutor.utils.dataclass import FunctionProfiling, ConfigSpace
 from flexecutor.utils.utils import load_profiling_results, save_profiling_results
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executors import Executor, CallableExecutor
 from flexecutor.workflow.processors import Processor, ThreadPoolProcessor
-from flexecutor.workflow.task import Task, TaskState
+from flexecutor.workflow.task import Task
+from flexecutor.workflow.taskfuture import TaskFuture
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +35,7 @@ class DAGExecutor:
         self._processor = processor or ThreadPoolProcessor(math.inf)
         self._executor = executor
 
-        self._futures: Dict[str, Future] = dict()
+        self._futures: Dict[str, TaskFuture] = dict()
         self._num_final_tasks = 0
         self._dependence_free_tasks: List[Task] = list()
         self._running_tasks: List[Task] = list()
@@ -49,7 +46,7 @@ class DAGExecutor:
             for task in self._dag.tasks:
                 task.executor = task_executor
 
-    def _get_timings(self, futures: dict[str, Future]) -> List[FunctionProfiling]:
+    def _get_timings(self, futures: dict[str, TaskFuture]) -> List[FunctionProfiling]:
         """Get the timings of the futures."""
         timings_list = []
         for task_id, future in futures.items():
@@ -113,7 +110,7 @@ class DAGExecutor:
             task.perf_model.train(profile_data)
             task.perf_model.save_model()
 
-    def execute(self) -> Dict[str, Future]:
+    def execute(self) -> Dict[str, TaskFuture]:
         """
         Execute the DAG
 
@@ -136,25 +133,12 @@ class DAGExecutor:
             # Select the tasks to execute
             batch = list(self._dependence_free_tasks)
 
-            # Construct the input data for the batch
-            input_data = {}
-            for task in batch:
-                task.state = TaskState.SCHEDULED
-                # If the task has parents, then the input data is the output data of the parent tasks
-                # passed as a dictionary with the parent task ID as the key and the output data as the value
-                if task.parents:
-                    input_data[task.task_id] = {
-                        parent.task_id: self._futures[parent.task_id] for parent in task.parents
-                    }
-                else:
-                    input_data[task.task_id] = task.input_data
-
             # Add the batch to the running tasks
             set_batch = set(batch)
             self._running_tasks |= set_batch
 
             # Call the processor to execute the batch
-            futures = self._processor.process(batch, self._executor, input_data)
+            futures = self._processor.process(batch, self._executor)
 
             self._running_tasks -= set_batch
             self._dependence_free_tasks -= set_batch
