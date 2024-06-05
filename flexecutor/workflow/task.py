@@ -3,12 +3,16 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, Set, List, Optional, Callable
 
+import numpy as np
+import pandas as pd
 from lithops import FunctionExecutor
 from lithops.utils import FuturesList
+from pandas import DataFrame
 
 from flexecutor.future import Future
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import ConfigSpace, Prediction
+from flexecutor.utils.utils import load_profiling_results
 
 
 class TaskState(Enum):
@@ -47,9 +51,9 @@ class Task:
         self._task_unique_id = None
         self._task_id = task_id
         self._executor = executor
-        self._perf_model = None     # Lazy init
+        self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_data = input_data if isinstance(input_data, dict)\
+        self._input_data = input_data if isinstance(input_data, dict) \
             else {'root': input_data} if input_data else dict()
         self._output_data = output_data
         self._args = args
@@ -200,64 +204,49 @@ class Task:
         self.add_child(other)
         return self
 
-    # def plot_model_performance(
-    #         self, config_space, path="./flexecutor-model-performance.png"
-    # ):
-    #     actual_latencies = []
-    #     predicted_latencies = []
-    #     configurations = []
-    #     resources = []
-    #
-    #     profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.task_id}.json")
-    #
-    #     for config in config_space:
-    #         cpus, memory, workers = config
-    #         total_resources = cpus * workers + memory * workers
-    #         resources.append((total_resources, config))
-    #
-    #     resources.sort()
-    #
-    #     for total_resources, config in resources:
-    #         cpus, memory, workers = config
-    #         total_latencies = []
-    #
-    #         if config in profiling_data:
-    #             executions = profiling_data[config]
-    #             total_latencies = [
-    #                 sum(lats)
-    #                 for breaks in zip(
-    #                     executions["read"],
-    #                     executions["compute"],
-    #                     executions["write"],
-    #                     executions["cold_start_time"],
-    #                 )
-    #                 for lats in zip(*breaks)
-    #             ]
-    #             avg_actual_latency = np.mean(total_latencies)
-    #             actual_latencies.append(avg_actual_latency)
-    #         else:
-    #             actual_latencies.append(None)
-    #
-    #         predicted_latency = self.perf_model.predict(
-    #             ConfigSpace(cpu=cpus, memory=memory, workers=workers)
-    #         ).total_time
-    #         predicted_latencies.append(predicted_latency)
-    #         configurations.append(f"({cpus}, {memory}, {workers})")
-    #
-    #     fig, ax = plt.subplots(figsize=(10, 6))
-    #     x = np.arange(len(configurations))
-    #
-    #     ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
-    #
-    #     if any(actual_latencies):
-    #         ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
-    #
-    #     ax.set_xlabel("Configurations")
-    #     ax.set_ylabel("Latency")
-    #     ax.set_title("Model Performance Comparison")
-    #     ax.set_xticks(x)
-    #     ax.set_xticklabels(configurations, rotation=45, ha="right")
-    #     ax.legend()
-    #
-    #     plt.tight_layout()
-    #     plt.savefig(path)
+    def model_perf_metrics(self, config_spaces: List[ConfigSpace]) -> DataFrame:
+        actual_latencies = []
+        predicted_latencies = []
+
+        profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.task_id}.json")
+        self.perf_model.train(profiling_data)
+
+        for config in config_spaces:
+            if config.key in profiling_data:
+                executions = profiling_data[config.key]
+                total_latencies = [
+                    sum(lats)
+                    for breaks in zip(
+                        executions["read"],
+                        executions["compute"],
+                        executions["write"],
+                        executions["cold_start_time"],
+                    )
+                    for lats in zip(*breaks)
+                ]
+                avg_actual_latency = np.mean(total_latencies)
+                actual_latencies.append(avg_actual_latency)
+            else:
+                actual_latencies.append(None)
+
+            predicted_latency = self.perf_model.predict(config).total_time
+            predicted_latencies.append(predicted_latency)
+
+        actual_latencies = np.array(actual_latencies)
+        predicted_latencies = np.array(predicted_latencies)
+
+        data = np.array([
+            [config.workers, config.cpu, config.memory, actual, predicted, abs(actual - predicted),
+             (actual - predicted) ** 2]
+            for config, actual, predicted in zip(config_spaces, actual_latencies, predicted_latencies)
+        ])
+
+        df = pd.DataFrame(data, columns=["Workers",
+                                         "CPU",
+                                         "Memory",
+                                         "Actual latency",
+                                         "Predicted latency",
+                                         "MAE",
+                                         "MSE"])
+
+        return df

@@ -1,5 +1,6 @@
 import logging
 import operator
+import os
 import pickle
 import random
 from typing import Dict
@@ -82,6 +83,9 @@ class GAPerfModel(PerfModel):
 
     @overrides
     def save_model(self):
+        folder = "/".join(self._model_dst.split("/")[:-1])
+        if folder:
+            os.makedirs(folder, exist_ok=True)
         with open(self._model_dst, "wb") as file:
             pickle.dump(self._best_individual, file)
 

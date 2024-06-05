@@ -35,6 +35,7 @@ setup(
         "numpy",
         "matplotlib",
         "networkx",
+        "pandas"
     ],
     extras_require={
         "examples": [
