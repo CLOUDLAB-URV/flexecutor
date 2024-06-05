@@ -1,26 +1,33 @@
 import numpy as np
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.workflow import Scheduler
-from flexecutor.stage import WorkflowStage
-
-config = {"log_level": "INFO"}
+from flexecutor.future import InputData
+from flexecutor.utils.dataclass import ConfigSpace
+from flexecutor.workflow.dag import DAG
+from flexecutor.workflow.task import Task
 
 data_location = {
     "obj": "test-bucket/corpus.txt",
 }
 
-ws = WorkflowStage(
-    name="word_count",
-    model=PerfModel.instance(PerfModelEnum.GENETIC),
-    function=word_occurrence_count,
-    input_data=data_location,
-    output_data="test-bucket/combined_file.txt",
-    config=config,
+dag = DAG('mini-dag')
+
+task1 = Task(
+    'task1',
+    func=word_occurrence_count,
+    input_data={'obj': InputData("test-bucket/corpus.txt")}
+)
+task2 = Task(
+    'task2',
+    func=word_occurrence_count,
+    input_data={'obj': InputData("test-bucket/corpus.txt")}
 )
 
-config_space = [
+task2 << task1
+
+dag.add_tasks([task1, task2])
+
+config_spaces = [
     (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
     (1, 200, 10),  # 1 vCPU, 200 MB per worker, 10 workers
     (2, 2048, 7),  # 2 vCPUs, 2048 MB per worker, 7 workers
@@ -40,8 +47,12 @@ config_space = [
     (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
     (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
 ]
+config_spaces_obj = [ConfigSpace(*config_space) for config_space in config_spaces]
+
+# TODO-1: profiling
 ws.profile(config_space, num_iter=2)
 
+## TODO-2: train
 # Once profiling is done, we can train the model we passed to the workflow step, it will save the model into a file
 ws.train()
 
@@ -55,6 +66,8 @@ x_bound = [
     (1, 3),
 ]
 
+
+## TODO-3: get the optimal config for one task
 scheduler = Scheduler(ws)
 result = scheduler.search_config(x_bound)
 optimal_configuration = np.round(result.x).astype(int)
@@ -79,6 +92,7 @@ def calculate_actual_latency(timings):
     return total_latency
 
 
+# TODO-4: run with the optimal configuration
 exec_timings = ws.run()
 
 exec_timings = calculate_actual_latency(exec_timings)
