@@ -22,7 +22,8 @@ class AnaPerfModel(PerfModel):
     Advantage: it is fast and accurate enough to optimize the average performance.
     Shortcoming: it does not guarantee the bounded performance.
 
-    Ditto, Caerus model. Adapted from https://github.com/pkusys/Jolteon/blob/main/workflow/perf_model_analytic.py
+    Ditto, Caerus model.
+    Adapted from https://github.com/pkusys/Jolteon/blob/main/workflow/perf_model_analytic.py
     """
 
     def __init__(self, model_name, model_dst, stage_id, stage_name) -> None:
@@ -42,6 +43,10 @@ class AnaPerfModel(PerfModel):
         self._cold_params = None
 
         self._profiling_results = None
+
+    @classmethod
+    def _config_to_xparam(cls, num_vcpu, memory, num_func):
+        return round(num_vcpu * memory * num_func, 1)
 
     # TODO: review that and rethink
     def update_allow_parallel(self, allow_parallel) -> None:
@@ -85,9 +90,9 @@ class AnaPerfModel(PerfModel):
             # adapt to parallel mode
             # if the stage does not allow more than one function, ignore num_func
             if self._allow_parallel:
-                config_key = round(num_vcpu * memory * num_func, 1)
+                config_key = self._config_to_xparam(num_vcpu, memory, num_func)
             else:
-                config_key = round(num_vcpu * memory, 1)
+                config_key = self._config_to_xparam(num_vcpu, memory, 1)
 
             # collect data for read step
             if config_key not in size2points_read:
@@ -151,12 +156,11 @@ class AnaPerfModel(PerfModel):
 
     def predict(self, config: ConfigSpace) -> Prediction:
         assert config.workers > 0
-        # for now +chunk size is not needed, since it's not used
-        # TODO: next line refactor but keep the same logic. is the logic correct? - REVIEW
-        key = sum(config.key)
-        predicted_read_time = io_func(key, *self._read_params) / config.workers
-        predicted_comp_time = comp_func(key, *self._comp_params) / config.workers
-        predicted_write_time = io_func(key, *self._write_params) / config.workers
+        # key = num_vcpu + runtime_memory + num_workers
+        key = self._config_to_xparam(config.cpu, config.memory, config.workers)
+        predicted_read_time = io_func(key, *self._read_params)
+        predicted_comp_time = comp_func(key, *self._comp_params)
+        predicted_write_time = io_func(key, *self._write_params)
         total_predicted_time = (
             predicted_read_time
             + predicted_comp_time
