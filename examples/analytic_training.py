@@ -207,7 +207,7 @@ if __name__ == "__main__":
     perfmodel.train(profiling_results)
 
     print(perfmodel.parameters)
-
+    print(perfmodel.predict(2, 400, 5))
     # perfmodel.visualize(step="compute", degree=2)
     # perfmodel.visualize(step="read", degree=2)
     # perfmodel.visualize(step="write", degree=2)
