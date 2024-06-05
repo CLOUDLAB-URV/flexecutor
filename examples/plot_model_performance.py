@@ -44,11 +44,10 @@ if __name__ == '__main__':
     executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
     executor.train()
 
-    df = task1.model_perf_metrics([
+    task1.plot_model_performance([
         ConfigSpace(cpu=2, memory=1024, workers=3),
         ConfigSpace(cpu=0.5, memory=1568, workers=5),
     ])
-    print(df)
 
     executor.shutdown()
     print('Tasks completed')

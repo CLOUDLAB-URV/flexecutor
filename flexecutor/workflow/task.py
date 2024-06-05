@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from enum import Enum
 from typing import Any, Dict, Set, List, Optional, Callable
 
@@ -7,6 +8,7 @@ import numpy as np
 import pandas as pd
 from lithops import FunctionExecutor
 from lithops.utils import FuturesList
+from matplotlib import pyplot as plt
 from pandas import DataFrame
 
 from flexecutor.future import Future
@@ -205,12 +207,56 @@ class Task:
         return self
 
     def model_perf_metrics(self, config_spaces: List[ConfigSpace]) -> DataFrame:
+        actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)
+
+        actual_latencies = np.array(actual_latencies)
+        predicted_latencies = np.array(predicted_latencies)
+
+        data = np.array([
+            [config.workers, config.cpu, config.memory, actual, predicted, abs(actual - predicted),
+             (actual - predicted) ** 2]
+            for config, actual, predicted in zip(config_spaces, actual_latencies, predicted_latencies)
+        ])
+
+        df = pd.DataFrame(data, columns=["Workers",
+                                         "CPU",
+                                         "Memory",
+                                         "Actual latency",
+                                         "Predicted latency",
+                                         "MAE",
+                                         "MSE"])
+
+        return df
+
+    def plot_model_performance(self, config_spaces: List[ConfigSpace]):
+        actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(config_spaces))
+
+        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
+
+        if any(actual_latencies):
+            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
+
+        ax.set_xlabel("Configurations")
+        ax.set_ylabel("Latency")
+        ax.set_title("Model Performance Comparison")
+        ax.set_xticks(x)
+        ax.set_xticklabels([str(i.key) for i in config_spaces], rotation=45, ha="right")
+        ax.legend()
+
+        plt.tight_layout()
+
+        folder = f"images/{self.dag_id}"
+        os.makedirs(folder, exist_ok=True)
+        plt.savefig(f"images/{self.dag_id}/{self.task_id}.png")
+
+    def _prediction_vs_actual(self, config_spaces: List[ConfigSpace]):
         actual_latencies = []
         predicted_latencies = []
-
         profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.task_id}.json")
         self.perf_model.train(profiling_data)
-
         for config in config_spaces:
             if config.key in profiling_data:
                 executions = profiling_data[config.key]
@@ -231,22 +277,4 @@ class Task:
 
             predicted_latency = self.perf_model.predict(config).total_time
             predicted_latencies.append(predicted_latency)
-
-        actual_latencies = np.array(actual_latencies)
-        predicted_latencies = np.array(predicted_latencies)
-
-        data = np.array([
-            [config.workers, config.cpu, config.memory, actual, predicted, abs(actual - predicted),
-             (actual - predicted) ** 2]
-            for config, actual, predicted in zip(config_spaces, actual_latencies, predicted_latencies)
-        ])
-
-        df = pd.DataFrame(data, columns=["Workers",
-                                         "CPU",
-                                         "Memory",
-                                         "Actual latency",
-                                         "Predicted latency",
-                                         "MAE",
-                                         "MSE"])
-
-        return df
+        return actual_latencies, predicted_latencies
