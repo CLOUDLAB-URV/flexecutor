@@ -70,18 +70,17 @@ class DAGExecutor:
         return timings_list
 
     def _store_profiling(self, file: str, new_profile_data: List[FunctionProfiling], config_space: ConfigSpace) -> None:
-        profile_data = load_profiling_results(file, logger)
+        profile_data = load_profiling_results(file)
         config_key = config_space.key
         if config_key not in profile_data:
-            profile_data[config_key] = {
-                "read": [],
-                "compute": [],
-                "write": [],
-                "cold_start_time": [],
-            }
+            profile_data[config_key] = {}
+        for key in FunctionProfiling.metrics():
+            if key not in profile_data[config_key]:
+                profile_data[config_key][key] = []
+            profile_data[config_key][key].append([])
         for profiling in new_profile_data:
-            for key, value in asdict(profiling).items():
-                profile_data[config_key][key].append(value)
+            for key in FunctionProfiling.metrics():
+                profile_data[config_key][key][-1].append(getattr(profiling, key))
         save_profiling_results(file, profile_data)
 
     def profile(self, config_spaces: Iterable[ConfigSpace], num_iterations: int = 1):
@@ -106,9 +105,7 @@ class DAGExecutor:
     def train(self) -> None:
         """Train the DAG."""
         for task in self._dag.tasks:
-            profile_data = load_profiling_results(
-                f"profiling/{self._dag.dag_id}/{task.task_id}.json", logger
-            )
+            profile_data = load_profiling_results(f"profiling/{self._dag.dag_id}/{task.task_id}.json")
             task.perf_model.train(profile_data)
             task.perf_model.save_model()
 

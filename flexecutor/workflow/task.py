@@ -8,6 +8,7 @@ from lithops.utils import FuturesList
 
 from flexecutor.future import Future
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
+from flexecutor.utils.dataclass import ConfigSpace, Prediction
 
 
 class TaskState(Enum):
@@ -110,6 +111,9 @@ class Task:
             **self._kwargs
         )
 
+    def predict(self, config_space: ConfigSpace) -> Prediction:
+        return self._perf_model.predict(config_space)
+
     @property
     def perf_model(self) -> PerfModel:
         return self._perf_model
@@ -195,3 +199,65 @@ class Task:
         """Overload the << operator for lists of operator."""
         self.add_child(other)
         return self
+
+    # def plot_model_performance(
+    #         self, config_space, path="./flexecutor-model-performance.png"
+    # ):
+    #     actual_latencies = []
+    #     predicted_latencies = []
+    #     configurations = []
+    #     resources = []
+    #
+    #     profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.task_id}.json")
+    #
+    #     for config in config_space:
+    #         cpus, memory, workers = config
+    #         total_resources = cpus * workers + memory * workers
+    #         resources.append((total_resources, config))
+    #
+    #     resources.sort()
+    #
+    #     for total_resources, config in resources:
+    #         cpus, memory, workers = config
+    #         total_latencies = []
+    #
+    #         if config in profiling_data:
+    #             executions = profiling_data[config]
+    #             total_latencies = [
+    #                 sum(lats)
+    #                 for breaks in zip(
+    #                     executions["read"],
+    #                     executions["compute"],
+    #                     executions["write"],
+    #                     executions["cold_start_time"],
+    #                 )
+    #                 for lats in zip(*breaks)
+    #             ]
+    #             avg_actual_latency = np.mean(total_latencies)
+    #             actual_latencies.append(avg_actual_latency)
+    #         else:
+    #             actual_latencies.append(None)
+    #
+    #         predicted_latency = self.perf_model.predict(
+    #             ConfigSpace(cpu=cpus, memory=memory, workers=workers)
+    #         ).total_time
+    #         predicted_latencies.append(predicted_latency)
+    #         configurations.append(f"({cpus}, {memory}, {workers})")
+    #
+    #     fig, ax = plt.subplots(figsize=(10, 6))
+    #     x = np.arange(len(configurations))
+    #
+    #     ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
+    #
+    #     if any(actual_latencies):
+    #         ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
+    #
+    #     ax.set_xlabel("Configurations")
+    #     ax.set_ylabel("Latency")
+    #     ax.set_title("Model Performance Comparison")
+    #     ax.set_xticks(x)
+    #     ax.set_xticklabels(configurations, rotation=45, ha="right")
+    #     ax.legend()
+    #
+    #     plt.tight_layout()
+    #     plt.savefig(path)

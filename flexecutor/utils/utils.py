@@ -47,22 +47,13 @@ def setup_logging(level):
     return logger
 
 
-def load_profiling_results(file: str, logger: logging.Logger) -> dict:
+def load_profiling_results(file: str) -> dict:
     if not os.path.exists(file):
-        logger.info(
-            f"No existing profiling results found at {file}. Initializing empty results."
-        )
         return {}
-    try:
-        with open(file, "r") as f:
-            data = json.load(f)
-            results = {eval(k): v for k, v in data.items()}
-            return results
-    except json.JSONDecodeError:
-        logger.error(
-            f"Error decoding JSON from {file}. Initializing empty results."
-        )
-        return {}
+    with open(file, "r") as f:
+        data = json.load(f)
+        results = {eval(k): v for k, v in data.items()}
+        return results
 
 
 def save_profiling_results(file, profile_data):

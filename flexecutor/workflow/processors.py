@@ -82,6 +82,10 @@ class ThreadPoolProcessor(Processor):
 
         for task in tasks:
             logger.info(f"Submitting task {task.task_id}")
+
+            # TODO: get optimal task configuration
+            # TODO: set optimal config to lithops executor
+
             task.state = TaskState.RUNNING
             ex_futures[task.task_id] = self._pool.submit(
                 lambda: _process_task(

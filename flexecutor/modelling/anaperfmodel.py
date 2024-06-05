@@ -5,7 +5,7 @@ import scipy.optimize as scipy_opt
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import Prediction
+from flexecutor.utils.dataclass import Prediction, ConfigSpace
 
 
 def io_func(x, a, b):
@@ -149,19 +149,14 @@ class AnaPerfModel(PerfModel):
         b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
         return a, b
 
-    def predict(
-        self,
-        num_vcpu,
-        runtime_memory,
-        num_workers,
-        chunk_size=None,
-    ) -> Prediction:
-        assert num_workers > 0
+    def predict(self, config: ConfigSpace) -> Prediction:
+        assert config.workers > 0
         # for now +chunk size is not needed, since it's not used
-        key = num_vcpu + runtime_memory + num_workers
-        predicted_read_time = io_func(key, *self._read_params) / num_workers
-        predicted_comp_time = comp_func(key, *self._comp_params) / num_workers
-        predicted_write_time = io_func(key, *self._write_params) / num_workers
+        # TODO: next line refactor but keep the same logic. is the logic correct? - REVIEW
+        key = sum(config.key)
+        predicted_read_time = io_func(key, *self._read_params) / config.workers
+        predicted_comp_time = comp_func(key, *self._comp_params) / config.workers
+        predicted_write_time = io_func(key, *self._write_params) / config.workers
         total_predicted_time = (
             predicted_read_time
             + predicted_comp_time

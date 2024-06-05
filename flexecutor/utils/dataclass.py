@@ -25,6 +25,10 @@ class FunctionProfiling:
     write: float
     cold_start_time: float
 
+    @classmethod
+    def metrics(cls) -> list[str]:
+        return ["read", "compute", "write", "cold_start_time"]
+
 
 @dataclass
 class Prediction:

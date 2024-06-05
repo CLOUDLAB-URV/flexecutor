@@ -179,12 +179,10 @@ class GAPerfModel(PerfModel):
     def parameters(self):
         return "Yet to be implemented"
 
-    def predict(
-        self, num_cpu, runtime_memory, num_workers, chunk_size=None
-    ) -> Prediction:
+    def predict(self, config) -> Prediction:
         func = self._toolbox.compile(expr=self._best_individual)
         try:
-            return Prediction(func(num_cpu, runtime_memory, num_workers))
+            return Prediction(func(config.cpu, config.memory, config.workers))
         except Exception as e:
             logger.error(f"Error predicting: {e}")
             return Prediction(np.nan)

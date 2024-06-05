@@ -6,6 +6,7 @@ from lithops import LocalhostExecutor
 
 from examples.functions.sleepy_func import sleepy_func
 from flexecutor.future import InputData
+from flexecutor.utils.dataclass import ConfigSpace
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.dagexecutor import DAGExecutor
 from flexecutor.workflow.task import Task
@@ -18,7 +19,6 @@ logging.basicConfig(format=LOGGER_FORMAT, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 NUM_ITERATIONS = 1
-
 
 if __name__ == '__main__':
     dag = DAG('mini-dag')
@@ -40,7 +40,9 @@ if __name__ == '__main__':
 
     executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
     executor.train()
+
+    prediction = task1.predict(ConfigSpace(cpu=2, memory=1024, workers=3))
+    print(prediction)
+
     executor.shutdown()
     print('Tasks completed')
-
-
