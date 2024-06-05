@@ -11,7 +11,6 @@ from flexecutor.workflow.task import Task
 
 NUM_CONFIGS = 5
 
-
 if __name__ == "__main__":
     dag = DAG('large-example-dag')
 
@@ -21,16 +20,8 @@ if __name__ == "__main__":
         perf_model_type=PerfModelEnum.GENETIC,
         input_data={'obj': InputData("test-bucket/corpus.txt")}
     )
-    task2 = Task(
-        'task2',
-        func=word_occurrence_count,
-        perf_model_type=PerfModelEnum.GENETIC,
-        input_data={'obj': InputData("test-bucket/corpus.txt")}
-    )
 
-    task2 << task1
-
-    dag.add_tasks([task1, task2])
+    dag.add_tasks([task1])
     executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
 
     config_spaces = [
@@ -57,60 +48,29 @@ if __name__ == "__main__":
     NUM_CONFIGS = min(NUM_CONFIGS, len(config_spaces_obj) - 1)
     config_spaces_obj = config_spaces_obj[:NUM_CONFIGS]
 
-    # TODO-1: profiling
+    # Profile the DAG
     executor.profile(config_spaces_obj, num_iterations=2)
 
-    # TODO-2: train
-    # Once profiling is done, we can train the model we passed to the workflow step, it will save the model into a file
+    # Train the task models
     executor.train()
 
-    # After profiling, we can print the objective function from the performance model
+    # Print the objective function
     objective_function = task1.perf_model.objective_func
-    # print(f"Objective function {objective_function}")
+    print(f"Objective function {objective_function}")
 
-    x_bound = [
-        (1, 6),
-        (512, 4096),
-        (1, 3),
-    ]
-    bounds = ConfigBounds(*x_bound)
+    bounds = ConfigBounds(*[(1, 6), (512, 4096), (1, 3)])
 
+    # Get the optimal configuration for the task
+    optimal_config = task1.optimize(bounds)
+    print(optimal_config)
+    predicted_latency = task1.predict(optimal_config)
+    print("Predicted latency", predicted_latency)
 
-    # TODO-3: get the optimal config for one task
-    # scheduler = Scheduler(ws)
-    # result = task1.optimize(bounds)
-    # print(result)
-    # optimal_configuration = np.round(result.x).astype(int)
-    # print("Integer Optimal Configuration:", optimal_configuration)
-    # pred_latency = objective_function(optimal_configuration)
+    # Execute the task with the optimal config
+    timings = executor.run_task(task1, optimal_config)
+    executor.shutdown()
 
-
-    # ws.update_config(
-    #     cpu=optimal_configuration[0],
-    #     memory=optimal_configuration[1],
-    #     workers=optimal_configuration[2],
-    # )
-    #
-    #
-    # def calculate_actual_latency(timings):
-    #     average_read = np.mean(timings["read"])
-    #     average_compute = np.mean(timings["compute"])
-    #     average_write = np.mean(timings["write"])
-    #     cold_start_times = timings["cold_start_time"]
-    #     median_cold_start = np.median(cold_start_times)
-    #     total_latency = average_read + average_compute + average_write + median_cold_start
-    #     return total_latency
-    #
-    #
-    # # TODO-4: run with the optimal configuration
-    # # TODO: JOIN 3 and 4 inside DAGExecutor.run(..., optimal=True)
-    # exec_timings = ws.run()
-    #
-    # exec_timings = calculate_actual_latency(exec_timings)
-    # print(
-    #     "Predicted latency with optimal configuration",
-    #     pred_latency,
-    # )
-    # print("Actual latency:", exec_timings)
-    #
-    # print(f"Accuracy {100 - (exec_timings - pred_latency) / pred_latency * 100} %")
+    # Print metrics
+    actual_latency = sum([i.read + i.cold_start_time + i.compute + i.write for i in timings]) / len(timings)
+    print("Actual latency", actual_latency)
+    print(f"Accuracy {100 - (actual_latency - predicted_latency.total_time) / predicted_latency.total_time * 100} %")

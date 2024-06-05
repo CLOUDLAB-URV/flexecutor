@@ -28,6 +28,7 @@ class ConfigBounds:
         return [self.cpu, self.memory, self.workers]
 
 
+# TODO: FunctionProfiling and Prediction are almost the same, can we merge them?
 @dataclass
 class FunctionProfiling:
     """

@@ -86,21 +86,25 @@ class DAGExecutor:
     def profile(self, config_spaces: Iterable[ConfigSpace], num_iterations: int = 1):
         """Profile the DAG."""
         for task in self._dag.tasks:
+            os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
+            profiling_file = f"profiling/{self._dag.dag_id}/{task.task_id}.json"
             for config_space in config_spaces:
-                # Set the parameters in Lithops config
-                self._task_executor.config['runtime_cpu'] = config_space.cpu
-                self._task_executor.config['runtime_memory'] = config_space.memory
-                self._task_executor.config['workers'] = config_space.workers
-                logger.info(f'Profiling task {task.task_id} with config {config_space}')
-                os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
-                profiling_file = f"profiling/{self._dag.dag_id}/{task.task_id}.json"
-                # Execute the task
                 for iteration in range(num_iterations):
-                    logger.debug(f'Running iteration {iteration + 1}')
-                    futures = self._processor.process([task], self._executor)
-                    # Store the profiling data
-                    timings = self._get_timings(futures)
+                    timings = self.run_task(task, config_space)
                     self._store_profiling(profiling_file, timings, config_space)
+
+    def run_task(self, task: Task, config_space: ConfigSpace) -> List[FunctionProfiling]:
+        """Run a task with a given configuration space."""
+        # Set the parameters in Lithops config
+        self._task_executor.config['runtime_cpu'] = config_space.cpu
+        self._task_executor.config['runtime_memory'] = config_space.memory
+        self._task_executor.config['workers'] = config_space.workers
+        logger.info(f'Running task {task.task_id} with config {config_space}')
+        # Execute the task
+        futures = self._processor.process([task], self._executor)
+        # Store the profiling data
+        timings = self._get_timings(futures)
+        return timings
 
     def train(self) -> None:
         """Train the DAG."""
