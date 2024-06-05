@@ -68,6 +68,10 @@ class WorkflowStage:
 
     def save_profiling_results(self, results):
         serializable_results = {str(k): v for k, v in results.items()}
+        # check if file exists under the directory, if not create it
+        if not os.path.exists(os.path.dirname(self.profiling_file_name)):
+            os.makedirs(os.path.dirname(self.profiling_file_name))
+
         with open(self.profiling_file_name, "w") as f:
             json.dump(serializable_results, f, indent=4)
 

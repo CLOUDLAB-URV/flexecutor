@@ -1,6 +1,6 @@
 import numpy as np
 
-from examples.functions.word_occurrence import word_occurrence_count
+from functions.word_occurrence import word_occurrence_count
 from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.scheduling import Scheduler
 from flexecutor.stage import WorkflowStage

@@ -126,6 +126,5 @@ examples/*.pkl
 # images (maybe provisinal)
 examples/*.png
 
-examples/profiling/word_count_profiling_results.json
-
+# docs
 examples/docs/
