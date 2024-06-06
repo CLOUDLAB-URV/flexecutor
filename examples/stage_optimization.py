@@ -1,27 +1,27 @@
 from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.workflow.taskfuture import InputFile
+from flexecutor.workflow.stagefuture import InputFile
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig, ConfigBounds
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.dagexecutor import DAGExecutor
-from flexecutor.workflow.task import Task
+from flexecutor.workflow.stage import Stage
 
 NUM_CONFIGS = 5
 
 if __name__ == "__main__":
     dag = DAG('large-example-dag')
 
-    task1 = Task(
-        'task1',
+    stage1 = Stage(
+        'stage1',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
         input_file=InputFile("test-bucket/corpus.txt")
     )
 
-    dag.add_tasks([task1])
-    executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
+    dag.add_stages([stage1])
+    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
 
     config_spaces = [
         (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
@@ -50,23 +50,23 @@ if __name__ == "__main__":
     # Profile the DAG
     executor.profile(config_spaces_obj, num_iterations=2)
 
-    # Train the task models
+    # Train the stage models
     executor.train()
 
     # Print the objective function
-    objective_function = task1.perf_model.objective_func
+    objective_function = stage1.perf_model.objective_func
     print(f"Objective function {objective_function}")
 
     bounds = ConfigBounds(*[(1, 6), (512, 4096), (1, 3)])
 
-    # Get the optimal configuration for the task
-    optimal_config = task1.optimize(bounds)
+    # Get the optimal configuration for the stage
+    optimal_config = stage1.optimize(bounds)
     print(optimal_config)
-    predicted_latency = task1.predict(optimal_config)
+    predicted_latency = stage1.predict(optimal_config)
     print("Predicted latency", predicted_latency)
 
-    # Execute the task with the optimal config
-    timings = executor.run_task(task1, optimal_config)
+    # Execute the stage with the optimal config
+    timings = executor.run_stage(stage1, optimal_config)
     executor.shutdown()
 
     # Print metrics
