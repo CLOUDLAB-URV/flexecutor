@@ -1,54 +1,21 @@
 from __future__ import annotations
 
 import logging
-from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Callable, Sequence
 
-from flexecutor.workflow.executors import Executor
 from flexecutor.workflow.task import Task, TaskState
 from flexecutor.workflow.taskfuture import TaskFuture
 
 logger = logging.getLogger(__name__)
-MAX_CONCURRENCY = 64
 
 
-class Processor(ABC):
-    """
-    Abstract class for processors
-    """
-
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def process(
-            self,
-            tasks: Sequence[Task],
-            executor: Executor,
-            on_future_done: Callable[[Task, TaskFuture], None] = None,
-    ) -> dict[str, TaskFuture]:
-        """
-        Process a list of tasks
-
-        :param executor:
-        :param tasks: List of tasks to process
-        :param executor: Executor to use
-        :param on_future_done: Callback to execute every time a future is done
-        :return: Output data of the tasks
-        """
-        pass
-
-    def shutdown(self):
-        pass
-
-
-class ThreadPoolProcessor(Processor):
+class ThreadPoolProcessor:
     """
     Processor that uses a thread pool to execute tasks
     """
 
-    def __init__(self, max_concurrency=MAX_CONCURRENCY):
+    def __init__(self, max_concurrency=256):
         super().__init__()
         self._max_concurrency = max_concurrency
         self._pool = ThreadPoolExecutor(max_workers=max_concurrency)
@@ -56,14 +23,11 @@ class ThreadPoolProcessor(Processor):
     def process(
             self,
             tasks: Sequence[Task],
-            executor: Executor,
             on_future_done: Callable[[Task, TaskFuture], None] = None,
     ) -> dict[str, TaskFuture]:
         """
         Process a list of tasks
-        :param executor:
         :param tasks: List of tasks to process
-        :param executor: Executor to use
         :param on_future_done: Callback to execute every time a future is done
         :return: Futures of the tasks
         :raises ValueError: If there are no tasks to process or if there are more tasks than the maximum parallelism
@@ -86,7 +50,6 @@ class ThreadPoolProcessor(Processor):
             ex_futures[task.task_id] = self._pool.submit(
                 lambda: _process_task(
                     task,
-                    executor,
                     on_future_done
                 )
             )
@@ -101,8 +64,9 @@ class ThreadPoolProcessor(Processor):
 
 def _process_task(
         task: Task,
-        executor: Executor,
         on_future_done: Callable[[Task, TaskFuture], None] = None,
+        *args,
+        **kwargs
 ) -> TaskFuture:
     """
     Process a task
@@ -110,7 +74,9 @@ def _process_task(
     :param task: task to process
     :param on_future_done: Callback to execute every time a future is done
     """
-    future = executor.execute(task)
+    future = task(*args, **kwargs)
+    task.executor.wait(future)
+    future = TaskFuture(future)
 
     task.state = TaskState.FAILED if future.error() else TaskState.SUCCESS
 

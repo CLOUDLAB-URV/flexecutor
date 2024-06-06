@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 from typing import Dict, Set, List, Iterable
 
@@ -8,8 +7,7 @@ from lithops import FunctionExecutor
 from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig
 from flexecutor.utils.utils import load_profiling_results, save_profiling_results
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.executors import Executor, CallableExecutor
-from flexecutor.workflow.processors import Processor, ThreadPoolProcessor
+from flexecutor.workflow.processors import ThreadPoolProcessor
 from flexecutor.workflow.task import Task
 from flexecutor.workflow.taskfuture import TaskFuture
 
@@ -27,13 +25,10 @@ class DAGExecutor:
     def __init__(
             self,
             dag: DAG,
-            processor: Processor = None,
-            executor: Executor = CallableExecutor(),
             task_executor: FunctionExecutor | None = None,
     ):
         self._dag = dag
-        self._processor = processor or ThreadPoolProcessor(math.inf)
-        self._executor = executor
+        self._processor = ThreadPoolProcessor()
 
         self._futures: Dict[str, TaskFuture] = dict()
         self._num_final_tasks = 0
@@ -102,7 +97,7 @@ class DAGExecutor:
         self._task_executor.config['workers'] = config_space.workers
         logger.info(f'Running task {task.task_id} with config {config_space}')
         # Execute the task
-        futures = self._processor.process([task], self._executor)
+        futures = self._processor.process([task])
         # Store the profiling data
         timings = self._get_timings(futures)
         return timings
@@ -142,7 +137,7 @@ class DAGExecutor:
             self._running_tasks |= set_batch
 
             # Call the processor to execute the batch
-            futures = self._processor.process(batch, self._executor)
+            futures = self._processor.process(batch)
 
             self._running_tasks -= set_batch
             self._dependence_free_tasks -= set_batch
