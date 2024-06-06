@@ -8,7 +8,7 @@ from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor
+from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from flexecutor.workflow.stagefuture import InputFile
 
@@ -43,10 +43,10 @@ if __name__ == '__main__':
 
     dag.add_stages([stage1, stage2])
 
-    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
     executor.train()
 
-    stage1.plot_model_performance([
+    executor.plot_model_performance(stage1, [
         ResourceConfig(cpu=2, memory=1024, workers=3),
         ResourceConfig(cpu=0.5, memory=1568, workers=5),
     ])

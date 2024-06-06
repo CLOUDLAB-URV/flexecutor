@@ -7,7 +7,7 @@ from lithops import LocalhostExecutor
 from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor
+from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from flexecutor.workflow.stagefuture import InputFile
 
@@ -40,10 +40,10 @@ if __name__ == '__main__':
 
     dag.add_stages([stage1, stage2])
 
-    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
     executor.train()
 
-    prediction = stage1.predict(ResourceConfig(cpu=2, memory=1024, workers=3))
+    prediction = executor.predict(ResourceConfig(cpu=2, memory=1024, workers=3), stage1)
     print(prediction)
 
     executor.shutdown()

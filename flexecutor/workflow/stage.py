@@ -33,10 +33,7 @@ class Stage:
     """
 
     :param stage_id: Stage ID
-    :param executor: Executor to use
     :param input_file: Input data for the operator
-    :param args: Arguments to pass to the operator
-    :param kwargs: Keyword arguments to pass to the operator
     """
 
     def __init__(
@@ -44,21 +41,15 @@ class Stage:
             stage_id: str,
             func: Callable[[...], Any],
             perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
-            executor: FunctionExecutor | None = None,
             input_file: Optional[StageFuture] = None,
             output_file: Optional[StageFuture] = None,
-            *args,
-            **kwargs
     ):
         self._stage_unique_id = None
         self._stage_id = stage_id
-        self._executor = executor
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
         self._input_file = input_file
         self._output_file = output_file
-        self._args = args
-        self._kwargs = kwargs
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
@@ -66,19 +57,14 @@ class Stage:
         self.dag_id = None
 
     @property
-    def executor(self) -> FunctionExecutor:
-        """Return the executor."""
-        return self._executor
-
-    @executor.setter
-    def executor(self, value: FunctionExecutor):
-        """Set the executor."""
-        self._executor = value
-
-    @property
     def dag_id(self) -> str:
         """Return the DAG ID."""
         return self._dag_id
+
+    @property
+    def map_func(self) -> Callable[[...], Any]:
+        """Return the map function."""
+        return self._map_func
 
     @dag_id.setter
     def dag_id(self, value: str):
@@ -87,31 +73,6 @@ class Stage:
         self._perf_model = PerfModel.instance(model_type=self._perf_model_type,
                                               model_name=self._stage_unique_id,
                                               model_dst=f"models/{self._dag_id}/{self._stage_id}.pkl")
-
-    def __call__(
-            self,
-            *args,
-            **kwargs
-    ) -> FuturesList:
-        """
-        Execute the operator and return a future object.
-
-        :param input_file: Input data
-        :return: the future object
-        """
-
-        file_key = self._input_file.file
-        self._kwargs['obj_chunk_number'] = self._executor.config['workers']
-
-        return self._executor.map(
-            map_function=self._map_func,
-            map_iterdata=file_key,
-            *self._args,
-            **self._kwargs
-        )
-
-    def predict(self, config_space: ResourceConfig) -> FunctionTimes:
-        return self._perf_model.predict(config_space)
 
     @property
     def perf_model(self) -> PerfModel:
@@ -198,79 +159,3 @@ class Stage:
         """Overload the << operator for lists of operator."""
         self.add_child(other)
         return self
-
-    def optimize(self, config_bounds: ConfigBounds) -> ResourceConfig:
-        return self._perf_model.optimize(config_bounds)
-
-    def model_perf_metrics(self, config_spaces: List[ResourceConfig]) -> DataFrame:
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)
-
-        actual_latencies = np.array(actual_latencies)
-        predicted_latencies = np.array(predicted_latencies)
-
-        data = np.array([
-            [config.workers, config.cpu, config.memory, actual, predicted, abs(actual - predicted),
-             (actual - predicted) ** 2]
-            for config, actual, predicted in zip(config_spaces, actual_latencies, predicted_latencies)
-        ])
-
-        df = pd.DataFrame(data, columns=["Workers",
-                                         "CPU",
-                                         "Memory",
-                                         "Actual latency",
-                                         "Predicted latency",
-                                         "MAE",
-                                         "MSE"])
-
-        return df
-
-    def plot_model_performance(self, config_spaces: List[ResourceConfig]):
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(config_spaces))
-
-        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
-
-        if any(actual_latencies):
-            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
-
-        ax.set_xlabel("Configurations")
-        ax.set_ylabel("Latency")
-        ax.set_title("Model Performance Comparison")
-        ax.set_xticks(x)
-        ax.set_xticklabels([str(i.key) for i in config_spaces], rotation=45, ha="right")
-        ax.legend()
-
-        plt.tight_layout()
-
-        folder = f"images/{self.dag_id}"
-        os.makedirs(folder, exist_ok=True)
-        plt.savefig(f"images/{self.dag_id}/{self.stage_id}.png")
-
-    def _prediction_vs_actual(self, config_spaces: List[ResourceConfig]):
-        actual_latencies = []
-        predicted_latencies = []
-        profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.stage_id}.json")
-        self.perf_model.train(profiling_data)
-        for config in config_spaces:
-            if config.key in profiling_data:
-                executions = profiling_data[config.key]
-                total_latencies = [
-                    sum(lats)
-                    for breaks in zip(
-                        executions["read"],
-                        executions["compute"],
-                        executions["write"],
-                        executions["cold_start"],
-                    )
-                    for lats in zip(*breaks)
-                ]
-                avg_actual_latency = np.mean(total_latencies)
-                actual_latencies.append(avg_actual_latency)
-            else:
-                actual_latencies.append(None)
-
-            predicted_latency = self.perf_model.predict(config).total
-            predicted_latencies.append(predicted_latency)
-        return actual_latencies, predicted_latencies

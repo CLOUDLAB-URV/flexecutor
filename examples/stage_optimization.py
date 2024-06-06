@@ -1,12 +1,12 @@
 from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.workflow.stagefuture import InputFile
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig, ConfigBounds
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor
+from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
+from flexecutor.workflow.stagefuture import InputFile
 
 NUM_CONFIGS = 5
 
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     )
 
     dag.add_stages([stage1])
-    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
 
     config_spaces = [
         (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
@@ -60,9 +60,9 @@ if __name__ == "__main__":
     bounds = ConfigBounds(*[(1, 6), (512, 4096), (1, 3)])
 
     # Get the optimal configuration for the stage
-    optimal_config = stage1.optimize(bounds)
+    [optimal_config] = executor.optimize(bounds, stage1)
     print(optimal_config)
-    predicted_latency = stage1.predict(optimal_config)
+    [predicted_latency] = executor.predict(optimal_config, stage1)
     print("Predicted latency", predicted_latency)
 
     # Execute the stage with the optimal config

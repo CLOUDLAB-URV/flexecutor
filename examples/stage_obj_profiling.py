@@ -3,7 +3,7 @@ from lithops import LocalhostExecutor
 from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.workflow.stagefuture import InputFile
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor, ResourceConfig
+from flexecutor.workflow.executor import DAGExecutor, ResourceConfig
 from flexecutor.workflow.stage import Stage
 
 BUCKET_NAME = "lithops-manri-urv"
@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     dag.add_stages([stage1])
 
-    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
     executor.profile(config_spaces, num_iterations=1)
     executor.shutdown()
 

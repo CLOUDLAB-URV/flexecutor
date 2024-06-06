@@ -4,6 +4,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Callable, Sequence
 
+from lithops import FunctionExecutor
+
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 
@@ -15,8 +17,11 @@ class ThreadPoolProcessor:
     Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self, max_concurrency=256):
+    def __init__(self,
+                 executor: FunctionExecutor,
+                 max_concurrency=256):
         super().__init__()
+        self._executor = executor
         self._max_concurrency = max_concurrency
         self._pool = ThreadPoolExecutor(max_workers=max_concurrency)
 
@@ -48,7 +53,7 @@ class ThreadPoolProcessor:
 
             stage.state = StageState.RUNNING
             ex_futures[stage.stage_id] = self._pool.submit(
-                lambda: _process_stage(
+                lambda: self._process_stage(
                     stage,
                     on_future_done
                 )
@@ -61,26 +66,32 @@ class ThreadPoolProcessor:
     def shutdown(self):
         self._pool.shutdown()
 
+    def _process_stage(
+            self,
+            stage: Stage,
+            on_future_done: Callable[[Stage, StageFuture], None] = None
+    ) -> StageFuture:
+        """
+        Process a stage
 
-def _process_stage(
-        stage: Stage,
-        on_future_done: Callable[[Stage, StageFuture], None] = None,
-        *args,
-        **kwargs
-) -> StageFuture:
-    """
-    Process a stage
+        :param stage: stage to process
+        :param on_future_done: Callback to execute every time a future is done
+        """
+        file_key = stage.input_file.file
+        kwargs = {'obj_chunk_number': self._executor.config['workers']}
 
-    :param stage: stage to process
-    :param on_future_done: Callback to execute every time a future is done
-    """
-    future = stage(*args, **kwargs)
-    stage.executor.wait(future)
-    future = StageFuture(future)
+        future = self._executor.map(
+            map_function=stage.map_func,
+            map_iterdata=file_key,
+            **kwargs
+        )
 
-    stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
+        self._executor.wait(future)
+        future = StageFuture(future)
 
-    if on_future_done:
-        on_future_done(stage, future)
+        stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
 
-    return future
+        if on_future_done:
+            on_future_done(stage, future)
+
+        return future

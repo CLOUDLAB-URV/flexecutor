@@ -6,7 +6,7 @@ from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor, ResourceConfig
+from flexecutor.workflow.executor import DAGExecutor, ResourceConfig
 from flexecutor.workflow.stage import Stage
 from flexecutor.workflow.stagefuture import InputFile
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     dag.add_stages([stage1, stage2])
 
-    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
     executor.profile(config_spaces, num_iterations=NUM_ITERATIONS)
     executor.shutdown()
     print('Tasks completed')
