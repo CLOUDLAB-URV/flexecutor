@@ -25,8 +25,6 @@ class PerfModel(ABC):
     def predict(self, config: ResourceConfig) -> FunctionTimes:
         raise NotImplementedError
 
-    # FIXME: There shouldn't be a optimize method in the PerfModel class. The OptimizationProblemSolver we had took the objective function from the perfmodel and predicted a configuration, I think this is what the optimize method
-    # Is trying to do, but it should be in the OptimizationProblemSolver or some sort of solver class.
     @abstractmethod
     def optimize(self, config: ConfigBounds) -> ResourceConfig:
         raise NotImplementedError
