@@ -246,13 +246,14 @@ class DAGExecutor:
             predicted_latencies.append(predicted_latency)
         return actual_latencies, predicted_latencies
 
-    def predict(
+    def optimize(
         self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
     ) -> List[ResourceConfig]:
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            optimal_config = stage.perf_model.optimize(config_bounds)
+            # optimal_config = stage.perf_model.optimize(config_bounds)
+            # Hardcoded config for now
             optimal_config = ResourceConfig(cpu=5, memory=722, workers=2)
             print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
             # stage.resource_config = optimal_config
