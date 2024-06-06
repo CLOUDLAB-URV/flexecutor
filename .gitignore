@@ -6,6 +6,9 @@
 # C extensions
 *.so
 
+# PyCharm
+.idea/
+
 # Distribution / packaging
 .Python
 build/
@@ -121,10 +124,10 @@ dmypy.json
 .pyright/
 
 # model
-examples/*.pkl
+examples/models/*.pkl
 
 # images (maybe provisinal)
-examples/*.png
+examples/images/*.png
 
 examples/profiling/*.json
 !examples/profiling/mocks
