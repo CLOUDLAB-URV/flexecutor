@@ -3,7 +3,7 @@ from lithops import LocalhostExecutor
 from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.workflow.taskfuture import InputFile
 from flexecutor.modelling.perfmodel import PerfModelEnum
-from flexecutor.utils.dataclass import ConfigSpace, ConfigBounds
+from flexecutor.utils.dataclass import ResourceConfig, ConfigBounds
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.dagexecutor import DAGExecutor
 from flexecutor.workflow.task import Task
@@ -43,7 +43,7 @@ if __name__ == "__main__":
         (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
         (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
     ]
-    config_spaces_obj = [ConfigSpace(*config_space) for config_space in config_spaces]
+    config_spaces_obj = [ResourceConfig(*config_space) for config_space in config_spaces]
     NUM_CONFIGS = min(NUM_CONFIGS, len(config_spaces_obj) - 1)
     config_spaces_obj = config_spaces_obj[:NUM_CONFIGS]
 

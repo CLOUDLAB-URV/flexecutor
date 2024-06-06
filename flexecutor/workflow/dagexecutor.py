@@ -5,7 +5,7 @@ from typing import Dict, Set, List, Iterable
 
 from lithops import FunctionExecutor
 
-from flexecutor.utils.dataclass import FunctionProfiling, ConfigSpace
+from flexecutor.utils.dataclass import FunctionProfiling, ResourceConfig
 from flexecutor.utils.utils import load_profiling_results, save_profiling_results
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executors import Executor, CallableExecutor
@@ -66,7 +66,7 @@ class DAGExecutor:
                     f'Error getting timings for task {task_id}. Please review the return values of map function')
         return timings_list
 
-    def _store_profiling(self, file: str, new_profile_data: List[FunctionProfiling], config_space: ConfigSpace) -> None:
+    def _store_profiling(self, file: str, new_profile_data: List[FunctionProfiling], config_space: ResourceConfig) -> None:
         profile_data = load_profiling_results(file)
         config_key = config_space.key
         if config_key not in profile_data:
@@ -80,7 +80,7 @@ class DAGExecutor:
                 profile_data[config_key][key][-1].append(getattr(profiling, key))
         save_profiling_results(file, profile_data)
 
-    def profile(self, config_spaces: Iterable[ConfigSpace], num_iterations: int = 1):
+    def profile(self, config_spaces: Iterable[ResourceConfig], num_iterations: int = 1):
         """Profile the DAG."""
         for task in self._dag.tasks:
             os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
@@ -90,7 +90,7 @@ class DAGExecutor:
                     timings = self.run_task(task, config_space)
                     self._store_profiling(profiling_file, timings, config_space)
 
-    def run_task(self, task: Task, config_space: ConfigSpace) -> List[FunctionProfiling]:
+    def run_task(self, task: Task, config_space: ResourceConfig) -> List[FunctionProfiling]:
         """Run a task with a given configuration space."""
         # Set the parameters in Lithops config
         self._task_executor.config['runtime_cpu'] = config_space.cpu

@@ -6,7 +6,7 @@ from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.modelling.perfmodel import PerfModelEnum
-from flexecutor.utils.dataclass import ConfigSpace
+from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.dagexecutor import DAGExecutor
 from flexecutor.workflow.task import Task
@@ -47,8 +47,8 @@ if __name__ == '__main__':
     executor.train()
 
     task1.plot_model_performance([
-        ConfigSpace(cpu=2, memory=1024, workers=3),
-        ConfigSpace(cpu=0.5, memory=1568, workers=5),
+        ResourceConfig(cpu=2, memory=1024, workers=3),
+        ResourceConfig(cpu=0.5, memory=1568, workers=5),
     ])
 
     executor.shutdown()

@@ -5,7 +5,7 @@ import scipy.optimize as scipy_opt
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import Prediction, ConfigSpace, ConfigBounds
+from flexecutor.utils.dataclass import Prediction, ResourceConfig, ConfigBounds
 
 
 def io_func(x, a, b):
@@ -154,7 +154,7 @@ class AnaPerfModel(PerfModel):
         b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
         return a, b
 
-    def predict(self, config: ConfigSpace) -> Prediction:
+    def predict(self, config: ResourceConfig) -> Prediction:
         assert config.workers > 0
         # key = num_vcpu + runtime_memory + num_workers
         key = self._config_to_xparam(config.cpu, config.memory, config.workers)
@@ -175,7 +175,7 @@ class AnaPerfModel(PerfModel):
             cold_start_time=self._cold_params,
         )
 
-    def optimize(self, config: ConfigBounds) -> ConfigSpace:
+    def optimize(self, config: ConfigBounds) -> ResourceConfig:
         raise NotImplementedError
 
     # def fit_polynomial(self, x, y, degree):

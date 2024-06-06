@@ -6,7 +6,7 @@ from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor, ConfigSpace
+from flexecutor.workflow.dagexecutor import DAGExecutor, ResourceConfig
 from flexecutor.workflow.task import Task
 from flexecutor.workflow.taskfuture import InputFile
 
@@ -23,8 +23,8 @@ BUCKET_NAME = "lithops-manri-urv"
 
 if __name__ == '__main__':
     config_spaces = [
-        ConfigSpace(2, 1024, 3),
-        ConfigSpace(0.5, 1568, 5),
+        ResourceConfig(2, 1024, 3),
+        ResourceConfig(0.5, 1568, 5),
         # ...
     ]
 

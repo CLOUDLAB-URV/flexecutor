@@ -5,7 +5,7 @@ import logging
 from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.utils.dataclass import ConfigSpace
+from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.dagexecutor import DAGExecutor
 from flexecutor.workflow.task import Task
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
     executor.train()
 
-    prediction = task1.predict(ConfigSpace(cpu=2, memory=1024, workers=3))
+    prediction = task1.predict(ResourceConfig(cpu=2, memory=1024, workers=3))
     print(prediction)
 
     executor.shutdown()

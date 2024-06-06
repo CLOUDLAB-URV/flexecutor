@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from pandas import DataFrame
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.utils.dataclass import ConfigSpace, Prediction, ConfigBounds
+from flexecutor.utils.dataclass import ResourceConfig, Prediction, ConfigBounds
 from flexecutor.utils.utils import load_profiling_results
 from flexecutor.workflow.taskfuture import TaskFuture
 
@@ -110,7 +110,7 @@ class Task:
             **self._kwargs
         )
 
-    def predict(self, config_space: ConfigSpace) -> Prediction:
+    def predict(self, config_space: ResourceConfig) -> Prediction:
         return self._perf_model.predict(config_space)
 
     @property
@@ -199,10 +199,10 @@ class Task:
         self.add_child(other)
         return self
 
-    def optimize(self, config_bounds: ConfigBounds) -> ConfigSpace:
+    def optimize(self, config_bounds: ConfigBounds) -> ResourceConfig:
         return self._perf_model.optimize(config_bounds)
 
-    def model_perf_metrics(self, config_spaces: List[ConfigSpace]) -> DataFrame:
+    def model_perf_metrics(self, config_spaces: List[ResourceConfig]) -> DataFrame:
         actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)
 
         actual_latencies = np.array(actual_latencies)
@@ -224,7 +224,7 @@ class Task:
 
         return df
 
-    def plot_model_performance(self, config_spaces: List[ConfigSpace]):
+    def plot_model_performance(self, config_spaces: List[ResourceConfig]):
         actual_latencies, predicted_latencies = self._prediction_vs_actual(config_spaces)
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -248,7 +248,7 @@ class Task:
         os.makedirs(folder, exist_ok=True)
         plt.savefig(f"images/{self.dag_id}/{self.task_id}.png")
 
-    def _prediction_vs_actual(self, config_spaces: List[ConfigSpace]):
+    def _prediction_vs_actual(self, config_spaces: List[ResourceConfig]):
         actual_latencies = []
         predicted_latencies = []
         profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.task_id}.json")

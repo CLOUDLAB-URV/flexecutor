@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ConfigSpace:
+class ResourceConfig:
     """
     Configuration space for the task
     """
