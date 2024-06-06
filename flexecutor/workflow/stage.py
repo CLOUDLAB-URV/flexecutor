@@ -1,20 +1,11 @@
 from __future__ import annotations
 
-import os
 from enum import Enum
 from typing import Any, Set, List, Optional, Callable
 
-import numpy as np
-import pandas as pd
-from lithops import FunctionExecutor
-from lithops.utils import FuturesList
-from matplotlib import pyplot as plt
-from pandas import DataFrame
-
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.utils.dataclass import ResourceConfig, FunctionTimes, ConfigBounds
-from flexecutor.utils.utils import load_profiling_results
-from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.utils.dataclass import ResourceConfig
+from flexecutor.workflow.stagefuture import StageFuture, InputFile
 
 
 class StageState(Enum):
@@ -41,20 +32,21 @@ class Stage:
             stage_id: str,
             func: Callable[[...], Any],
             perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
-            input_file: Optional[StageFuture] = None,
+            input_file: Optional[str] = None,
             output_file: Optional[StageFuture] = None,
     ):
         self._stage_unique_id = None
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_file = input_file
+        self._input_file = InputFile(input_file, stage_id) if input_file else None
         self._output_file = output_file
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
         self._map_func = func
         self.dag_id = None
+        self.resource_config: Optional[ResourceConfig] = None
 
     @property
     def dag_id(self) -> str:

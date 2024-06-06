@@ -48,9 +48,6 @@ class ThreadPoolProcessor:
         for stage in stages:
             logger.info(f"Submitting stage {stage.stage_id}")
 
-            # TODO: get optimal stage configuration
-            # TODO: set optimal config to lithops executor
-
             stage.state = StageState.RUNNING
             ex_futures[stage.stage_id] = self._pool.submit(
                 lambda: self._process_stage(
@@ -77,8 +74,15 @@ class ThreadPoolProcessor:
         :param stage: stage to process
         :param on_future_done: Callback to execute every time a future is done
         """
+        # Update configuration of resources
+        # TODO: review that, this way not work IMO
+        self._executor.config['workers'] = stage.resource_config.workers
+        self._executor.config['memory'] = stage.resource_config.memory
+        self._executor.config['cpu'] = stage.resource_config.cpu
+
+        # Prepare input for map function
         file_key = stage.input_file.file
-        kwargs = {'obj_chunk_number': self._executor.config['workers']}
+        kwargs = {'obj_chunk_number': stage.resource_config.workers}
 
         future = self._executor.map(
             map_function=stage.map_func,
@@ -87,7 +91,7 @@ class ThreadPoolProcessor:
         )
 
         self._executor.wait(future)
-        future = StageFuture(future)
+        future = StageFuture(stage.stage_id, future)
 
         stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
 

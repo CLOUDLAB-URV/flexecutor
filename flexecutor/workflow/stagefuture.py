@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 from lithops.utils import FuturesList
 
+from flexecutor.utils.dataclass import FunctionTimes
+
 
 class StageFuture:
-    def __init__(self, future: Optional[FuturesList] = None):
+    def __init__(self, stage_id: str, future: Optional[FuturesList] = None):
+        self.__stage_id = stage_id
         self.__future = future
 
     def result(self) -> Any:
@@ -26,10 +29,26 @@ class StageFuture:
             return getattr(self.__future, item)
         raise AttributeError(f"Future object has no attribute {item}")
 
+    def get_timings(self) -> List[FunctionTimes]:
+        """Get the timings of the future."""
+        timings_list = []
+        for r, s in zip(self.result(), self.stats):
+            host_submit_tstamp = s["host_submit_tstamp"]
+            worker_start_tstamp = s["worker_start_tstamp"]
+            r["cold_start"] = worker_start_tstamp - host_submit_tstamp
+            timings_list.append(
+                FunctionTimes(read=r["read"],
+                              compute=r["compute"],
+                              write=r["write"],
+                              cold_start=r["cold_start"],
+                              total=r["read"] + r["compute"] + r["write"] + r["cold_start"])
+            )
+        return timings_list
+
 
 class InputFile(StageFuture):
-    def __init__(self, file: Any):
-        super().__init__()
+    def __init__(self, file: Any, stage_id: str):
+        super().__init__(stage_id)
         self._file = file
 
     @property

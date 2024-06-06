@@ -173,7 +173,9 @@ class AnaPerfModel(PerfModel):
         )
 
     def optimize(self, config: ConfigBounds) -> ResourceConfig:
-        raise NotImplementedError
+        # TODO: implement this
+        """Dummy response in AnaPerfModel"""
+        return ResourceConfig(cpu=1, memory=2048, workers=8)
 
     # def fit_polynomial(self, x, y, degree):
     #     coeffs = np.polyfit(x, y, degree)

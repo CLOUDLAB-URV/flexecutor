@@ -6,7 +6,6 @@ from flexecutor.utils.dataclass import ResourceConfig, ConfigBounds
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-from flexecutor.workflow.stagefuture import InputFile
 
 NUM_CONFIGS = 5
 
@@ -17,7 +16,7 @@ if __name__ == "__main__":
         'stage1',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=InputFile("test-bucket/corpus.txt")
+        input_file="test-bucket/corpus.txt"
     )
 
     dag.add_stages([stage1])
@@ -43,7 +42,7 @@ if __name__ == "__main__":
         (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
         (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
     ]
-    config_spaces_obj = [ResourceConfig(*config_space) for config_space in config_spaces]
+    config_spaces_obj = [ResourceConfig(*resource_config) for resource_config in config_spaces]
     NUM_CONFIGS = min(NUM_CONFIGS, len(config_spaces_obj) - 1)
     config_spaces_obj = config_spaces_obj[:NUM_CONFIGS]
 
@@ -66,7 +65,8 @@ if __name__ == "__main__":
     print("Predicted latency", predicted_latency)
 
     # Execute the stage with the optimal config
-    timings = executor.run_stage(stage1, optimal_config)
+    stage1.resource_config = optimal_config
+    timings = executor.execute_stage(stage1)
     executor.shutdown()
 
     # Print metrics

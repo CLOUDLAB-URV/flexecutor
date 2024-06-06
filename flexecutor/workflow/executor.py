@@ -41,33 +41,10 @@ class DAGExecutor:
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
 
-    def _get_timings(self, futures: dict[str, StageFuture]) -> List[FunctionTimes]:
-        """Get the timings of the futures."""
-        timings_list = []
-        for stage_id, future in futures.items():
-            results = future.result()
-            stats = future.stats
-            try:
-                for r, s in zip(results, stats):
-                    host_submit_tstamp = s["host_submit_tstamp"]
-                    worker_start_tstamp = s["worker_start_tstamp"]
-                    r["cold_start"] = worker_start_tstamp - host_submit_tstamp
-                    timings_list.append(
-                        FunctionTimes(read=r["read"],
-                                      compute=r["compute"],
-                                      write=r["write"],
-                                      cold_start=r["cold_start"],
-                                      total=r["read"] + r["compute"] + r["write"] + r["cold_start"])
-                    )
-            except KeyError:
-                logger.error(
-                    f'Error getting timings for stage {stage_id}. Please review the return values of map function')
-        return timings_list
-
     def _store_profiling(self, file: str, new_profile_data: List[FunctionTimes],
-                         config_space: ResourceConfig) -> None:
+                         resource_config: ResourceConfig) -> None:
         profile_data = load_profiling_results(file)
-        config_key = config_space.key
+        config_key = resource_config.key
         if config_key not in profile_data:
             profile_data[config_key] = {}
         for key in FunctionTimes.profile_keys():
@@ -88,33 +65,27 @@ class DAGExecutor:
         for stage in stages_list:
             os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
             profiling_file = f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
-            for config_space in config_spaces:
+            for resource_config in config_spaces:
+                stage.resource_config = resource_config
                 for iteration in range(num_iterations):
-                    timings = self.run_stage(stage, config_space)
-                    self._store_profiling(profiling_file, timings, config_space)
+                    timings = self.execute_stage(stage)
+                    self._store_profiling(profiling_file, timings, resource_config)
 
     def predict(self,
-                config_space: ResourceConfig,
+                resource_config: ResourceConfig,
                 stage: Optional[Stage] = None
                 ) -> List[FunctionTimes]:
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            result.append(stage.perf_model.predict(config_space))
+            result.append(stage.perf_model.predict(resource_config))
         return result
 
-    def run_stage(self, stage: Stage, config_space: ResourceConfig) -> List[FunctionTimes]:
+    def execute_stage(self, stage: Stage) -> List[FunctionTimes]:
         """Run a stage with a given configuration space."""
-        # Set the parameters in Lithops config
-        self._executor.config['runtime_cpu'] = config_space.cpu
-        self._executor.config['runtime_memory'] = config_space.memory
-        self._executor.config['workers'] = config_space.workers
-        logger.info(f'Running stage {stage.stage_id} with config {config_space}')
-        # Execute the stage
         futures = self._processor.process([stage])
-        # Store the profiling data
-        timings = self._get_timings(futures)
-        return timings
+        [future] = futures.values()
+        return future.get_timings()
 
     def train(self,
               stage: Optional[Stage] = None) -> None:
@@ -135,6 +106,10 @@ class DAGExecutor:
 
         self._num_final_stages = len(self._dag.leaf_stages)
         logger.info(f'DAG {self._dag.dag_id} has {self._num_final_stages} final stages')
+
+        # Before the execution, get the optimal configurations for all stages in the DAG
+        self.train()
+        self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
 
         self._futures = dict()
 
@@ -246,7 +221,9 @@ class DAGExecutor:
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            result.append(stage.perf_model.optimize(config_bounds))
+            optimal_config = stage.perf_model.optimize(config_bounds)
+            stage.resource_config = optimal_config
+            result.append(optimal_config)
         return result
 
     def shutdown(self):

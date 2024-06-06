@@ -10,7 +10,6 @@ from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-from flexecutor.workflow.stagefuture import InputFile
 
 config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
 
@@ -30,13 +29,13 @@ if __name__ == '__main__':
         'stage1',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
     )
     stage2 = Stage(
         'stage2',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
     )
 
     stage2 << stage1

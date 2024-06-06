@@ -12,13 +12,13 @@ from flexecutor.utils.utils import initialize_timings
 
 
 # Helper functions to retrieve and reset timings
-def get_timings(timings: dict):
-    return timings
-
-
-def reset_timings(timings: dict):
-    for key in timings:
-        timings[key] = 0
+# def get_timings(timings: dict):
+#     return timings
+#
+#
+# def reset_timings(timings: dict):
+#     for key in timings:
+#         timings[key] = 0
 
 
 def measure_operation(op_type: str):

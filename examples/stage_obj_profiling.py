@@ -1,7 +1,6 @@
 from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.workflow.stagefuture import InputFile
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor, ResourceConfig
 from flexecutor.workflow.stage import Stage
@@ -19,7 +18,7 @@ if __name__ == "__main__":
     stage1 = Stage(
         'stage1',
         func=word_occurrence_count,
-        input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
     )
 
     dag.add_stages([stage1])
