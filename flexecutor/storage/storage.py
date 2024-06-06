@@ -7,6 +7,7 @@ from flexecutor.utils import setup_logging
 from lithops import Storage
 from typing import Callable
 import time
+
 import re
 from flexecutor.utils.utils import initialize_timings
 
@@ -32,6 +33,7 @@ def measure_operation(op_type: str):
 class S3Client:
     _config = None
     _resource = None
+    # class logger
     logger = setup_logging(level="INFO")
 
     @classmethod
@@ -67,29 +69,45 @@ class S3Client:
 
 class Dataset:
     def __init__(
-        self, bucket, pattern, local_base_path="/tmp", s3_client=None, *args, **kwargs
+        self, s3_client, bucket, pattern, local_base_path="/tmp", *args, **kwargs
     ):
-        self.s3_client = s3_client or S3Client()
+        self.s3_client = s3_client
         self.bucket_name = bucket
-        self.pattern = pattern
-        self.regex = re.compile(fnmatch.translate(self.pattern))
+        self.pattern = pattern.strip("/")
         self.local_base_path = Path(local_base_path).resolve()
-        self.paths = self.find_paths()
         self.logger = setup_logging(level="INFO")
+        self.paths = self.find_paths()
         self.logger.info(
             f"Dataset initialized with pattern: {self.pattern} and local base path: {self.local_base_path}"
         )
 
+    @classmethod
+    def from_directory(cls, bucket, directory, local_base_path="/tmp"):
+        pattern = f"{directory.strip('/')}/*"
+        s3_client = S3Client()
+        return cls(s3_client, bucket, pattern, local_base_path)
+
+    @classmethod
+    def from_glob(cls, bucket, glob_pattern, local_base_path="/tmp"):
+        s3_client = S3Client()
+        return cls(s3_client, bucket, glob_pattern, local_base_path)
+
     def find_paths(self):
         matching_paths = []
         paginator = self.s3_client.resource.meta.client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=self.bucket_name):
+        prefix = self.pattern.split("*")[0]
+        self.logger.info(
+            f"Listing objects in bucket: {self.bucket_name} with prefix: {prefix}"
+        )
+        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
             for obj in page.get("Contents", []):
                 s3_full_path = f"/{self.bucket_name}/{obj['Key']}"
-                self.logger.debug(f"Checking S3 path: {s3_full_path}")
-                if self.regex.match(s3_full_path):
+                self.logger.debug(f"Found S3 object: {s3_full_path}")
+                if fnmatch.fnmatch(obj["Key"], self.pattern):
                     self.logger.debug(f"Matched S3 path: {s3_full_path}")
                     matching_paths.append(S3Path(s3_full_path))
+                else:
+                    self.logger.debug(f"Did not match S3 path: {s3_full_path}")
         if not matching_paths:
             self.logger.info("No matching files found.")
         return matching_paths
@@ -117,8 +135,9 @@ class Dataset:
 if __name__ == "__main__":
 
     bucket = "test-bucket"
-    pattern = "*_file.txt"
 
-    dataset = Dataset(bucket=bucket, pattern=pattern)
-    print("Matched files:", [str(p) for p in dataset.paths])
-    dataset.download_all()
+    dataset_dir = Dataset.from_directory(bucket, "dir", "/tmp")
+    print("Matched files from directory:", [str(p) for p in dataset_dir.paths])
+
+    dataset_glob = Dataset.from_glob(bucket, "dir/*.txt", "/tmp")
+    print("Matched files from glob pattern:", [str(p) for p in dataset_glob.paths])
