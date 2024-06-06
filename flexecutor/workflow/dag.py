@@ -2,7 +2,7 @@ import networkx as nx
 from matplotlib import pyplot as plt
 from networkx.drawing.nx_agraph import graphviz_layout
 
-from flexecutor.workflow.task import Task
+from flexecutor.workflow.stage import Stage
 
 
 class DAG:
@@ -14,7 +14,7 @@ class DAG:
 
     def __init__(self, dag_id):
         self._dag_id = dag_id
-        self._tasks = set()
+        self._stages = set()
 
     @property
     def dag_id(self):
@@ -22,62 +22,61 @@ class DAG:
         return self._dag_id
 
     @property
-    def tasks(self) -> set[Task]:
-        """Return all tasks in the DAG"""
-        return self._tasks
+    def stages(self) -> set[Stage]:
+        """Return all stages in the DAG"""
+        return self._stages
 
     @property
-    def root_tasks(self) -> set[Task]:
+    def root_stages(self) -> set[Stage]:
         """
-        Return all root tasks in the DAG
+        Return all root stages in the DAG
 
-        A root task is a task that has no parents.
+        A root stage is a stage that has no parents.
         """
-        return {task for task in self.tasks if not task.parents}
+        return {stage for stage in self.stages if not stage.parents}
 
     @property
-    def leaf_tasks(self) -> set[Task]:
+    def leaf_stages(self) -> set[Stage]:
         """
-        Return all leaf tasks in the DAG
+        Return all leaf stages in the DAG
 
-        A leaf task is a task that has no children.
+        A leaf stage is a stage that has no children.
         """
-        return {task for task in self.tasks if not task.children}
+        return {stage for stage in self.stages if not stage.children}
 
-    def add_task(self, task: Task):
+    def add_stage(self, stage: Stage):
         """
-        Add a task to this DAG
+        Add a stage to this DAG
 
-        :param task: Task to add
-        :raises ValueError: if the task is already in the DAG
+        :param stage: Stage to add
+        :raises ValueError: if the stage is already in the DAG
         """
-        task.dag_id = self.dag_id
+        stage.dag_id = self.dag_id
 
-        if task.task_id in {t.task_id for t in self.tasks}:
-            raise ValueError(f"Task with id {task.task_id} already exists in DAG {self._dag_id}")
+        if stage.stage_id in {t.stage_id for t in self.stages}:
+            raise ValueError(f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}")
 
-        self._tasks.add(task)
+        self._stages.add(stage)
 
-    def add_tasks(self, tasks: list[Task]):
+    def add_stages(self, stages: list[Stage]):
         """
-        Add a list of tasks to this DAG
+        Add a list of stages to this DAG
 
-        :param tasks: List of tasks to add
-        :raises ValueError: if any of the tasks is already in the DAG
+        :param stages: List of stages to add
+        :raises ValueError: if any of the stages is already in the DAG
         """
-        for task in tasks:
-            self.add_task(task)
+        for stage in stages:
+            self.add_stage(stage)
 
     def draw(self):
         """
         Draw the DAG for user visualization
         """
-        # load a graph from tasks.parents and tasks.children
         graph = nx.DiGraph()
-        for task in self.tasks:
-            graph.add_node(task.task_id, label=task.task_id)
-            for parent in task.parents:
-                graph.add_edge(parent.task_id, task.task_id)
+        for stage in self.stages:
+            graph.add_node(stage.stage_id, label=stage.stage_id)
+            for parent in stage.parents:
+                graph.add_edge(parent.stage_id, stage.stage_id)
         pos = graphviz_layout(graph, prog='dot')
         labels = nx.get_node_attributes(graph, 'label')
         plt.title(self.dag_id, fontsize=15, fontweight='bold')

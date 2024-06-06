@@ -1,27 +1,26 @@
 from lithops import LocalhostExecutor
 
 from examples.functions.word_occurrence import word_occurrence_count
-from flexecutor.workflow.taskfuture import InputFile
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig, ConfigBounds
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor
-from flexecutor.workflow.task import Task
+from flexecutor.workflow.executor import DAGExecutor
+from flexecutor.workflow.stage import Stage
 
 NUM_CONFIGS = 5
 
 if __name__ == "__main__":
     dag = DAG('large-example-dag')
 
-    task1 = Task(
-        'task1',
+    stage1 = Stage(
+        'stage1',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=InputFile("test-bucket/corpus.txt")
+        input_file="test-bucket/corpus.txt"
     )
 
-    dag.add_tasks([task1])
-    executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
+    dag.add_stages([stage1])
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
 
     config_spaces = [
         (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
@@ -43,33 +42,34 @@ if __name__ == "__main__":
         (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
         (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
     ]
-    config_spaces_obj = [ResourceConfig(*config_space) for config_space in config_spaces]
+    config_spaces_obj = [ResourceConfig(*resource_config) for resource_config in config_spaces]
     NUM_CONFIGS = min(NUM_CONFIGS, len(config_spaces_obj) - 1)
     config_spaces_obj = config_spaces_obj[:NUM_CONFIGS]
 
     # Profile the DAG
     executor.profile(config_spaces_obj, num_iterations=2)
 
-    # Train the task models
+    # Train the stage models
     executor.train()
 
     # Print the objective function
-    objective_function = task1.perf_model.objective_func
+    objective_function = stage1.perf_model.objective_func
     print(f"Objective function {objective_function}")
 
     bounds = ConfigBounds(*[(1, 6), (512, 4096), (1, 3)])
 
-    # Get the optimal configuration for the task
-    optimal_config = task1.optimize(bounds)
+    # Get the optimal configuration for the stage
+    [optimal_config] = executor.optimize(bounds, stage1)
     print(optimal_config)
-    predicted_latency = task1.predict(optimal_config)
+    [predicted_latency] = executor.predict(optimal_config, stage1)
     print("Predicted latency", predicted_latency)
 
-    # Execute the task with the optimal config
-    timings = executor.run_task(task1, optimal_config)
+    # Execute the stage with the optimal config
+    stage1.resource_config = optimal_config
+    timings = executor.execute_stage(stage1)
     executor.shutdown()
 
     # Print metrics
-    actual_latency = sum([i.read + i.cold_start_time + i.compute + i.write for i in timings]) / len(timings)
+    actual_latency = sum([i.read + i.cold_start + i.compute + i.write for i in timings]) / len(timings)
     print("Actual latency", actual_latency)
-    print(f"Accuracy {100 - (actual_latency - predicted_latency.total_time) / predicted_latency.total_time * 100} %")
+    print(f"Accuracy {100 - (actual_latency - predicted_latency.total) / predicted_latency.total * 100} %")

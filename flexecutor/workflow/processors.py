@@ -1,120 +1,101 @@
 from __future__ import annotations
 
 import logging
-from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Callable, Sequence
 
-from flexecutor.workflow.executors import Executor
-from flexecutor.workflow.task import Task, TaskState
-from flexecutor.workflow.taskfuture import TaskFuture
+from lithops import FunctionExecutor
+
+from flexecutor.workflow.stage import Stage, StageState
+from flexecutor.workflow.stagefuture import StageFuture
 
 logger = logging.getLogger(__name__)
-MAX_CONCURRENCY = 64
 
 
-class Processor(ABC):
+class ThreadPoolProcessor:
     """
-    Abstract class for processors
-    """
-
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def process(
-            self,
-            tasks: Sequence[Task],
-            executor: Executor,
-            on_future_done: Callable[[Task, TaskFuture], None] = None,
-    ) -> dict[str, TaskFuture]:
-        """
-        Process a list of tasks
-
-        :param executor:
-        :param tasks: List of tasks to process
-        :param executor: Executor to use
-        :param on_future_done: Callback to execute every time a future is done
-        :return: Output data of the tasks
-        """
-        pass
-
-    def shutdown(self):
-        pass
-
-
-class ThreadPoolProcessor(Processor):
-    """
-    Processor that uses a thread pool to execute tasks
+    Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self, max_concurrency=MAX_CONCURRENCY):
+    def __init__(self,
+                 executor: FunctionExecutor,
+                 max_concurrency=256):
         super().__init__()
+        self._executor = executor
         self._max_concurrency = max_concurrency
         self._pool = ThreadPoolExecutor(max_workers=max_concurrency)
 
     def process(
             self,
-            tasks: Sequence[Task],
-            executor: Executor,
-            on_future_done: Callable[[Task, TaskFuture], None] = None,
-    ) -> dict[str, TaskFuture]:
+            stages: Sequence[Stage],
+            on_future_done: Callable[[Stage, StageFuture], None] = None,
+    ) -> dict[str, StageFuture]:
         """
-        Process a list of tasks
-        :param executor:
-        :param tasks: List of tasks to process
-        :param executor: Executor to use
+        Process a list of stages
+        :param stages: List of stages to process
         :param on_future_done: Callback to execute every time a future is done
-        :return: Futures of the tasks
-        :raises ValueError: If there are no tasks to process or if there are more tasks than the maximum parallelism
+        :return: Futures of the stages
+        :raises ValueError: If there are no stages to process or if there are more stages than the maximum parallelism
         """
-        if len(tasks) == 0:
-            raise ValueError('No tasks to process')
+        if len(stages) == 0:
+            raise ValueError('No stages to process')
 
-        if len(tasks) > self._max_concurrency:
-            raise ValueError(f'Too many tasks to process. Max concurrency is {self._max_concurrency}')
+        if len(stages) > self._max_concurrency:
+            raise ValueError(f'Too many stages to process. Max concurrency is {self._max_concurrency}')
 
         ex_futures = {}
 
-        for task in tasks:
-            logger.info(f"Submitting task {task.task_id}")
+        for stage in stages:
+            logger.info(f"Submitting stage {stage.stage_id}")
 
-            # TODO: get optimal task configuration
-            # TODO: set optimal config to lithops executor
-
-            task.state = TaskState.RUNNING
-            ex_futures[task.task_id] = self._pool.submit(
-                lambda: _process_task(
-                    task,
-                    executor,
+            stage.state = StageState.RUNNING
+            ex_futures[stage.stage_id] = self._pool.submit(
+                lambda: self._process_stage(
+                    stage,
                     on_future_done
                 )
             )
 
         wait(ex_futures.values())
 
-        return {task_id: ex_future.result() for task_id, ex_future in ex_futures.items()}
+        return {stage_id: ex_future.result() for stage_id, ex_future in ex_futures.items()}
 
     def shutdown(self):
         self._pool.shutdown()
 
+    def _process_stage(
+            self,
+            stage: Stage,
+            on_future_done: Callable[[Stage, StageFuture], None] = None
+    ) -> StageFuture:
+        """
+        Process a stage
 
-def _process_task(
-        task: Task,
-        executor: Executor,
-        on_future_done: Callable[[Task, TaskFuture], None] = None,
-) -> TaskFuture:
-    """
-    Process a task
+        :param stage: stage to process
+        :param on_future_done: Callback to execute every time a future is done
+        """
+        # Update configuration of resources
+        # TODO: review that, this way not work IMO
+        self._executor.config['workers'] = stage.resource_config.workers
+        self._executor.config['memory'] = stage.resource_config.memory
+        self._executor.config['cpu'] = stage.resource_config.cpu
 
-    :param task: task to process
-    :param on_future_done: Callback to execute every time a future is done
-    """
-    future = executor.execute(task)
+        # Prepare input for map function
+        file_key = stage.input_file.file
+        kwargs = {'obj_chunk_number': stage.resource_config.workers}
 
-    task.state = TaskState.FAILED if future.error() else TaskState.SUCCESS
+        future = self._executor.map(
+            map_function=stage.map_func,
+            map_iterdata=file_key,
+            **kwargs
+        )
 
-    if on_future_done:
-        on_future_done(task, future)
+        self._executor.wait(future)
+        future = StageFuture(stage.stage_id, future)
 
-    return future
+        stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
+
+        if on_future_done:
+            on_future_done(stage, future)
+
+        return future

@@ -8,9 +8,8 @@ from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.dagexecutor import DAGExecutor
-from flexecutor.workflow.task import Task
-from flexecutor.workflow.taskfuture import InputFile
+from flexecutor.workflow.executor import DAGExecutor
+from flexecutor.workflow.stage import Stage
 
 config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
 
@@ -26,30 +25,30 @@ BUCKET_NAME = "lithops-manri-urv"
 if __name__ == '__main__':
     dag = DAG('mini-dag')
 
-    task1 = Task(
-        'task1',
+    stage1 = Stage(
+        'stage1',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
     )
-    task2 = Task(
-        'task2',
+    stage2 = Stage(
+        'stage2',
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
     )
 
-    task2 << task1
+    stage2 << stage1
 
-    dag.add_tasks([task1, task2])
+    dag.add_stages([stage1, stage2])
 
-    executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, executor=LocalhostExecutor())
     executor.train()
 
-    task1.plot_model_performance([
+    executor.plot_model_performance(stage1, [
         ResourceConfig(cpu=2, memory=1024, workers=3),
         ResourceConfig(cpu=0.5, memory=1568, workers=5),
     ])
 
     executor.shutdown()
-    print('Tasks completed')
+    print('stages completed')

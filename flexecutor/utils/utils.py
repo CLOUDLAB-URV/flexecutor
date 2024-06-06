@@ -17,13 +17,13 @@ def operation(op_type: str, timings: dict):
     timings[op_type] += end_time - start_time
 
 
-def get_timings(timings: dict):
-    return timings
-
-
-def reset_timings(timings: dict):
-    for key in timings:
-        timings[key] = 0
+# def get_timings(timings: dict):
+#     return timings
+#
+#
+# def reset_timings(timings: dict):
+#     for key in timings:
+#         timings[key] = 0
 
 
 # TODO: review if this function will alive here

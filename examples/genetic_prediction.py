@@ -10,5 +10,5 @@ if __name__ == "__main__":
     print("Objective Function:", model.objective_func)
     prediction = model.predict(ResourceConfig(cpu=2, memory=400, workers=5))
     print(
-        "Predicted Latency for (2 CPUs, 400 Memory, 5 Workers):", prediction.total_time
+        "Predicted Latency for (2 CPUs, 400 Memory, 5 Workers):", prediction.total
     )

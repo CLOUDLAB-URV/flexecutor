@@ -11,7 +11,7 @@ from overrides import overrides
 from scipy.optimize import differential_evolution
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import Prediction, ConfigBounds, ResourceConfig
+from flexecutor.utils.dataclass import FunctionTimes, ConfigBounds, ResourceConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -131,15 +131,15 @@ class GAPerfModel(PerfModel):
     def train(self, stage_profile_data: Dict) -> None:
         def preprocess_profiling_data(profiling_data):
             processed_data = []
-            cold_start_times = []
+            cold_starts = []
 
             for config, data in profiling_data.items():
                 num_vcpu, memory, num_func = config
 
                 config_key = (num_vcpu, memory, num_func)
 
-                cold_start_times.extend(
-                    [np.mean(times) for times in data["cold_start_time"]]
+                cold_starts.extend(
+                    [np.mean(times) for times in data["cold_start"]]
                 )
 
                 read_times = [np.mean(times) for times in data["read"]]
@@ -147,7 +147,7 @@ class GAPerfModel(PerfModel):
                 write_times = [np.mean(times) for times in data["write"]]
 
                 latencies = [
-                    sum(times) + np.mean(cold_start_times)
+                    sum(times) + np.mean(cold_starts)
                     for times in zip(read_times, compute_times, write_times)
                 ]
 
@@ -201,10 +201,11 @@ class GAPerfModel(PerfModel):
     def parameters(self):
         return "Yet to be implemented"
 
-    def predict(self, config) -> Prediction:
+    def predict(self, config) -> FunctionTimes:
         func = self._toolbox.compile(expr=self._best_individual)
         try:
-            return Prediction(func(config.cpu, config.memory, config.workers))
+            return FunctionTimes(total=func(config.cpu, config.memory, config.workers))
         except Exception as e:
             logger.error(f"Error predicting: {e}")
-            return Prediction(np.nan)
+            return FunctionTimes()
+

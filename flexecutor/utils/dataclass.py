@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
 class ResourceConfig:
     """
-    Configuration space for the task
+    Configuration space for the stage
     """
     cpu: float
     memory: float
@@ -18,7 +19,7 @@ class ResourceConfig:
 @dataclass
 class ConfigBounds:
     """
-    Configuration space bounds for the task
+    Configuration space bounds for the stage
     """
     cpu: tuple[float, float]
     memory: tuple[float, float]
@@ -28,33 +29,14 @@ class ConfigBounds:
         return [self.cpu, self.memory, self.workers]
 
 
-# TODO: FunctionProfiling and Prediction are almost the same, can we merge them?
 @dataclass
-class FunctionProfiling:
-    """
-    Timing of the function
-    """
-    read: float
-    compute: float
-    write: float
-    cold_start_time: float
+class FunctionTimes:
+    read: Optional[float] = None
+    compute: Optional[float] = None
+    write: Optional[float] = None
+    cold_start: Optional[float] = None
+    total: Optional[float] = None
 
     @classmethod
-    def metrics(cls) -> list[str]:
-        return ["read", "compute", "write", "cold_start_time"]
-
-
-@dataclass
-class Prediction:
-    read_time: float | None
-    compute_time: float | None
-    write_time: float | None
-    cold_start_time: float | None
-    total_time: float
-
-    def __init__(self, total_time, read_time=None, compute_time=None, write_time=None, cold_start_time=None):
-        self.read_time = read_time
-        self.compute_time = compute_time
-        self.write_time = write_time
-        self.cold_start_time = cold_start_time
-        self.total_time = total_time
+    def profile_keys(cls) -> list[str]:
+        return ["read", "compute", "write", "cold_start"]
