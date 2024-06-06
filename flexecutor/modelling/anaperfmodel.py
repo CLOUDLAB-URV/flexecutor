@@ -5,7 +5,7 @@ import scipy.optimize as scipy_opt
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import Prediction, ResourceConfig, ConfigBounds
+from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBounds
 
 
 def io_func(x, a, b):
@@ -67,16 +67,13 @@ class AnaPerfModel(PerfModel):
 
         for config_data in stage_profile_data.values():
             assert (
-                "read" in config_data
-                and "compute" in config_data
-                and "write" in config_data
-                and "cold_start_time" in config_data
-            ), "Each configuration's data must contain 'read', 'compute', 'write', and 'cold_start_time' keys."
+                all(key in config_data for key in FunctionTimes.profile_keys())
+            ), f"Each configuration's data must contain {FunctionTimes.profile_keys()} keys."
 
         print("Training Analytical performance model for %s" % self._stage_name)
 
         cold_arr = np.array(
-            [data["cold_start_time"] for _, data in stage_profile_data.items()]
+            [data["cold_start"] for _, data in stage_profile_data.items()]
         )
         self._cold_params = np.mean(cold_arr)
 
@@ -154,7 +151,7 @@ class AnaPerfModel(PerfModel):
         b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
         return a, b
 
-    def predict(self, config: ResourceConfig) -> Prediction:
+    def predict(self, config: ResourceConfig) -> FunctionTimes:
         assert config.workers > 0
         # key = num_vcpu + runtime_memory + num_workers
         key = self._config_to_xparam(config.cpu, config.memory, config.workers)
@@ -167,12 +164,12 @@ class AnaPerfModel(PerfModel):
             + predicted_write_time
             + self._cold_params
         )
-        return Prediction(
-            total_time=total_predicted_time,
-            read_time=predicted_read_time,
-            compute_time=predicted_comp_time,
-            write_time=predicted_write_time,
-            cold_start_time=self._cold_params,
+        return FunctionTimes(
+            total=total_predicted_time,
+            read=predicted_read_time,
+            compute=predicted_comp_time,
+            write=predicted_write_time,
+            cold_start=self._cold_params,
         )
 
     def optimize(self, config: ConfigBounds) -> ResourceConfig:

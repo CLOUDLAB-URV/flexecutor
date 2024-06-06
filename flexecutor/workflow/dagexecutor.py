@@ -5,7 +5,7 @@ from typing import Dict, Set, List, Iterable
 
 from lithops import FunctionExecutor
 
-from flexecutor.utils.dataclass import FunctionProfiling, ResourceConfig
+from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig
 from flexecutor.utils.utils import load_profiling_results, save_profiling_results
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executors import Executor, CallableExecutor
@@ -46,7 +46,7 @@ class DAGExecutor:
             for task in self._dag.tasks:
                 task.executor = task_executor
 
-    def _get_timings(self, futures: dict[str, TaskFuture]) -> List[FunctionProfiling]:
+    def _get_timings(self, futures: dict[str, TaskFuture]) -> List[FunctionTimes]:
         """Get the timings of the futures."""
         timings_list = []
         for task_id, future in futures.items():
@@ -56,27 +56,31 @@ class DAGExecutor:
                 for r, s in zip(results, stats):
                     host_submit_tstamp = s["host_submit_tstamp"]
                     worker_start_tstamp = s["worker_start_tstamp"]
-                    r["cold_start_time"] = worker_start_tstamp - host_submit_tstamp
-                    timings_list.append(FunctionProfiling(r["read"],
-                                                          r["compute"],
-                                                          r["write"],
-                                                          r["cold_start_time"]))
+                    r["cold_start"] = worker_start_tstamp - host_submit_tstamp
+                    timings_list.append(
+                        FunctionTimes(read=r["read"],
+                                      compute=r["compute"],
+                                      write=r["write"],
+                                      cold_start=r["cold_start"],
+                                      total=r["read"] + r["compute"] + r["write"] + r["cold_start"])
+                    )
             except KeyError:
                 logger.error(
                     f'Error getting timings for task {task_id}. Please review the return values of map function')
         return timings_list
 
-    def _store_profiling(self, file: str, new_profile_data: List[FunctionProfiling], config_space: ResourceConfig) -> None:
+    def _store_profiling(self, file: str, new_profile_data: List[FunctionTimes],
+                         config_space: ResourceConfig) -> None:
         profile_data = load_profiling_results(file)
         config_key = config_space.key
         if config_key not in profile_data:
             profile_data[config_key] = {}
-        for key in FunctionProfiling.metrics():
+        for key in FunctionTimes.profile_keys():
             if key not in profile_data[config_key]:
                 profile_data[config_key][key] = []
             profile_data[config_key][key].append([])
         for profiling in new_profile_data:
-            for key in FunctionProfiling.metrics():
+            for key in FunctionTimes.profile_keys():
                 profile_data[config_key][key][-1].append(getattr(profiling, key))
         save_profiling_results(file, profile_data)
 
@@ -90,7 +94,7 @@ class DAGExecutor:
                     timings = self.run_task(task, config_space)
                     self._store_profiling(profiling_file, timings, config_space)
 
-    def run_task(self, task: Task, config_space: ResourceConfig) -> List[FunctionProfiling]:
+    def run_task(self, task: Task, config_space: ResourceConfig) -> List[FunctionTimes]:
         """Run a task with a given configuration space."""
         # Set the parameters in Lithops config
         self._task_executor.config['runtime_cpu'] = config_space.cpu
@@ -157,5 +161,3 @@ class DAGExecutor:
         Shutdown the executor
         """
         self._processor.shutdown()
-
-

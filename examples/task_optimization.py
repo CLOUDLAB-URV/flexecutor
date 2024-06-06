@@ -70,6 +70,6 @@ if __name__ == "__main__":
     executor.shutdown()
 
     # Print metrics
-    actual_latency = sum([i.read + i.cold_start_time + i.compute + i.write for i in timings]) / len(timings)
+    actual_latency = sum([i.read + i.cold_start + i.compute + i.write for i in timings]) / len(timings)
     print("Actual latency", actual_latency)
-    print(f"Accuracy {100 - (actual_latency - predicted_latency.total_time) / predicted_latency.total_time * 100} %")
+    print(f"Accuracy {100 - (actual_latency - predicted_latency.total) / predicted_latency.total * 100} %")

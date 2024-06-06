@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from pandas import DataFrame
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.utils.dataclass import ResourceConfig, Prediction, ConfigBounds
+from flexecutor.utils.dataclass import ResourceConfig, FunctionTimes, ConfigBounds
 from flexecutor.utils.utils import load_profiling_results
 from flexecutor.workflow.taskfuture import TaskFuture
 
@@ -110,7 +110,7 @@ class Task:
             **self._kwargs
         )
 
-    def predict(self, config_space: ResourceConfig) -> Prediction:
+    def predict(self, config_space: ResourceConfig) -> FunctionTimes:
         return self._perf_model.predict(config_space)
 
     @property
@@ -262,7 +262,7 @@ class Task:
                         executions["read"],
                         executions["compute"],
                         executions["write"],
-                        executions["cold_start_time"],
+                        executions["cold_start"],
                     )
                     for lats in zip(*breaks)
                 ]
@@ -271,6 +271,6 @@ class Task:
             else:
                 actual_latencies.append(None)
 
-            predicted_latency = self.perf_model.predict(config).total_time
+            predicted_latency = self.perf_model.predict(config).total
             predicted_latencies.append(predicted_latency)
         return actual_latencies, predicted_latencies
