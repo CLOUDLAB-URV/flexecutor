@@ -1,14 +1,14 @@
-from botocore.client import Config
-from s3path import S3Path, register_configuration_parameter
-from pathlib import Path
 import boto3
 import fnmatch
-from flexecutor.utils import setup_logging
-from lithops import Storage
-from typing import Callable
 import time
 
-import re
+from botocore.client import Config
+from s3path import S3Path
+from pathlib import Path
+from lithops import Storage
+from typing import Callable
+
+from flexecutor.utils import setup_logging
 from flexecutor.utils.utils import initialize_timings
 
 
@@ -136,8 +136,5 @@ if __name__ == "__main__":
 
     bucket = "test-bucket"
 
-    dataset_dir = Dataset.from_directory(bucket, "dir", "/tmp")
-    print("Matched files from directory:", [str(p) for p in dataset_dir.paths])
-
-    dataset_glob = Dataset.from_glob(bucket, "dir/*.txt", "/tmp")
+    dataset_glob = Dataset.from_glob(bucket, "dir/*.txt")
     print("Matched files from glob pattern:", [str(p) for p in dataset_glob.paths])
