@@ -10,7 +10,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 
-config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
+config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
 LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
 logging.basicConfig(format=LOGGER_FORMAT, level=logging.INFO)
@@ -21,26 +21,26 @@ NUM_ITERATIONS = 1
 BUCKET_NAME = "lithops-manri-urv"
 
 
-if __name__ == '__main__':
-    dag = DAG('mini-dag')
+if __name__ == "__main__":
+    dag = DAG("mini-dag")
 
     stage1 = Stage(
-        'stage1',
+        "stage1",
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt",
     )
     stage2 = Stage(
-        'stage2',
+        "stage2",
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt",
     )
     stage3 = Stage(
-        'stage3',
+        "stage3",
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
+        input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt",
     )
 
     stage1 >> stage2 << stage3
@@ -50,6 +50,4 @@ if __name__ == '__main__':
     executor = DAGExecutor(dag, executor=LocalhostExecutor())
     executor.execute()
     executor.shutdown()
-    print('Tasks completed')
-
-
+    print("Tasks completed")

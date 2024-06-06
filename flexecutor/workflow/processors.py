@@ -17,18 +17,16 @@ class ThreadPoolProcessor:
     Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self,
-                 executor: FunctionExecutor,
-                 max_concurrency=256):
+    def __init__(self, executor: FunctionExecutor, max_concurrency=256):
         super().__init__()
         self._executor = executor
         self._max_concurrency = max_concurrency
         self._pool = ThreadPoolExecutor(max_workers=max_concurrency)
 
     def process(
-            self,
-            stages: Sequence[Stage],
-            on_future_done: Callable[[Stage, StageFuture], None] = None,
+        self,
+        stages: Sequence[Stage],
+        on_future_done: Callable[[Stage, StageFuture], None] = None,
     ) -> dict[str, StageFuture]:
         """
         Process a list of stages
@@ -38,10 +36,12 @@ class ThreadPoolProcessor:
         :raises ValueError: If there are no stages to process or if there are more stages than the maximum parallelism
         """
         if len(stages) == 0:
-            raise ValueError('No stages to process')
+            raise ValueError("No stages to process")
 
         if len(stages) > self._max_concurrency:
-            raise ValueError(f'Too many stages to process. Max concurrency is {self._max_concurrency}')
+            raise ValueError(
+                f"Too many stages to process. Max concurrency is {self._max_concurrency}"
+            )
 
         ex_futures = {}
 
@@ -50,23 +50,20 @@ class ThreadPoolProcessor:
 
             stage.state = StageState.RUNNING
             ex_futures[stage.stage_id] = self._pool.submit(
-                lambda: self._process_stage(
-                    stage,
-                    on_future_done
-                )
+                lambda: self._process_stage(stage, on_future_done)
             )
 
         wait(ex_futures.values())
 
-        return {stage_id: ex_future.result() for stage_id, ex_future in ex_futures.items()}
+        return {
+            stage_id: ex_future.result() for stage_id, ex_future in ex_futures.items()
+        }
 
     def shutdown(self):
         self._pool.shutdown()
 
     def _process_stage(
-            self,
-            stage: Stage,
-            on_future_done: Callable[[Stage, StageFuture], None] = None
+        self, stage: Stage, on_future_done: Callable[[Stage, StageFuture], None] = None
     ) -> StageFuture:
         """
         Process a stage
@@ -75,19 +72,21 @@ class ThreadPoolProcessor:
         :param on_future_done: Callback to execute every time a future is done
         """
         # Update configuration of resources
-        # TODO: review that, this way not work IMO
-        self._executor.config['workers'] = stage.resource_config.workers
-        self._executor.config['memory'] = stage.resource_config.memory
-        self._executor.config['cpu'] = stage.resource_config.cpu
+        # FIXME: review that, this way not work IMO
+        # self._executor.config["workers"] = stage.resource_config.workers
+        self._executor.config["runtime_memory"] = stage.resource_config.memory
+        self._executor.config["runtime_cpu"] = stage.resource_config.cpu
 
-        # Prepare input for map function
-        file_key = stage.input_file.file
-        kwargs = {'obj_chunk_number': stage.resource_config.workers}
+        # TODO:
+        # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus
+        # 2. Update the configuration of the executor
+        # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor (we have to pass the number of cpus and memory to the function executor)
+
+        # kwargs = {"obj_chunk_number": stage.resource_config.workers}
 
         future = self._executor.map(
             map_function=stage.map_func,
-            map_iterdata=file_key,
-            **kwargs
+            map_iterdata=stage.input_dataset.paths,  # **kwargs
         )
 
         self._executor.wait(future)

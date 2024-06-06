@@ -6,8 +6,8 @@ from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBoun
 
 
 class PerfModelEnum(Enum):
-    ANALYTIC = 'analytic'
-    GENETIC = 'genetic'
+    ANALYTIC = "analytic"
+    GENETIC = "genetic"
 
 
 class PerfModel(ABC):
@@ -25,6 +25,8 @@ class PerfModel(ABC):
     def predict(self, config: ResourceConfig) -> FunctionTimes:
         raise NotImplementedError
 
+    # FIXME: There shouldn't be a optimize method in the PerfModel class. The OptimizationProblemSolver we had took the objective function from the perfmodel and predicted a configuration, I think this is what the optimize method
+    # Is trying to do, but it should be in the OptimizationProblemSolver or some sort of solver class.
     @abstractmethod
     def optimize(self, config: ConfigBounds) -> ResourceConfig:
         raise NotImplementedError
@@ -50,14 +52,21 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @classmethod
-    def instance(cls, model_type: PerfModelEnum, model_name='default', model_dst=None):
+    def instance(cls, model_type: PerfModelEnum, model_name="default", model_dst=None):
         if model_dst is None:
-            model_dst = 'models' + '/' + model_name + '.pkl'
+            model_dst = "models" + "/" + model_name + ".pkl"
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
-            return AnaPerfModel(stage_id=0, stage_name='stage', model_name=model_name, model_dst=model_dst)
+
+            return AnaPerfModel(
+                stage_id=0,
+                stage_name="stage",
+                model_name=model_name,
+                model_dst=model_dst,
+            )
         elif model_type == PerfModelEnum.GENETIC:
             from flexecutor.modelling.gaperfmodel import GAPerfModel
+
             return GAPerfModel(model_name=model_name, model_dst=model_dst)
         else:
             raise ValueError("Invalid model type")
