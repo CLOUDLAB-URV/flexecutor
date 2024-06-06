@@ -8,8 +8,8 @@ from examples.functions.word_occurrence import word_occurrence_count
 from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.dagexecutor import DAGExecutor
-from flexecutor.workflow.task import Task
-from flexecutor.workflow.taskfuture import InputFile
+from flexecutor.workflow.stage import Stage
+from flexecutor.workflow.stagefuture import InputFile
 
 config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
 
@@ -25,26 +25,26 @@ NUM_ITERATIONS = 1
 if __name__ == '__main__':
     dag = DAG('mini-dag')
 
-    task1 = Task(
-        'task1',
+    stage1 = Stage(
+        'stage1',
         func=word_occurrence_count,
         input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
     )
-    task2 = Task(
-        'task2',
+    stage2 = Stage(
+        'stage2',
         func=word_occurrence_count,
         input_file=InputFile(f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt")
     )
 
-    task2 << task1
+    stage2 << stage1
 
-    dag.add_tasks([task1, task2])
+    dag.add_stages([stage1, stage2])
 
-    executor = DAGExecutor(dag, task_executor=LocalhostExecutor())
+    executor = DAGExecutor(dag, stage_executor=LocalhostExecutor())
     executor.train()
 
-    prediction = task1.predict(ResourceConfig(cpu=2, memory=1024, workers=3))
+    prediction = stage1.predict(ResourceConfig(cpu=2, memory=1024, workers=3))
     print(prediction)
 
     executor.shutdown()
-    print('Tasks completed')
+    print('stages completed')

@@ -8,8 +8,8 @@ from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig
 from flexecutor.utils.utils import load_profiling_results, save_profiling_results
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
-from flexecutor.workflow.task import Task
-from flexecutor.workflow.taskfuture import TaskFuture
+from flexecutor.workflow.stage import Stage
+from flexecutor.workflow.stagefuture import StageFuture
 
 logger = logging.getLogger(__name__)
 
@@ -19,32 +19,32 @@ class DAGExecutor:
     Executor class that is responsible for executing the DAG
 
     :param dag: DAG to execute
-    :param processor: Processor to use for executing tasks, defaults to DefaultProcessor
+    :param stage_executor: Executor to use for the stages
     """
 
     def __init__(
             self,
             dag: DAG,
-            task_executor: FunctionExecutor | None = None,
+            stage_executor: FunctionExecutor | None = None,
     ):
         self._dag = dag
         self._processor = ThreadPoolProcessor()
 
-        self._futures: Dict[str, TaskFuture] = dict()
-        self._num_final_tasks = 0
-        self._dependence_free_tasks: List[Task] = list()
-        self._running_tasks: List[Task] = list()
-        self._finished_tasks: Set[Task] = set()
-        self._task_executor = task_executor
+        self._futures: Dict[str, StageFuture] = dict()
+        self._num_final_stages = 0
+        self._dependence_free_stages: List[Stage] = list()
+        self._running_stages: List[Stage] = list()
+        self._finished_stages: Set[Stage] = set()
+        self._stage_executor = stage_executor
 
-        if task_executor is not None:
-            for task in self._dag.tasks:
-                task.executor = task_executor
+        if stage_executor is not None:
+            for stage in self._dag.stages:
+                stage.executor = stage_executor
 
-    def _get_timings(self, futures: dict[str, TaskFuture]) -> List[FunctionTimes]:
+    def _get_timings(self, futures: dict[str, StageFuture]) -> List[FunctionTimes]:
         """Get the timings of the futures."""
         timings_list = []
-        for task_id, future in futures.items():
+        for stage_id, future in futures.items():
             results = future.result()
             stats = future.stats
             try:
@@ -61,7 +61,7 @@ class DAGExecutor:
                     )
             except KeyError:
                 logger.error(
-                    f'Error getting timings for task {task_id}. Please review the return values of map function')
+                    f'Error getting timings for stage {stage_id}. Please review the return values of map function')
         return timings_list
 
     def _store_profiling(self, file: str, new_profile_data: List[FunctionTimes],
@@ -81,73 +81,73 @@ class DAGExecutor:
 
     def profile(self, config_spaces: Iterable[ResourceConfig], num_iterations: int = 1):
         """Profile the DAG."""
-        for task in self._dag.tasks:
+        for stage in self._dag.stages:
             os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
-            profiling_file = f"profiling/{self._dag.dag_id}/{task.task_id}.json"
+            profiling_file = f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
             for config_space in config_spaces:
                 for iteration in range(num_iterations):
-                    timings = self.run_task(task, config_space)
+                    timings = self.run_stage(stage, config_space)
                     self._store_profiling(profiling_file, timings, config_space)
 
-    def run_task(self, task: Task, config_space: ResourceConfig) -> List[FunctionTimes]:
-        """Run a task with a given configuration space."""
+    def run_stage(self, stage: Stage, config_space: ResourceConfig) -> List[FunctionTimes]:
+        """Run a stage with a given configuration space."""
         # Set the parameters in Lithops config
-        self._task_executor.config['runtime_cpu'] = config_space.cpu
-        self._task_executor.config['runtime_memory'] = config_space.memory
-        self._task_executor.config['workers'] = config_space.workers
-        logger.info(f'Running task {task.task_id} with config {config_space}')
-        # Execute the task
-        futures = self._processor.process([task])
+        self._stage_executor.config['runtime_cpu'] = config_space.cpu
+        self._stage_executor.config['runtime_memory'] = config_space.memory
+        self._stage_executor.config['workers'] = config_space.workers
+        logger.info(f'Running stage {stage.stage_id} with config {config_space}')
+        # Execute the stage
+        futures = self._processor.process([stage])
         # Store the profiling data
         timings = self._get_timings(futures)
         return timings
 
     def train(self) -> None:
         """Train the DAG."""
-        for task in self._dag.tasks:
-            profile_data = load_profiling_results(f"profiling/{self._dag.dag_id}/{task.task_id}.json")
-            task.perf_model.train(profile_data)
-            task.perf_model.save_model()
+        for stage in self._dag.stages:
+            profile_data = load_profiling_results(f"profiling/{self._dag.dag_id}/{stage.stage_id}.json")
+            stage.perf_model.train(profile_data)
+            stage.perf_model.save_model()
 
-    def execute(self) -> Dict[str, TaskFuture]:
+    def execute(self) -> Dict[str, StageFuture]:
         """
         Execute the DAG
 
-        :return: A dictionary with the output data of the DAG tasks with the task ID as key
+        :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """
         logger.info(f'Executing DAG {self._dag.dag_id}')
 
-        self._num_final_tasks = len(self._dag.leaf_tasks)
-        logger.info(f'DAG {self._dag.dag_id} has {self._num_final_tasks} final tasks')
+        self._num_final_stages = len(self._dag.leaf_stages)
+        logger.info(f'DAG {self._dag.dag_id} has {self._num_final_stages} final stages')
 
         self._futures = dict()
 
-        # Start by executing the root tasks
-        self._dependence_free_tasks = set(self._dag.root_tasks)
-        self._running_tasks = set()
-        self._finished_tasks = set()
+        # Start by executing the root stages
+        self._dependence_free_stages = set(self._dag.root_stages)
+        self._running_stages = set()
+        self._finished_stages = set()
 
-        # Execute tasks until all tasks have been executed
-        while self._dependence_free_tasks or self._running_tasks:
-            # Select the tasks to execute
-            batch = list(self._dependence_free_tasks)
+        # Execute stages until all stages have been executed
+        while self._dependence_free_stages or self._running_stages:
+            # Select the stages to execute
+            batch = list(self._dependence_free_stages)
 
-            # Add the batch to the running tasks
+            # Add the batch to the running stages
             set_batch = set(batch)
-            self._running_tasks |= set_batch
+            self._running_stages |= set_batch
 
             # Call the processor to execute the batch
             futures = self._processor.process(batch)
 
-            self._running_tasks -= set_batch
-            self._dependence_free_tasks -= set_batch
-            self._finished_tasks |= set_batch
+            self._running_stages -= set_batch
+            self._dependence_free_stages -= set_batch
+            self._finished_stages |= set_batch
 
-            for task in batch:
-                self._futures[task.task_id] = futures[task.task_id]
-                for child in task.children:
-                    if child.parents.issubset(self._finished_tasks):
-                        self._dependence_free_tasks.add(child)
+            for stage in batch:
+                self._futures[stage.stage_id] = futures[stage.stage_id]
+                for child in stage.children:
+                    if child.parents.issubset(self._finished_stages):
+                        self._dependence_free_stages.add(child)
 
         return self._futures
 

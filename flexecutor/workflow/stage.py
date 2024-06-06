@@ -14,12 +14,12 @@ from pandas import DataFrame
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig, FunctionTimes, ConfigBounds
 from flexecutor.utils.utils import load_profiling_results
-from flexecutor.workflow.taskfuture import TaskFuture
+from flexecutor.workflow.stagefuture import StageFuture
 
 
-class TaskState(Enum):
+class StageState(Enum):
     """
-    State of a task
+    State of a stage
     """
     NONE = 0
     SCHEDULED = 1
@@ -29,10 +29,10 @@ class TaskState(Enum):
     FAILED = 5
 
 
-class Task:
+class Stage:
     """
 
-    :param task_id: Task ID
+    :param stage_id: Stage ID
     :param executor: Executor to use
     :param input_file: Input data for the operator
     :param args: Arguments to pass to the operator
@@ -41,17 +41,17 @@ class Task:
 
     def __init__(
             self,
-            task_id: str,
+            stage_id: str,
             func: Callable[[...], Any],
             perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
             executor: FunctionExecutor | None = None,
-            input_file: Optional[TaskFuture] = None,
-            output_file: Optional[TaskFuture] = None,
+            input_file: Optional[StageFuture] = None,
+            output_file: Optional[StageFuture] = None,
             *args,
             **kwargs
     ):
-        self._task_unique_id = None
-        self._task_id = task_id
+        self._stage_unique_id = None
+        self._stage_id = stage_id
         self._executor = executor
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
@@ -59,9 +59,9 @@ class Task:
         self._output_file = output_file
         self._args = args
         self._kwargs = kwargs
-        self._children: Set[Task] = set()
-        self._parents: Set[Task] = set()
-        self._state = TaskState.NONE
+        self._children: Set[Stage] = set()
+        self._parents: Set[Stage] = set()
+        self._state = StageState.NONE
         self._map_func = func
         self.dag_id = None
 
@@ -83,10 +83,10 @@ class Task:
     @dag_id.setter
     def dag_id(self, value: str):
         self._dag_id = value
-        self._task_unique_id = f'{self._dag_id}-{self._task_id}'
+        self._stage_unique_id = f'{self._dag_id}-{self._stage_id}'
         self._perf_model = PerfModel.instance(model_type=self._perf_model_type,
-                                              model_name=self._task_unique_id,
-                                              model_dst=f"models/{self._dag_id}/{self._task_id}.pkl")
+                                              model_name=self._stage_unique_id,
+                                              model_dst=f"models/{self._dag_id}/{self._stage_id}.pkl")
 
     def __call__(
             self,
@@ -118,43 +118,43 @@ class Task:
         return self._perf_model
 
     @property
-    def task_id(self) -> str:
-        """Return the task ID."""
-        return self._task_id
+    def stage_id(self) -> str:
+        """Return the stage ID."""
+        return self._stage_id
 
     @property
-    def parents(self) -> Set[Task]:
+    def parents(self) -> Set[Stage]:
         """Return the parents of this operator."""
         return self._parents
 
     @property
-    def children(self) -> Set[Task]:
+    def children(self) -> Set[Stage]:
         """Return the children of this operator."""
         return self._children
 
     @property
-    def input_file(self) -> TaskFuture:
+    def input_file(self) -> StageFuture:
         """Return the input data."""
         return self._input_file
 
     @property
-    def state(self) -> TaskState:
-        """Return the state of the task."""
+    def state(self) -> StageState:
+        """Return the state of the stage."""
         return self._state
 
     @state.setter
     def state(self, value):
-        """Set the state of the task."""
+        """Set the state of the stage."""
         self._state = value
 
-    def _set_relation(self, operator_or_operators: Task | List[Task], upstream: bool = False):
+    def _set_relation(self, operator_or_operators: Stage | List[Stage], upstream: bool = False):
         """
         Set relation between this operator and another operator or list of operator
 
         :param operator_or_operators: Operator or list of operator
         :param upstream: Whether to set the relation as upstream or downstream
         """
-        if isinstance(operator_or_operators, Task):
+        if isinstance(operator_or_operators, Stage):
             operator_or_operators = [operator_or_operators]
 
         for operator in operator_or_operators:
@@ -165,36 +165,36 @@ class Task:
                 self.children.add(operator)
                 operator.parents.add(self)
 
-    def add_parent(self, operator: Task | List[Task]):
+    def add_parent(self, operator: Stage | List[Stage]):
         """
         Add a parent to this operator.
         :param operator: Operator or list of operator
         """
         self._set_relation(operator, upstream=True)
 
-    def add_child(self, operator: Task | List[Task]):
+    def add_child(self, operator: Stage | List[Stage]):
         """
         Add a child to this operator.
         :param operator: Operator or list of operator
         """
         self._set_relation(operator, upstream=False)
 
-    def __lshift__(self, other: Task | List[Task]) -> Task | List[Task]:
+    def __lshift__(self, other: Stage | List[Stage]) -> Stage | List[Stage]:
         """Overload the << operator to add a parent to this operator."""
         self.add_parent(other)
         return other
 
-    def __rshift__(self, other: Task | List[Task]) -> Task | List[Task]:
+    def __rshift__(self, other: Stage | List[Stage]) -> Stage | List[Stage]:
         """Overload the >> operator to add a child to this operator."""
         self.add_child(other)
         return other
 
-    def __rrshift__(self, other: Task | List[Task]) -> Task:
+    def __rrshift__(self, other: Stage | List[Stage]) -> Stage:
         """Overload the >> operator for lists of operator. """
         self.add_parent(other)
         return self
 
-    def __rlshift__(self, other: Task | List[Task]) -> Task:
+    def __rlshift__(self, other: Stage | List[Stage]) -> Stage:
         """Overload the << operator for lists of operator."""
         self.add_child(other)
         return self
@@ -246,12 +246,12 @@ class Task:
 
         folder = f"images/{self.dag_id}"
         os.makedirs(folder, exist_ok=True)
-        plt.savefig(f"images/{self.dag_id}/{self.task_id}.png")
+        plt.savefig(f"images/{self.dag_id}/{self.stage_id}.png")
 
     def _prediction_vs_actual(self, config_spaces: List[ResourceConfig]):
         actual_latencies = []
         predicted_latencies = []
-        profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.task_id}.json")
+        profiling_data = load_profiling_results(f"profiling/{self.dag_id}/{self.stage_id}.json")
         self.perf_model.train(profiling_data)
         for config in config_spaces:
             if config.key in profiling_data:

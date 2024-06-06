@@ -5,7 +5,7 @@ from typing import Any, Optional
 from lithops.utils import FuturesList
 
 
-class TaskFuture:
+class StageFuture:
     def __init__(self, future: Optional[FuturesList] = None):
         self.__future = future
 
@@ -27,7 +27,7 @@ class TaskFuture:
         raise AttributeError(f"Future object has no attribute {item}")
 
 
-class InputFile(TaskFuture):
+class InputFile(StageFuture):
     def __init__(self, file: Any):
         super().__init__()
         self._file = file

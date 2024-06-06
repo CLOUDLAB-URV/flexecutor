@@ -5,7 +5,7 @@ from typing import Optional
 @dataclass
 class ResourceConfig:
     """
-    Configuration space for the task
+    Configuration space for the stage
     """
     cpu: float
     memory: float
@@ -19,7 +19,7 @@ class ResourceConfig:
 @dataclass
 class ConfigBounds:
     """
-    Configuration space bounds for the task
+    Configuration space bounds for the stage
     """
     cpu: tuple[float, float]
     memory: tuple[float, float]
