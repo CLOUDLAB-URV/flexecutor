@@ -99,17 +99,24 @@ class Dataset:
         self.logger.info(
             f"Listing objects in bucket: {self.bucket_name} with prefix: {prefix}"
         )
+
         for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
             for obj in page.get("Contents", []):
                 s3_full_path = f"/{self.bucket_name}/{obj['Key']}"
-                self.logger.debug(f"Found S3 object: {s3_full_path}")
+                s3_path_obj = S3Path(
+                    s3_full_path
+                )  # wrapping the found paths as s3paths
+                self.logger.debug(f"Found S3 object: {s3_path_obj}")
+
                 if fnmatch.fnmatch(obj["Key"], self.pattern):
-                    self.logger.debug(f"Matched S3 path: {s3_full_path}")
-                    matching_paths.append(S3Path(s3_full_path))
+                    self.logger.debug(f"Matched S3 path: {s3_path_obj}")
+                    matching_paths.append(s3_path_obj)
                 else:
-                    self.logger.debug(f"Did not match S3 path: {s3_full_path}")
+                    self.logger.debug(f"Did not match S3 path: {s3_path_obj}")
+
         if not matching_paths:
             self.logger.info("No matching files found.")
+
         return matching_paths
 
     def download_all(self):
@@ -137,4 +144,6 @@ if __name__ == "__main__":
     bucket = "test-bucket"
 
     dataset_glob = Dataset.from_glob(bucket, "dir/*.txt")
-    print("Matched files from glob pattern:", [str(p) for p in dataset_glob.paths])
+    print("Matched files from glob pattern:", [p for p in dataset_glob.paths])
+
+    
