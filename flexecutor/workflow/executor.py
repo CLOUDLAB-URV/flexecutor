@@ -27,9 +27,9 @@ class DAGExecutor:
     """
 
     def __init__(
-            self,
-            dag: DAG,
-            executor: FunctionExecutor | None = None,
+        self,
+        dag: DAG,
+        executor: FunctionExecutor | None = None,
     ):
         self._dag = dag
         self._processor = ThreadPoolProcessor(executor)
@@ -41,8 +41,12 @@ class DAGExecutor:
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
 
-    def _store_profiling(self, file: str, new_profile_data: List[FunctionTimes],
-                         resource_config: ResourceConfig) -> None:
+    def _store_profiling(
+        self,
+        file: str,
+        new_profile_data: List[FunctionTimes],
+        resource_config: ResourceConfig,
+    ) -> None:
         profile_data = load_profiling_results(file)
         config_key = resource_config.key
         if config_key not in profile_data:
@@ -56,10 +60,12 @@ class DAGExecutor:
                 profile_data[config_key][key][-1].append(getattr(profiling, key))
         save_profiling_results(file, profile_data)
 
-    def profile(self,
-                config_spaces: Iterable[ResourceConfig],
-                stage: Optional[Stage] = None,
-                num_iterations: int = 1) -> None:
+    def profile(
+        self,
+        config_spaces: Iterable[ResourceConfig],
+        stage: Optional[Stage] = None,
+        num_iterations: int = 1,
+    ) -> None:
         """Profile the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
@@ -71,10 +77,9 @@ class DAGExecutor:
                     timings = self.execute_stage(stage)
                     self._store_profiling(profiling_file, timings, resource_config)
 
-    def predict(self,
-                resource_config: ResourceConfig,
-                stage: Optional[Stage] = None
-                ) -> List[FunctionTimes]:
+    def predict(
+        self, resource_config: ResourceConfig, stage: Optional[Stage] = None
+    ) -> List[FunctionTimes]:
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
@@ -87,12 +92,13 @@ class DAGExecutor:
         [future] = futures.values()
         return future.get_timings()
 
-    def train(self,
-              stage: Optional[Stage] = None) -> None:
+    def train(self, stage: Optional[Stage] = None) -> None:
         """Train the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            profile_data = load_profiling_results(f"profiling/{self._dag.dag_id}/{stage.stage_id}.json")
+            profile_data = load_profiling_results(
+                f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            )
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
 
@@ -102,13 +108,15 @@ class DAGExecutor:
 
         :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """
-        logger.info(f'Executing DAG {self._dag.dag_id}')
+        logger.info(f"Executing DAG {self._dag.dag_id}")
 
         self._num_final_stages = len(self._dag.leaf_stages)
-        logger.info(f'DAG {self._dag.dag_id} has {self._num_final_stages} final stages')
+        logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
 
         # Before the execution, get the optimal configurations for all stages in the DAG
-        self.train()
+        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
+        # self.train()
+        # FIXME: the optimal config seems to be an array, why is that?
         self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
 
         self._futures = dict()
@@ -142,30 +150,52 @@ class DAGExecutor:
 
         return self._futures
 
-    def model_perf_metrics(self, stage: Stage, config_spaces: List[ResourceConfig]) -> DataFrame:
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(stage, config_spaces)
+    def model_perf_metrics(
+        self, stage: Stage, config_spaces: List[ResourceConfig]
+    ) -> DataFrame:
+        actual_latencies, predicted_latencies = self._prediction_vs_actual(
+            stage, config_spaces
+        )
 
         actual_latencies = np.array(actual_latencies)
         predicted_latencies = np.array(predicted_latencies)
 
-        data = np.array([
-            [config.workers, config.cpu, config.memory, actual, predicted, abs(actual - predicted),
-             (actual - predicted) ** 2]
-            for config, actual, predicted in zip(config_spaces, actual_latencies, predicted_latencies)
-        ])
+        data = np.array(
+            [
+                [
+                    config.workers,
+                    config.cpu,
+                    config.memory,
+                    actual,
+                    predicted,
+                    abs(actual - predicted),
+                    (actual - predicted) ** 2,
+                ]
+                for config, actual, predicted in zip(
+                    config_spaces, actual_latencies, predicted_latencies
+                )
+            ]
+        )
 
-        df = pd.DataFrame(data, columns=["Workers",
-                                         "CPU",
-                                         "Memory",
-                                         "Actual latency",
-                                         "Predicted latency",
-                                         "MAE",
-                                         "MSE"])
+        df = pd.DataFrame(
+            data,
+            columns=[
+                "Workers",
+                "CPU",
+                "Memory",
+                "Actual latency",
+                "Predicted latency",
+                "MAE",
+                "MSE",
+            ],
+        )
 
         return df
 
     def plot_model_performance(self, stage: Stage, config_spaces: List[ResourceConfig]):
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(stage, config_spaces)
+        actual_latencies, predicted_latencies = self._prediction_vs_actual(
+            stage, config_spaces
+        )
 
         fig, ax = plt.subplots(figsize=(10, 6))
         x = np.arange(len(config_spaces))
@@ -191,7 +221,9 @@ class DAGExecutor:
     def _prediction_vs_actual(self, stage: Stage, config_spaces: List[ResourceConfig]):
         actual_latencies = []
         predicted_latencies = []
-        profiling_data = load_profiling_results(f"profiling/{self._dag.dag_id}/{stage.stage_id}.json")
+        profiling_data = load_profiling_results(
+            f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+        )
         stage.perf_model.train(profiling_data)
         for config in config_spaces:
             if config.key in profiling_data:
@@ -215,16 +247,23 @@ class DAGExecutor:
             predicted_latencies.append(predicted_latency)
         return actual_latencies, predicted_latencies
 
-    def optimize(self,
-                 config_bounds: ConfigBounds,
-                 stage: Optional[Stage] = None) -> List[ResourceConfig]:
+    def optimize(
+        self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
+    ) -> List[ResourceConfig]:
+        """
+        Sets the optimal configuration for each stage.
+        """
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            optimal_config = stage.perf_model.optimize(config_bounds)
-            stage.resource_config = optimal_config
-            result.append(optimal_config)
-        return result
+            # optimal_config = stage.perf_model.optimize(config_bounds)
+            # Hardcoded config for now
+            optimal_config = ResourceConfig(cpu=5, memory=722, workers=2)
+            print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
+            stage.optimal_config = optimal_config
+
+            # result.append(optimal_config)
+        # return result
 
     def shutdown(self):
         """

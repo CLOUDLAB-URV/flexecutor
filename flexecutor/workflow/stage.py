@@ -6,12 +6,14 @@ from typing import Any, Set, List, Optional, Callable
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import ResourceConfig
 from flexecutor.workflow.stagefuture import StageFuture, InputFile
+from flexecutor.storage import Dataset
 
 
 class StageState(Enum):
     """
     State of a stage
     """
+
     NONE = 0
     SCHEDULED = 1
     WAITING = 2
@@ -28,24 +30,27 @@ class Stage:
     """
 
     def __init__(
-            self,
-            stage_id: str,
-            func: Callable[[...], Any],
-            perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
-            input_file: Optional[str] = None,
-            output_file: Optional[StageFuture] = None,
+        self,
+        stage_id: str,
+        func: Callable[[...], Any],
+        perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
+        input_dataset: Optional[Dataset] = None,
+        output_file: Optional[StageFuture] = None,
     ):
         self._stage_unique_id = None
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_file = InputFile(input_file, stage_id) if input_file else None
+        self._input_dataset = input_dataset
+        # output_file might not be needed, dependencies should be sent via completed futures.
+        # we can rename it to _output_path, path where the outputs of the stage will be stored in os (by default {stage_name}/output)
         self._output_file = output_file
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
         self._map_func = func
         self.dag_id = None
+        self.optimal_config: Optional[ResourceConfig] = None
         self.resource_config: Optional[ResourceConfig] = None
 
     @property
@@ -61,10 +66,12 @@ class Stage:
     @dag_id.setter
     def dag_id(self, value: str):
         self._dag_id = value
-        self._stage_unique_id = f'{self._dag_id}-{self._stage_id}'
-        self._perf_model = PerfModel.instance(model_type=self._perf_model_type,
-                                              model_name=self._stage_unique_id,
-                                              model_dst=f"models/{self._dag_id}/{self._stage_id}.pkl")
+        self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
+        self._perf_model = PerfModel.instance(
+            model_type=self._perf_model_type,
+            model_name=self._stage_unique_id,
+            model_dst=f"models/{self._dag_id}/{self._stage_id}.pkl",
+        )
 
     @property
     def perf_model(self) -> PerfModel:
@@ -86,9 +93,9 @@ class Stage:
         return self._children
 
     @property
-    def input_file(self) -> StageFuture:
-        """Return the input data."""
-        return self._input_file
+    def input_dataset(self) -> StageFuture:
+        """Return the input dataset."""
+        return self._input_dataset
 
     @property
     def state(self) -> StageState:
@@ -100,7 +107,9 @@ class Stage:
         """Set the state of the stage."""
         self._state = value
 
-    def _set_relation(self, operator_or_operators: Stage | List[Stage], upstream: bool = False):
+    def _set_relation(
+        self, operator_or_operators: Stage | List[Stage], upstream: bool = False
+    ):
         """
         Set relation between this operator and another operator or list of operator
 
@@ -143,7 +152,7 @@ class Stage:
         return other
 
     def __rrshift__(self, other: Stage | List[Stage]) -> Stage:
-        """Overload the >> operator for lists of operator. """
+        """Overload the >> operator for lists of operator."""
         self.add_parent(other)
         return self
 
