@@ -92,6 +92,15 @@ class Dataset:
         s3_client = S3Client()
         return cls(s3_client, bucket, glob_pattern, local_base_path)
 
+    @classmethod
+    def from_files(cls, bucket, files, local_base_path="/tmp"):
+        s3_client = S3Client()
+        pattern = "{"
+        for file in files:
+            pattern += f"{file},"
+        pattern = pattern.rstrip(",") + "}"
+        return cls(s3_client, bucket, pattern, local_base_path)
+
     def find_paths(self):
         matching_paths = set()
         paginator = self.s3_client.resource.meta.client.get_paginator("list_objects_v2")
@@ -143,5 +152,5 @@ if __name__ == "__main__":
 
     bucket = "test-bucket"
 
-    dataset_glob = Dataset.from_glob(bucket, "dir/*.txt")
+    dataset_glob = Dataset.from_directory(bucket, "/dir")
     print("Matched files from glob pattern:", [p for p in dataset_glob.paths])
