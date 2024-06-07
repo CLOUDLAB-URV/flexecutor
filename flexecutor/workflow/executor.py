@@ -253,7 +253,7 @@ class DAGExecutor:
         """
         Sets the optimal configuration for each stage.
         """
-        result = []
+        # result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
