@@ -22,9 +22,13 @@ BUCKET_NAME = "test-bucket"
 if __name__ == "__main__":
     dag = DAG("mini-dag")
 
+    # function to be applied to each chunk
+    def func(chunk):
+        print(chunk)
+
     stage1 = Stage(
         "stage1",
-        func=word_occurrence_count,
+        func=func,
         perf_model_type=PerfModelEnum.GENETIC,
         input_dataset=Dataset.from_glob(BUCKET_NAME, "dir/*.txt"),
     )

@@ -93,7 +93,7 @@ class Dataset:
         return cls(s3_client, bucket, glob_pattern, local_base_path)
 
     def find_paths(self):
-        matching_paths = []
+        matching_paths = set()
         paginator = self.s3_client.resource.meta.client.get_paginator("list_objects_v2")
         prefix = self.pattern.split("*")[0]
         self.logger.info(
@@ -110,7 +110,7 @@ class Dataset:
 
                 if fnmatch.fnmatch(obj["Key"], self.pattern):
                     self.logger.debug(f"Matched S3 path: {s3_path_obj}")
-                    matching_paths.append(s3_path_obj)
+                    matching_paths.add(s3_path_obj)
                 else:
                     self.logger.debug(f"Did not match S3 path: {s3_path_obj}")
 
@@ -145,5 +145,3 @@ if __name__ == "__main__":
 
     dataset_glob = Dataset.from_glob(bucket, "dir/*.txt")
     print("Matched files from glob pattern:", [p for p in dataset_glob.paths])
-
-    

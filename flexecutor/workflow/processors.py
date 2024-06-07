@@ -79,19 +79,21 @@ class ThreadPoolProcessor:
 
         # TODO:
         # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus (DONE, HARDCODED)
-        # 2. Update the configuration of the executor (FIXME ISSUE WITH RUNTIME_NUMCPUS, FOR NOW WE CAN ONLY PASS THE TOTAL MEMORY)
+        # 2. Update the configuration of the executor (FIXME ISSUE WITH RUNTIME_NUMCPUS, FOR NOW WE CAN ONLY PASS THE RUNTIME_MEMORY)
         # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor
-
-        # kwargs = {"obj_chunk_number": stage.resource_config.workers}
 
         print(f"Found datasets: {stage.input_dataset.paths}")
 
-        # Partition after the dataset is found?
+        # FIXME: wrapt error, it looks like we need a custom dockerfile now since a dataset is a set of files
+
+        input_datasets = [str(path) for path in stage.input_dataset.paths]
+        # Partition after the dataset is loaded?
+        # TODO: Partition here
 
         future = self._executor.map(
             map_function=stage.map_func,
-            map_iterdata=stage.input_dataset.paths,
-            runtime_memory=stage.optimal_config.memory,  # **kwargs
+            map_iterdata=input_datasets,
+            runtime_memory=stage.optimal_config.memory,
         )
 
         self._executor.wait(future)
