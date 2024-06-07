@@ -10,6 +10,7 @@ from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
 from flexecutor.storage import Dataset
 
+
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
 
