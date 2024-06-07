@@ -114,8 +114,9 @@ class DAGExecutor:
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
 
         # Before the execution, get the optimal configurations for all stages in the DAG
-        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution/inference
+        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
         # self.train()
+        # FIXME: the optimal config seems to be an array, why is that?
         self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
 
         self._futures = dict()
@@ -249,6 +250,9 @@ class DAGExecutor:
     def optimize(
         self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
     ) -> List[ResourceConfig]:
+        """
+        Sets the optimal configuration for each stage.
+        """
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
@@ -256,9 +260,10 @@ class DAGExecutor:
             # Hardcoded config for now
             optimal_config = ResourceConfig(cpu=5, memory=722, workers=2)
             print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
-            # stage.resource_config = optimal_config
-            result.append(optimal_config)
-        return result
+            stage.optimal_config = optimal_config
+
+            # result.append(optimal_config)
+        # return result
 
     def shutdown(self):
         """

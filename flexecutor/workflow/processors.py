@@ -74,19 +74,24 @@ class ThreadPoolProcessor:
         # Update configuration of resources
         # FIXME: review that, this way not work IMO
         # self._executor.config["workers"] = stage.resource_config.workers
-        self._executor.config["runtime_memory"] = stage.resource_config.memory
-        self._executor.config["runtime_cpu"] = stage.resource_config.cpu
+        # self._executor.config["runtime_memory"] = stage.resource_config.memory
+        # self._executor.config["runtime_cpu"] = stage.resource_config.cpu
 
         # TODO:
-        # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus
-        # 2. Update the configuration of the executor
-        # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor (we have to pass the number of cpus and memory to the function executor)
+        # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus (DONE, HARDCODED)
+        # 2. Update the configuration of the executor (FIXME ISSUE WITH RUNTIME_NUMCPUS, FOR NOW WE CAN ONLY PASS THE TOTAL MEMORY)
+        # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor
 
         # kwargs = {"obj_chunk_number": stage.resource_config.workers}
 
+        print(f"Found datasets: {stage.input_dataset.paths}")
+
+        # Partition after the dataset is found?
+
         future = self._executor.map(
             map_function=stage.map_func,
-            map_iterdata=stage.input_dataset.paths,  # **kwargs
+            map_iterdata=stage.input_dataset.paths,
+            runtime_memory=stage.optimal_config.memory,  # **kwargs
         )
 
         self._executor.wait(future)

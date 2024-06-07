@@ -16,7 +16,7 @@ config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 logger = setup_logging(level=logging.INFO)
 
 NUM_ITERATIONS = 1
-BUCKET_NAME = "lithops-manri-urv"
+BUCKET_NAME = "test-bucket"
 
 
 if __name__ == "__main__":
@@ -26,12 +26,13 @@ if __name__ == "__main__":
         "stage1",
         func=word_occurrence_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_dataset=Dataset.from_glob("test-bucket", "dir/*.txt"),
+        input_dataset=Dataset.from_glob(BUCKET_NAME, "dir/*.txt"),
     )
 
     dag.add_stages([stage1])
 
     executor = DAGExecutor(dag, executor=FunctionExecutor())
+
     executor.execute()
     executor.shutdown()
     print("Tasks completed")

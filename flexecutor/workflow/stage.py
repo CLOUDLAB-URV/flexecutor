@@ -42,13 +42,15 @@ class Stage:
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
         self._input_dataset = input_dataset
-        # output_file might not be needed, dependencies should be sent via completed futures
+        # output_file might not be needed, dependencies should be sent via completed futures.
+        # we can rename it to _output_path, path where the outputs of the stage will be stored in os (by default {stage_name}/output)
         self._output_file = output_file
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
         self._map_func = func
         self.dag_id = None
+        self.optimal_config: Optional[ResourceConfig] = None
         self.resource_config: Optional[ResourceConfig] = None
 
     @property
