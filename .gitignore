@@ -124,10 +124,10 @@ dmypy.json
 .pyright/
 
 # model
-examples/models/
+examples/*/models/
 
 # images (maybe provisinal)
-examples/images/
+examples/*/images/
 
-examples/profiling/
-!examples/profiling/mocks
+examples/*/profiling/
+!examples/*/profiling/mocks

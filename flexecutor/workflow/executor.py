@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from pandas import DataFrame
 
 from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBounds
-from flexecutor.utils.utils import load_profiling_results, save_profiling_results
+from flexecutor.utils.utils import load_profiling_results, save_profiling_results, get_my_exec_path
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
 from flexecutor.workflow.stage import Stage
@@ -36,6 +36,7 @@ class DAGExecutor:
 
         self._futures: Dict[str, StageFuture] = dict()
         self._num_final_stages = 0
+        self._base_path = get_my_exec_path()
         self._dependence_free_stages: List[Stage] = list()
         self._running_stages: List[Stage] = list()
         self._finished_stages: Set[Stage] = set()
@@ -69,8 +70,8 @@ class DAGExecutor:
         """Profile the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            os.makedirs(f"profiling/{self._dag.dag_id}", exist_ok=True)
-            profiling_file = f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
+            profiling_file = f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
             for resource_config in config_spaces:
                 stage.resource_config = resource_config
                 for iteration in range(num_iterations):
@@ -97,7 +98,7 @@ class DAGExecutor:
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             profile_data = load_profiling_results(
-                f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+                f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
             )
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
@@ -214,15 +215,15 @@ class DAGExecutor:
 
         plt.tight_layout()
 
-        folder = f"images/{self._dag.dag_id}"
+        folder = f"{self._base_path}/images/{self._dag.dag_id}"
         os.makedirs(folder, exist_ok=True)
-        plt.savefig(f"images/{self._dag.dag_id}/{stage.stage_id}.png")
+        plt.savefig(f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png")
 
     def _prediction_vs_actual(self, stage: Stage, config_spaces: List[ResourceConfig]):
         actual_latencies = []
         predicted_latencies = []
         profiling_data = load_profiling_results(
-            f"profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
         )
         stage.perf_model.train(profiling_data)
         for config in config_spaces:

@@ -1,3 +1,4 @@
+import inspect
 import json
 import logging
 import os
@@ -48,6 +49,7 @@ def setup_logging(level):
 
 
 def load_profiling_results(file: str) -> dict:
+    file = get_my_exec_path() + "/" + file
     if not os.path.exists(file):
         return {}
     with open(file, "r") as f:
@@ -60,3 +62,42 @@ def save_profiling_results(file, profile_data):
     serial_data = {str(k): v for k, v in profile_data.items()}
     with open(file, "w") as f:
         json.dump(serial_data, f, indent=4)
+
+
+FLEXECUTOR_EXEC_PATH = "FLEXECUTOR_EXEC_PATH"
+
+
+def get_my_exec_path():
+    """
+    Get the path where the flexorchestrator script is located
+    @flexorchestrator decorator is responsible for setting this path
+    :return: the path where the flexorchestrator script is located
+    """
+    return os.environ.get(FLEXECUTOR_EXEC_PATH, None)
+
+
+def flexorchestrator(func):
+    """
+    Decorator to initializations previous to the execution of user scripts.
+    You must use it only in the main function of your script.
+    Responsible for:
+    - Set the path if where the flexorchestrator main script is located
+    :param func:
+    :return:
+    """
+    def wrapper(*args, **kwargs):
+        # Set the path of the flexorchestrator file
+        key = FLEXECUTOR_EXEC_PATH
+        frame = inspect.currentframe()
+        caller_frame = frame.f_back
+        caller_file = caller_frame.f_globals['__file__']
+        value = os.path.dirname(os.path.abspath(caller_file))
+        os.environ[key] = value
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            os.environ[key] = ""
+        return result
+    return wrapper
+
+

@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Dict
 
 from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBounds
+from flexecutor.utils.utils import get_my_exec_path
 
 
 class PerfModelEnum(Enum):
@@ -52,7 +53,7 @@ class PerfModel(ABC):
     @classmethod
     def instance(cls, model_type: PerfModelEnum, model_name="default", model_dst=None):
         if model_dst is None:
-            model_dst = "models" + "/" + model_name + ".pkl"
+            model_dst = get_my_exec_path() + "/models" + "/" + model_name + ".pkl"
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
 
