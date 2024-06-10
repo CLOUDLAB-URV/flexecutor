@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any, Set, List, Optional, Callable
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.utils.dataclass import ResourceConfig
+from flexecutor.utils.dataclass import StageConfig
 from flexecutor.workflow.stagefuture import StageFuture, InputFile
 from flexecutor.storage import Dataset
 
@@ -50,8 +50,8 @@ class Stage:
         self._state = StageState.NONE
         self._map_func = func
         self.dag_id = None
-        self.optimal_config: Optional[ResourceConfig] = None
-        self.resource_config: Optional[ResourceConfig] = None
+        self.optimal_config: Optional[StageConfig] = None
+        self.resource_config: Optional[StageConfig] = None
 
     @property
     def dag_id(self) -> str:

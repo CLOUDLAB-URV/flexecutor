@@ -5,7 +5,7 @@ import scipy.optimize as scipy_opt
 from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBounds
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 
 
 def io_func(x, a, b):
@@ -151,7 +151,7 @@ class AnaPerfModel(PerfModel):
         b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
         return a, b
 
-    def predict(self, config: ResourceConfig) -> FunctionTimes:
+    def predict(self, config: StageConfig) -> FunctionTimes:
         assert config.workers > 0
         # key = num_vcpu + runtime_memory + num_workers
         key = self._config_to_xparam(config.cpu, config.memory, config.workers)
@@ -172,10 +172,10 @@ class AnaPerfModel(PerfModel):
             cold_start=self._cold_params,
         )
 
-    def optimize(self, config: ConfigBounds) -> ResourceConfig:
+    def optimize(self, config: ConfigBounds) -> StageConfig:
         # TODO: implement this
         """Dummy response in AnaPerfModel"""
-        return ResourceConfig(cpu=1, memory=2048, workers=8)
+        return StageConfig(cpu=1, memory=2048, workers=8)
 
     # def fit_polynomial(self, x, y, degree):
     #     coeffs = np.polyfit(x, y, degree)

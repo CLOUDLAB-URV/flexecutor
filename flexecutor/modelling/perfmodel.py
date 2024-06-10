@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 from enum import Enum
 from typing import Dict
 
-from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBounds
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import get_my_exec_path
 
 
@@ -23,11 +23,11 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def predict(self, config: ResourceConfig) -> FunctionTimes:
+    def predict(self, config: StageConfig) -> FunctionTimes:
         raise NotImplementedError
 
     @abstractmethod
-    def optimize(self, config: ConfigBounds) -> ResourceConfig:
+    def optimize(self, config: ConfigBounds) -> StageConfig:
         raise NotImplementedError
 
     @abstractmethod

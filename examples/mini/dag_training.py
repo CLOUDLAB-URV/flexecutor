@@ -5,7 +5,7 @@ import logging
 from lithops import LocalhostExecutor
 
 from examples.mini.functions.word_occurrence import word_occurrence_count
-from flexecutor.utils.dataclass import ResourceConfig
+from flexecutor.utils.dataclass import StageConfig
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         executor = DAGExecutor(dag, executor=LocalhostExecutor())
         executor.train()
 
-        prediction = executor.predict(ResourceConfig(cpu=2, memory=1024, workers=3), stage1)
+        prediction = executor.predict(StageConfig(cpu=2, memory=1024, workers=3), stage1)
         print(prediction)
 
         executor.shutdown()

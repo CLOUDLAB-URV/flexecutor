@@ -11,7 +11,7 @@ from overrides import overrides
 from scipy.optimize import differential_evolution
 
 from flexecutor.modelling.perfmodel import PerfModel
-from flexecutor.utils.dataclass import FunctionTimes, ConfigBounds, ResourceConfig
+from flexecutor.utils.dataclass import FunctionTimes, ConfigBounds, StageConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ class GAPerfModel(PerfModel):
         with open(self._model_dst, "rb") as file:
             self._best_individual = pickle.load(file)
 
-    def optimize(self, config: ConfigBounds) -> ResourceConfig:
+    def optimize(self, config: ConfigBounds) -> StageConfig:
         objective_func = self._objective_func
 
         def integer_objective_func(x):
@@ -110,7 +110,7 @@ class GAPerfModel(PerfModel):
             recombination=0.7,
             disp=True,
         )
-        return ResourceConfig(*np.round(res.x).astype(int))
+        return StageConfig(*np.round(res.x).astype(int))
 
     def _evaluate(self, individual):
         func = self._toolbox.compile(expr=individual)

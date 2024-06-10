@@ -8,7 +8,7 @@ from lithops import FunctionExecutor
 from matplotlib import pyplot as plt
 from pandas import DataFrame
 
-from flexecutor.utils.dataclass import FunctionTimes, ResourceConfig, ConfigBounds
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import load_profiling_results, save_profiling_results, get_my_exec_path
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
@@ -46,7 +46,7 @@ class DAGExecutor:
         self,
         file: str,
         new_profile_data: List[FunctionTimes],
-        resource_config: ResourceConfig,
+        resource_config: StageConfig,
     ) -> None:
         profile_data = load_profiling_results(file)
         config_key = resource_config.key
@@ -63,7 +63,7 @@ class DAGExecutor:
 
     def profile(
         self,
-        config_spaces: Iterable[ResourceConfig],
+        config_spaces: Iterable[StageConfig],
         stage: Optional[Stage] = None,
         num_iterations: int = 1,
     ) -> None:
@@ -79,7 +79,7 @@ class DAGExecutor:
                     self._store_profiling(profiling_file, timings, resource_config)
 
     def predict(
-        self, resource_config: ResourceConfig, stage: Optional[Stage] = None
+        self, resource_config: StageConfig, stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
@@ -152,7 +152,7 @@ class DAGExecutor:
         return self._futures
 
     def model_perf_metrics(
-        self, stage: Stage, config_spaces: List[ResourceConfig]
+        self, stage: Stage, config_spaces: List[StageConfig]
     ) -> DataFrame:
         actual_latencies, predicted_latencies = self._prediction_vs_actual(
             stage, config_spaces
@@ -193,7 +193,7 @@ class DAGExecutor:
 
         return df
 
-    def plot_model_performance(self, stage: Stage, config_spaces: List[ResourceConfig]):
+    def plot_model_performance(self, stage: Stage, config_spaces: List[StageConfig]):
         actual_latencies, predicted_latencies = self._prediction_vs_actual(
             stage, config_spaces
         )
@@ -219,7 +219,7 @@ class DAGExecutor:
         os.makedirs(folder, exist_ok=True)
         plt.savefig(f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png")
 
-    def _prediction_vs_actual(self, stage: Stage, config_spaces: List[ResourceConfig]):
+    def _prediction_vs_actual(self, stage: Stage, config_spaces: List[StageConfig]):
         actual_latencies = []
         predicted_latencies = []
         profiling_data = load_profiling_results(
@@ -250,7 +250,7 @@ class DAGExecutor:
 
     def optimize(
         self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
-    ) -> List[ResourceConfig]:
+    ) -> List[StageConfig]:
         """
         Sets the optimal configuration for each stage.
         """
@@ -259,7 +259,7 @@ class DAGExecutor:
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
             # Hardcoded config for now
-            optimal_config = ResourceConfig(cpu=5, memory=722, workers=2)
+            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
             print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
             stage.optimal_config = optimal_config
 

@@ -7,7 +7,7 @@ from lithops import LocalhostExecutor
 from examples.mini.functions.word_occurrence import word_occurrence_count
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.executor import DAGExecutor, ResourceConfig
+from flexecutor.workflow.executor import DAGExecutor, StageConfig
 from flexecutor.workflow.stage import Stage
 
 config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
@@ -25,8 +25,8 @@ if __name__ == '__main__':
     @flexorchestrator
     def main():
         config_spaces = [
-            ResourceConfig(2, 1024, 3),
-            ResourceConfig(0.5, 1568, 5),
+            StageConfig(2, 1024, 3),
+            StageConfig(0.5, 1568, 5),
             # ...
         ]
 

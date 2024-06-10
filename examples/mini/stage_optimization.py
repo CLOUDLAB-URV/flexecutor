@@ -2,7 +2,7 @@ from lithops import LocalhostExecutor
 
 from examples.mini.functions.word_occurrence import word_occurrence_count
 from flexecutor.modelling.perfmodel import PerfModelEnum
-from flexecutor.utils.dataclass import ResourceConfig, ConfigBounds
+from flexecutor.utils.dataclass import StageConfig, ConfigBounds
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -45,7 +45,7 @@ if __name__ == "__main__":
             (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
             (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
         ]
-        config_spaces_obj = [ResourceConfig(*resource_config) for resource_config in config_spaces]
+        config_spaces_obj = [StageConfig(*resource_config) for resource_config in config_spaces]
         num_configs = min(num_configs, len(config_spaces_obj) - 1)
         config_spaces_obj = config_spaces_obj[:num_configs]
 

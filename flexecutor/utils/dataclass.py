@@ -3,7 +3,7 @@ from typing import Optional
 
 
 @dataclass
-class ResourceConfig:
+class StageConfig:
     """
     Configuration space for the stage
     """
