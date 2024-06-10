@@ -64,7 +64,7 @@ if __name__ == "__main__":
         # Get the optimal configuration for the stage
         [optimal_config] = executor.optimize(bounds, stage1)
         print(optimal_config)
-        [predicted_latency] = executor.predict(optimal_config, stage1)
+        [predicted_latency] = executor.predict([optimal_config], stage1)
         print("Predicted latency", predicted_latency)
 
         # Execute the stage with the optimal config

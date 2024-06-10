@@ -50,7 +50,7 @@ if __name__ == "__main__":
         executor = DAGExecutor(dag, executor=LocalhostExecutor())
         executor.train()
 
-        prediction = executor.predict(StageConfig(cpu=2, memory=1024, workers=3), stage1)
+        prediction = executor.predict([StageConfig(cpu=2, memory=1024, workers=3)], stage1)
         print(prediction)
 
         executor.shutdown()

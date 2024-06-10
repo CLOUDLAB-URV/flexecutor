@@ -99,11 +99,19 @@ class DAGExecutor:
                     self._store_profiling(profiling_file, timings, resource_config)
 
     def predict(
-        self, resource_config: StageConfig, stage: Optional[Stage] = None
+        self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
+        if stage is not None and len(resource_config) > 1:
+            raise ValueError(
+                "predict() requires single Stage when only one StageConfig is provided and vice versa."
+            )
+        elif stage is None and len(resource_config) != len(self._dag.stages):
+            raise ValueError(
+                "predict() requires a list of StageConfig equal to the number of Stage in the DAG."
+            )
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
+        for stage, resource_config in zip(stages_list, resource_config):
             result.append(stage.perf_model.predict(resource_config))
         return result
 
