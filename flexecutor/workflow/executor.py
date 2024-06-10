@@ -1,5 +1,6 @@
 import logging
 import os
+from enum import Enum
 from typing import Dict, Set, List, Iterable, Optional
 
 import numpy as np
@@ -16,6 +17,15 @@ from flexecutor.workflow.stage import Stage
 from flexecutor.workflow.stagefuture import StageFuture
 
 logger = logging.getLogger(__name__)
+
+
+class AssetType(Enum):
+    """
+    Enum class for asset types
+    """
+    MODEL = ("model", ".pkl")
+    PROFILE = ("profile", ".json")
+    IMAGE = ("image", ".png")
 
 
 class DAGExecutor:
@@ -41,6 +51,17 @@ class DAGExecutor:
         self._running_stages: List[Stage] = list()
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
+
+    def _get_asset_path(self, stage: Stage, asset_type: AssetType):
+        # previous folder creation
+        if asset_type == AssetType.MODEL:
+            os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
+            return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
+        elif asset_type == AssetType.PROFILE:
+            os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
+            return f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+        elif asset_type == AssetType.IMAGE:
+            return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
 
     def _store_profiling(
         self,
@@ -70,8 +91,7 @@ class DAGExecutor:
         """Profile the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
-            profiling_file = f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
             for resource_config in config_spaces:
                 stage.resource_config = resource_config
                 for iteration in range(num_iterations):
@@ -97,9 +117,7 @@ class DAGExecutor:
         """Train the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            profile_data = load_profiling_results(
-                f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
-            )
+            profile_data = load_profiling_results(self._get_asset_path(stage, AssetType.PROFILE))
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
 
@@ -215,9 +233,7 @@ class DAGExecutor:
 
         plt.tight_layout()
 
-        folder = f"{self._base_path}/images/{self._dag.dag_id}"
-        os.makedirs(folder, exist_ok=True)
-        plt.savefig(f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png")
+        plt.savefig(self._get_asset_path(stage, AssetType.IMAGE))
 
     def _prediction_vs_actual(self, stage: Stage, config_spaces: List[StageConfig]):
         actual_latencies = []

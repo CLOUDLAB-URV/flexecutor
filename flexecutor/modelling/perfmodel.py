@@ -51,12 +51,10 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @classmethod
-    def instance(cls, model_type: PerfModelEnum, model_name="default", model_dst=None):
-        if model_dst is None:
-            model_dst = get_my_exec_path() + "/models" + "/" + model_name + ".pkl"
+    def instance(cls, model_type: PerfModelEnum, model_name="default"):
+        model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
-
             return AnaPerfModel(
                 stage_id=0,
                 stage_name="stage",

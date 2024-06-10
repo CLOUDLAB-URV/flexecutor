@@ -5,6 +5,7 @@ from typing import Any, Set, List, Optional, Callable
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig
+from flexecutor.utils.utils import get_my_exec_path
 from flexecutor.workflow.stagefuture import StageFuture, InputFile
 from flexecutor.storage import Dataset
 
@@ -69,8 +70,7 @@ class Stage:
         self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
         self._perf_model = PerfModel.instance(
             model_type=self._perf_model_type,
-            model_name=self._stage_unique_id,
-            model_dst=f"models/{self._dag_id}/{self._stage_id}.pkl",
+            model_name=self._stage_unique_id
         )
 
     @property
