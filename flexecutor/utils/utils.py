@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from contextlib import contextmanager
+from typing import List, Tuple
 
 
 def initialize_timings():
@@ -85,12 +86,13 @@ def flexorchestrator(func):
     :param func:
     :return:
     """
+
     def wrapper(*args, **kwargs):
         # Set the path of the flexorchestrator file
         key = FLEXECUTOR_EXEC_PATH
         frame = inspect.currentframe()
         caller_frame = frame.f_back
-        caller_file = caller_frame.f_globals['__file__']
+        caller_file = caller_frame.f_globals["__file__"]
         value = os.path.dirname(os.path.abspath(caller_file))
         os.environ[key] = value
         try:
@@ -98,6 +100,45 @@ def flexorchestrator(func):
         finally:
             os.environ[key] = ""
         return result
+
     return wrapper
 
 
+def split_txt_file(
+    file_path: str,
+    chunk_size: int = None,
+    chunk_number: int = None,
+    obj_newline: str = "\n",
+) -> List[Tuple[int, int]]:
+    """
+    Split a single .txt file into multiple chunks.
+    """
+    partitions = []
+    obj_size = os.path.getsize(file_path)
+
+    if chunk_number:
+        chunk_rest = obj_size % chunk_number
+        obj_chunk_size = (obj_size // chunk_number) + round(
+            (chunk_rest / chunk_number) + 0.5
+        )
+    elif chunk_size:
+        obj_chunk_size = chunk_size
+    else:
+        obj_chunk_size = obj_size
+
+    print(f"Creating partitions from {file_path} ({obj_size} bytes)")
+
+    with open(file_path, "rb") as f:
+        size = 0
+        while size < obj_size:
+            start = size
+            end = min(size + obj_chunk_size, obj_size)
+            if end < obj_size:
+                f.seek(end)
+                while f.read(1) != obj_newline.encode() and f.tell() < obj_size:
+                    end += 1
+
+            partitions.append((start, end))
+            size = end + 1
+
+    return partitions

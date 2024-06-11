@@ -78,18 +78,19 @@ class ThreadPoolProcessor:
         # 3. If it's a dataset composed of multiple files, before partitioning, we should "merge" (join the indices).
         # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor
 
-        print(f"Found datasets: {stage.input_dataset.paths}")
+        print(f"Found datasets: {stage.input_file}")
 
         # FIXME: wrapt error, it looks like we need a custom dockerfile now since a dataset is a set of s3paths
 
-        input_datasets = [str(path) for path in stage.input_dataset.paths]
+        input_file = stage.input_file
         # Partition after the dataset is loaded?
         # TODO: Partition here
         # Placeholder for partitioning
 
+        
         future = self._executor.map(
             map_function=stage.map_func,
-            map_iterdata=input_datasets,
+            map_iterdata=input_file,
             runtime_memory=stage.optimal_config.memory,
         )
 
