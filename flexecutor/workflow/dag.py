@@ -1,7 +1,3 @@
-import networkx as nx
-from matplotlib import pyplot as plt
-from networkx.drawing.nx_agraph import graphviz_layout
-
 from flexecutor.workflow.stage import Stage
 
 
@@ -72,6 +68,10 @@ class DAG:
         """
         Draw the DAG for user visualization
         """
+        import networkx as nx
+        from matplotlib import pyplot as plt
+        from networkx.drawing.nx_agraph import graphviz_layout
+
         graph = nx.DiGraph()
         for stage in self.stages:
             graph.add_node(stage.stage_id, label=stage.stage_id)

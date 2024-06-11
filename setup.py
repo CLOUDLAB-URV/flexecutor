@@ -4,7 +4,8 @@ setup(
     name="flexecutor",
     version="0.1.0",
     author="Daniel Barcelona, Ayman Bourramouss, Enrique Molina, Stepan Klymonchuk (DAGium donation)",
-    author_email="daniel.barcelona@urv.cat, ayman.bourramouss@urv.cat, enrique.molina@urv.cat",
+    author_email="daniel.barcelona@urv.cat, ayman.bourramouss@urv.cat, enrique.molina@urv.cat, "
+                 "stepan.klymonchuk@urv.cat",
     description="A flexible and DAG-optimized executor over Lithops",
     url="https://github.com/abourramouss/smart-datastaging-layer/",
     long_description=open('README.md').read(),
@@ -33,14 +34,16 @@ setup(
         "deap",
         "scipy",
         "numpy",
-        "matplotlib",
-        "networkx",
         "pandas"
     ],
     extras_require={
         "examples": [
             "S3path",
             "boto3"
+        ],
+        "drawing": [
+            "matplotlib",
+            "networkx"
         ]
     },
     packages=find_packages(),
