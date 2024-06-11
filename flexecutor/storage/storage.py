@@ -1,13 +1,9 @@
-import boto3
-import fnmatch
+import os
 import time
-
-from botocore.client import Config
-from s3path import S3Path
 from pathlib import Path
-from lithops import Storage
 from typing import Callable
 
+from lithops import Storage
 from flexecutor.utils import setup_logging
 from flexecutor.utils.utils import initialize_timings
 
@@ -30,127 +26,105 @@ def measure_operation(op_type: str):
     return decorator
 
 
-class S3Client:
-    _config = None
-    _resource = None
-    # class logger
-    logger = setup_logging(level="INFO")
+class S3File:
+    def __init__(self, path: str, local_base_path: str, unique_id: str):
+        parts = path.split("/", 1)
+        if len(parts) != 2:
+            raise ValueError("Path must be in the format 'bucket/key'")
+        self.bucket = parts[0]
+        self.key = parts[1]
+        self.unique_id = unique_id
+        self.local_base_path = Path(local_base_path)
+        self.local_path = self._calculate_local_path()
 
-    @classmethod
-    def configure(cls, config):
-        if cls._config is None or cls._resource is None:
-            backend = config["backend"]
-            cls._config = config[backend]
-            cls.logger.info(f"Configuration: {cls._config}")
-            cls._resource = cls.create_s3_resource(cls._config)
-            cls.logger.info(f"Configured {backend} backend")
+    def _calculate_local_path(self):
+        local_path = self.local_base_path / self.unique_id / Path(self.key).name
+        return local_path
 
-    @classmethod
-    def create_s3_resource(cls, config):
-        cls.logger.info(f"Creating S3 resource with config: {config}")
-        resource = boto3.resource(
-            "s3",
-            endpoint_url=config.get("endpoint", None),
-            aws_access_key_id=config["access_key_id"],
-            aws_secret_access_key=config["secret_access_key"],
-            config=Config(signature_version="s3v4"),
-        )
-        cls.logger.info("S3 resource created successfully")
-        return resource
+    def __repr__(self):
+        return f"{self.bucket}/{self.key} ({self.unique_id})"
 
-    def __init__(self):
-        if S3Client._config is None or S3Client._resource is None:
-            storage = Storage()
-            S3Client.configure(storage.config)
-
-        self.resource = S3Client._resource
-        self.logger = S3Client.logger
+    def __str__(self):
+        return self.__repr__()
 
 
-class Dataset:
+class InputS3File(S3File):
     def __init__(
-        self, s3_client, bucket, pattern, local_base_path="/tmp", *args, **kwargs
+        self, path: str, local_base_path: str, unique_id: str, *args, **kwargs
     ):
-        self.s3_client = s3_client
-        self.bucket_name = bucket
-        self.pattern = pattern.strip("/")
-        self.local_base_path = Path(local_base_path).resolve()
-        self.logger = setup_logging(level="INFO")
-        self.paths = self.find_paths()
+        self.client = Storage()
+        if not self._file_exists_in_s3(path):
+            raise FileNotFoundError(f"File {path} does not exist in bucket")
+        super().__init__(path, local_base_path, unique_id)
+        self.logger = setup_logging("INFO")
         self.logger.info(
-            f"Dataset initialized with pattern: {self.pattern} and local base path: {self.local_base_path}"
+            f"InputS3File initialized with S3 path {self} and local base path {self.local_base_path}"
         )
 
-    @classmethod
-    def from_directory(cls, bucket, directory, local_base_path="/tmp"):
-        pattern = f"{directory.strip('/')}/*"
-        s3_client = S3Client()
-        return cls(s3_client, bucket, pattern, local_base_path)
+    def _file_exists_in_s3(self, path: str):
+        bucket, key = path.split("/", 1)
+        try:
+            self.client.head_object(bucket, key)
+            return True
+        except Exception:
+            return False
 
-    @classmethod
-    def from_glob(cls, bucket, glob_pattern, local_base_path="/tmp"):
-        s3_client = S3Client()
-        return cls(s3_client, bucket, glob_pattern, local_base_path)
+    @measure_operation("read")
+    def download_file(self):
+        self.validate_paths()
+        self.local_path.parent.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Downloading {self.key} to {self.local_path}")
+        try:
+            self.client.download_file(self.bucket, self.key, str(self.local_path))
+            self.logger.info(f"Downloaded {self.key} to {self.local_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to download {self.key}: {e}")
+            raise
 
-    @classmethod
-    def from_files(cls, bucket, files, local_base_path="/tmp"):
-        s3_client = S3Client()
-        pattern = "{"
-        for file in files:
-            pattern += f"{file},"
-        pattern = pattern.rstrip(",") + "}"
-        return cls(s3_client, bucket, pattern, local_base_path)
+    def validate_paths(self):
+        if not self.bucket or not self.key:
+            raise ValueError("Both bucket and key must be defined in the S3 path.")
+        if not self.local_base_path.is_dir():
+            raise ValueError("Local base path must be a valid directory.")
 
-    def find_paths(self):
-        matching_paths = set()
-        paginator = self.s3_client.resource.meta.client.get_paginator("list_objects_v2")
-        prefix = self.pattern.split("*")[0]
+
+class OutputS3File(S3File):
+    def __init__(
+        self, path: str, local_base_path: str, unique_id: str, *args, **kwargs
+    ):
+        super().__init__(path, local_base_path, unique_id)
+        self.client = Storage()
+        self.logger = setup_logging("INFO")
         self.logger.info(
-            f"Listing objects in bucket: {self.bucket_name} with prefix: {prefix}"
+            f"OutputS3File initialized with S3 path {self} and local base path {self.local_base_path}"
         )
 
-        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
-            for obj in page.get("Contents", []):
-                s3_full_path = f"/{self.bucket_name}/{obj['Key']}"
-                s3_path_obj = S3Path(
-                    s3_full_path
-                )  # wrapping the found paths as s3paths
-                self.logger.debug(f"Found S3 object: {s3_path_obj}")
+    def file_exists_locally(self):
+        return self.local_path.exists()
 
-                if fnmatch.fnmatch(obj["Key"], self.pattern):
-                    self.logger.debug(f"Matched S3 path: {s3_path_obj}")
-                    matching_paths.add(s3_path_obj)
-                else:
-                    self.logger.debug(f"Did not match S3 path: {s3_path_obj}")
+    @measure_operation("write")
+    def upload_file(self):
+        self.validate_paths()
+        if not self.file_exists_locally():
+            self.logger.error(f"Local file {self.local_path} does not exist")
+            raise FileNotFoundError(f"Local file {self.local_path} does not exist")
+        self.logger.info(f"Uploading {self.local_path} to {self.key}")
+        try:
+            self.client.upload_file(str(self.local_path), self.bucket, self.key)
+            self.logger.info(f"Uploaded {self.local_path} to {self.key}")
+        except Exception as e:
+            self.logger.error(f"Failed to upload {self.local_path}: {e}")
+            raise
 
-        if not matching_paths:
-            self.logger.info("No matching files found.")
-
-        return matching_paths
-
-    def download_all(self):
-        for s3_path in self.paths:
-            local_file_path = self.s3_to_local_path(s3_path)
-            local_file_path.parent.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Downloading {s3_path} to {local_file_path}")
-            try:
-                self.s3_client.resource.Bucket(s3_path.bucket_name).download_file(
-                    s3_path.key, str(local_file_path)
-                )
-                self.logger.info(f"Downloaded {s3_path} to {local_file_path}")
-            except Exception as e:
-                self.logger.error(f"Failed to download {s3_path}: {e}")
-                raise
-
-    def s3_to_local_path(self, s3_path):
-        bucket_name = s3_path.parts[1]
-        relative_path = s3_path.relative_to(f"/{bucket_name}")
-        return self.local_base_path / bucket_name / relative_path
+    def validate_paths(self):
+        if not self.bucket or not self.key:
+            raise ValueError("Both bucket and key must be defined in the S3 path.")
+        if not self.local_base_path.is_dir():
+            raise ValueError("Local base path must be a valid directory.")
 
 
 if __name__ == "__main__":
-
-    bucket = "test-bucket"
-
-    dataset_glob = Dataset.from_directory(bucket, "/dir")
-    print("Matched files from glob pattern:", [p for p in dataset_glob.paths])
+    try:
+        input_file = InputS3File("test-bucket/dir/file.txt", "/tmp", unique_id="step1")
+    except FileNotFoundError as e:
+        print(e)
