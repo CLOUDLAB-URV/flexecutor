@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import dataplug
 
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Callable, Sequence

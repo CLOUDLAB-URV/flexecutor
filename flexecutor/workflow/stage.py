@@ -7,7 +7,7 @@ from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig
 from flexecutor.utils.utils import get_my_exec_path
 from flexecutor.workflow.stagefuture import StageFuture, InputFile
-from flexecutor.storage import Dataset
+from flexecutor.storage import InputS3File, OutputS3File
 
 
 class StageState(Enum):
@@ -34,15 +34,15 @@ class Stage:
         self,
         stage_id: str,
         func: Callable[[...], Any],
+        input_file: InputS3File,
+        output_file: OutputS3File,
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
-        input_dataset: Optional[Dataset] = None,
-        output_file: Optional[StageFuture] = None,
     ):
         self._stage_unique_id = None
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_dataset = input_dataset
+        self._input_file = input_file
         # output_file might not be needed, dependencies should be sent via completed futures.
         # we can rename it to _output_path, path where the outputs of the stage will be stored in os (by default {stage_name}/output)
         self._output_file = output_file
@@ -69,8 +69,7 @@ class Stage:
         self._dag_id = value
         self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
         self._perf_model = PerfModel.instance(
-            model_type=self._perf_model_type,
-            model_name=self._stage_unique_id
+            model_type=self._perf_model_type, model_name=self._stage_unique_id
         )
 
     @property
@@ -93,9 +92,14 @@ class Stage:
         return self._children
 
     @property
-    def input_dataset(self) -> StageFuture:
-        """Return the input dataset."""
-        return self._input_dataset
+    def input_file(self) -> InputS3File:
+        """Return the input file."""
+        return self._input_file
+
+    @property
+    def output_file(self) -> OutputS3File:
+        """Return the output file."""
+        return self._output_file
 
     @property
     def state(self) -> StageState:

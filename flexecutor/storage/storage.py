@@ -1,11 +1,11 @@
 import os
 import time
+
 from pathlib import Path
 from typing import Callable
 
 from lithops import Storage
-from flexecutor.utils import setup_logging
-from flexecutor.utils.utils import initialize_timings
+from flexecutor.utils import setup_logging, initialize_timings
 
 
 def measure_operation(op_type: str):
@@ -125,6 +125,6 @@ class OutputS3File(S3File):
 
 if __name__ == "__main__":
     try:
-        input_file = InputS3File("test-bucket/dir/file.txt", "/tmp", unique_id="step1")
+        input_file = InputS3File("test-bucket/dir/file1.txt", "/tmp", unique_id="1")
     except FileNotFoundError as e:
         print(e)

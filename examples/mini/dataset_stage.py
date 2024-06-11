@@ -21,6 +21,7 @@ BUCKET_NAME = "test-bucket"
 
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main():
         dag = DAG("mini-dag")
@@ -33,7 +34,7 @@ if __name__ == "__main__":
             "stage1",
             func=func,
             perf_model_type=PerfModelEnum.GENETIC,
-            input_dataset=Dataset.from_glob(BUCKET_NAME, "dir/*.txt"),
+            # input_dataset=Dataset.from_glob(BUCKET_NAME, "dir/*.txt"),
         )
 
         dag.add_stages([stage1])
