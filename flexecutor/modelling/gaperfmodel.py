@@ -95,7 +95,7 @@ class GAPerfModel(PerfModel):
         with open(self._model_dst, "rb") as file:
             self._best_individual = pickle.load(file)
 
-    def optimize(self, config: ConfigBounds) -> StageConfig:
+    def optimize(self, bounds: ConfigBounds) -> StageConfig:
         objective_func = self._objective_func
 
         def integer_objective_func(x):
@@ -104,7 +104,7 @@ class GAPerfModel(PerfModel):
 
         res = differential_evolution(
             integer_objective_func,
-            config.to_tuple_list(),
+            bounds.to_tuple_list(),
             strategy="best1bin",
             mutation=(0.5, 1),
             recombination=0.7,

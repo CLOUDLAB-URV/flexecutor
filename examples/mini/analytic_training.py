@@ -1,11 +1,9 @@
-import os
-
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig
-from flexecutor.utils.utils import load_profiling_results, flexorchestrator
-
+from flexecutor.utils.utils import flexorchestrator, load_profiling_results
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main():
         profile_data = load_profiling_results("profiling/mocks/test1.json")

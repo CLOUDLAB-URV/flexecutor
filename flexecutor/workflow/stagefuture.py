@@ -25,7 +25,7 @@ class StageFuture:
     def __getattr__(self, item):
         if item in vars(self):
             return getattr(self, item)
-        elif '__future' in vars(self) and item in vars(self.__future):
+        elif "__future" in vars(self) and item in vars(self.__future):
             return getattr(self.__future, item)
         raise AttributeError(f"Future object has no attribute {item}")
 
@@ -37,11 +37,13 @@ class StageFuture:
             worker_start_tstamp = s["worker_start_tstamp"]
             r["cold_start"] = worker_start_tstamp - host_submit_tstamp
             timings_list.append(
-                FunctionTimes(read=r["read"],
-                              compute=r["compute"],
-                              write=r["write"],
-                              cold_start=r["cold_start"],
-                              total=r["read"] + r["compute"] + r["write"] + r["cold_start"])
+                FunctionTimes(
+                    read=r["read"],
+                    compute=r["compute"],
+                    write=r["write"],
+                    cold_start=r["cold_start"],
+                    total=r["read"] + r["compute"] + r["write"] + r["cold_start"],
+                )
             )
         return timings_list
 

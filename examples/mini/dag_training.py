@@ -11,7 +11,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 
-config = {'lithops': {'backend': 'localhost', 'storage': 'localhost'}}
+config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
 LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
 logging.basicConfig(format=LOGGER_FORMAT, level=logging.INFO)
@@ -23,22 +23,23 @@ BUCKET_NAME = "lithops-manri-urv"
 NUM_ITERATIONS = 1
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main():
-        dag = DAG('mini-dag')
+        dag = DAG("mini-dag")
 
         stage1 = Stage(
-            'stage1',
+            "stage1",
             func=word_occurrence_count,
             # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
         )
         stage2 = Stage(
-            'stage2',
+            "stage2",
             func=word_occurrence_count,
             # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
         )
         stage3 = Stage(
-            'stage3',
+            "stage3",
             func=word_occurrence_count,
             # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
         )
@@ -50,10 +51,12 @@ if __name__ == "__main__":
         executor = DAGExecutor(dag, executor=LocalhostExecutor())
         executor.train()
 
-        prediction = executor.predict([StageConfig(cpu=2, memory=1024, workers=3)], stage1)
+        prediction = executor.predict(
+            [StageConfig(cpu=2, memory=1024, workers=3)], stage1
+        )
         print(prediction)
 
         executor.shutdown()
-        print('stages completed')
+        print("stages completed")
 
     main()

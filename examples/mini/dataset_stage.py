@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import logging
+
 from lithops import FunctionExecutor
+
 from flexecutor.modelling.perfmodel import PerfModelEnum
+from flexecutor.storage import Dataset
+from flexecutor.utils import setup_logging
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-from flexecutor.utils import setup_logging
-from flexecutor.storage import Dataset
-
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
@@ -21,6 +22,7 @@ BUCKET_NAME = "test-bucket"
 
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main():
         dag = DAG("mini-dag")

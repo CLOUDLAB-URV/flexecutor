@@ -25,7 +25,7 @@ if __name__ == "__main__":
         dag.add_stages([stage1])
         executor = DAGExecutor(dag, executor=LocalhostExecutor())
 
-        config_spaces = [
+        config_space = [
             (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
             (1, 200, 10),  # 1 vCPU, 200 MB per worker, 10 workers
             (2, 2048, 7),  # 2 vCPUs, 2048 MB per worker, 7 workers
@@ -45,12 +45,12 @@ if __name__ == "__main__":
             (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
             (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
         ]
-        config_spaces_obj = [StageConfig(*resource_config) for resource_config in config_spaces]
-        num_configs = min(num_configs, len(config_spaces_obj) - 1)
-        config_spaces_obj = config_spaces_obj[:num_configs]
+        config_space_obj = [StageConfig(*resource_config) for resource_config in config_space]
+        num_configs = min(num_configs, len(config_space_obj) - 1)
+        config_space_obj = config_space_obj[:num_configs]
 
         # Profile the DAG
-        executor.profile(config_spaces_obj, num_iterations=2)
+        executor.profile(config_space_obj, num_iterations=2)
 
         # Train the stage models
         executor.train()
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         executor.shutdown()
 
         # Print metrics
-        actual_latency = sum([i.read + i.cold_start + i.compute + i.write for i in timings]) / len(timings)
+        actual_latency = max([i.read + i.cold_start + i.compute + i.write for i in timings])
         print("Actual latency", actual_latency)
         print(f"Accuracy {100 - (actual_latency - predicted_latency.total) / predicted_latency.total * 100} %")
 

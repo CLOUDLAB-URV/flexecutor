@@ -6,7 +6,6 @@ from lithops import LocalhostExecutor
 
 from examples.mini.functions.word_occurrence import word_occurrence_count
 from flexecutor.modelling.perfmodel import PerfModelEnum
-from flexecutor.storage import Dataset
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -24,6 +23,7 @@ BUCKET_NAME = "lithops-manri-urv"
 
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main():
         dag = DAG("mini-dag")

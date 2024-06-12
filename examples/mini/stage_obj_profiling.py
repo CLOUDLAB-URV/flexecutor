@@ -9,17 +9,18 @@ from flexecutor.workflow.stage import Stage
 BUCKET_NAME = "lithops-manri-urv"
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main():
-        config_spaces = [
+        config_space = [
             StageConfig(0.5, 256, 32),
             # ...
         ]
 
-        dag = DAG('stage-obj-profiling')
+        dag = DAG("stage-obj-profiling")
 
         stage1 = Stage(
-            'stage1',
+            "stage1",
             func=word_occurrence_count,
             # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
         )
@@ -27,9 +28,9 @@ if __name__ == "__main__":
         dag.add_stages([stage1])
 
         executor = DAGExecutor(dag, executor=LocalhostExecutor())
-        executor.profile(config_spaces, num_iterations=1)
+        executor.profile(config_space, num_iterations=1)
         executor.shutdown()
 
-        print('stages completed')
+        print("stages completed")
 
     main()

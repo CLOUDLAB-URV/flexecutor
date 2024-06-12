@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import dataplug
 
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Callable, Sequence
@@ -41,6 +40,7 @@ class ThreadPoolProcessor:
             raise ValueError("No stages to process")
 
         if len(stages) > self._max_concurrency:
+            # TODO: don't fail. queue them
             raise ValueError(
                 f"Too many stages to process. Max concurrency is {self._max_concurrency}"
             )

@@ -5,8 +5,7 @@ from typing import Any, Set, List, Optional, Callable
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig
-from flexecutor.utils.utils import get_my_exec_path
-from flexecutor.workflow.stagefuture import StageFuture, InputFile
+from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.storage import Dataset
 
 
@@ -33,7 +32,7 @@ class Stage:
     def __init__(
         self,
         stage_id: str,
-        func: Callable[[...], Any],
+        func: Callable[..., Any],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
         input_dataset: Optional[Dataset] = None,
         output_file: Optional[StageFuture] = None,
@@ -60,7 +59,7 @@ class Stage:
         return self._dag_id
 
     @property
-    def map_func(self) -> Callable[[...], Any]:
+    def map_func(self) -> Callable[..., Any]:
         """Return the map function."""
         return self._map_func
 
