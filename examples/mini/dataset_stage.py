@@ -26,7 +26,7 @@ def manage_s3_io(func: Callable[[DataSlice], Any]):
 
         result = func(data_slice, *args, **kwargs)
 
-        data_slice.s3_handler.upload_chunk(data_slice)
+        # data_slice.s3_handler.upload_chunk(data_slice)
 
         return result
 
@@ -47,7 +47,15 @@ if __name__ == "__main__":
         # function to be applied to each chunk, the input of the function has to always be of type DataSlice
         @manage_s3_io
         def word_count(data_slice: DataSlice):
-            print(data_slice)
+            # word counting logic
+            with open(data_slice.local_input_path, "r") as f:
+                words = f.read().split()
+                word_count = len(words)
+                print(f"Word count: {word_count}")
+
+            # write the result to the output file
+            # with open(data_slice.local_output_path, "w") as f:
+            #     f.write(str(word_count))
 
         stage1 = Stage(
             "stage1",

@@ -1,6 +1,5 @@
 import os
 import time
-import pickle
 from pathlib import Path
 from typing import Callable, Tuple, Any
 
@@ -30,20 +29,6 @@ class S3Handler:
     def __init__(self):
         self.client = Storage()
 
-    def _new_client(self):
-        return Storage()
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # Remove the client instance from the state
-        state["client"] = None
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # Restore the client instance
-        self.client = self._new_client()
-
     def download_chunk(self, data_slice: "DataSlice"):
         byte_range = data_slice.chunk
         extra_get_args = {"Range": f"bytes={byte_range[0]}-{byte_range[1]}"}
@@ -70,43 +55,14 @@ class S3Handler:
         )
         return output_key
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state.pop("client", None)
+        return state
 
-class DataSlice:
-    def __init__(
-        self,
-        bucket: str,
-        key: str,
-        output_bucket: str,
-        output_key: str,
-        local_base_path: str,
-        unique_id: str,
-        chunk: Tuple[int, int],
-        s3_handler: S3Handler,
-    ):
-        self.bucket = bucket
-        self.key = key
-        self.output_bucket = output_bucket
-        self.output_key = output_key
-        self.local_base_path = Path(local_base_path)
-        self.unique_id = unique_id
-        self.chunk = chunk
-        self.s3_handler = s3_handler
-        self.local_input_path = self._calculate_local_path(
-            self.bucket, self.key, "input"
-        )
-        self.local_output_path = self._calculate_local_path(
-            self.output_bucket, self.key, "output"
-        )
-        self.output_key = self.s3_handler.generate_output_key(
-            self.key, self.chunk, output_bucket
-        )
-
-    def _calculate_local_path(self, bucket, key, path_type):
-        local_path = self.local_base_path / self.unique_id / path_type / bucket / key
-        return local_path
-
-    def __repr__(self):
-        return f"DataSlice(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.client = Storage()
 
 
 class InputS3File:
@@ -168,6 +124,41 @@ class OutputS3Path:
 
     def generate_output_key(self, input_key: str, chunk_range: Tuple[int, int]) -> str:
         return f"{self.base_output_path}/{input_key}_chunk_{chunk_range[0]}_{chunk_range[1]}"
+
+
+class DataSlice:
+    def __init__(
+        self,
+        bucket: str,
+        key: str,
+        output_bucket: str,
+        local_base_path: str,
+        unique_id: str,
+        chunk: Tuple[int, int],
+        s3_handler: "S3Handler",
+        output_s3_path: "OutputS3Path",
+    ):
+        self.bucket = bucket
+        self.key = key
+        self.output_bucket = output_bucket
+        self.local_base_path = Path(local_base_path)
+        self.unique_id = unique_id
+        self.chunk = chunk
+        self.s3_handler = s3_handler
+        self.local_input_path = self._calculate_local_path(
+            self.bucket, self.key, "input"
+        )
+        self.local_output_path = self._calculate_local_path(
+            self.output_bucket, self.key, "output"
+        )
+        self.output_key = output_s3_path.generate_output_key(self.key, self.chunk)
+
+    def _calculate_local_path(self, bucket, key, path_type):
+        local_path = self.local_base_path / self.unique_id / path_type / bucket / key
+        return local_path
+
+    def __repr__(self):
+        return f"DataSlice(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
 
 
 if __name__ == "__main__":

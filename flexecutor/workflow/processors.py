@@ -142,12 +142,12 @@ class ThreadPoolProcessor:
             DataSlice(
                 bucket=input_file.bucket,
                 key=input_file.key,
-                output_bucket=input_file.bucket,  # Assuming output in the same bucket
-                output_key=stage.output_path.generate_output_key(input_file.key, chunk),
+                output_bucket=stage.output_path.base_output_path,
                 local_base_path=input_file.local_base_path,
                 unique_id=input_file.unique_id,
                 chunk=chunk,
                 s3_handler=s3_handler,
+                output_s3_path=stage.output_path,
             )
             for chunk in partitions
         ]
