@@ -2,7 +2,7 @@ import os
 import time
 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Tuple
 
 from lithops import Storage
 from flexecutor.utils import setup_logging, initialize_timings
@@ -121,6 +121,37 @@ class OutputS3File(S3File):
             raise ValueError("Both bucket and key must be defined in the S3 path.")
         if not self.local_base_path.is_dir():
             raise ValueError("Local base path must be a valid directory.")
+
+
+class InputS3Chunk:
+    def __init__(
+        self,
+        bucket: str,
+        key: str,
+        output_bucket: str,
+        output_key: str,
+        local_base_path: str,
+        unique_id: str,
+        chunk: Tuple[int, int],
+    ):
+        self.bucket = bucket
+        self.key = key
+        self.output_bucket = output_bucket
+        self.output_key = output_key
+        self.local_base_path = Path(local_base_path)
+        self.unique_id = unique_id
+        self.chunk = chunk
+        self.local_input_path = self._calculate_local_path(self.bucket, self.key)
+        self.local_output_path = self._calculate_local_path(
+            self.output_bucket, self.output_key
+        )
+
+    def _calculate_local_path(self, bucket, key):
+        local_path = self.local_base_path / self.unique_id / bucket / key
+        return local_path
+
+    def __repr__(self):
+        return f"InputS3Chunk(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
 
 
 if __name__ == "__main__":

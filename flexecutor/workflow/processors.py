@@ -1,16 +1,58 @@
 from __future__ import annotations
-
+import os
 import logging
 
 from concurrent.futures import ThreadPoolExecutor, wait
-from typing import Callable, Sequence
+from typing import Callable, Sequence, List, Tuple
 
 from lithops import FunctionExecutor
 
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.utils import setup_logging
+from flexecutor.storage import InputS3Chunk
 
-logger = logging.getLogger(__name__)
+logger = setup_logging(level=logging.INFO)
+
+
+def split_txt_file(
+    file_path: str,
+    chunk_size: int = None,
+    chunk_number: int = None,
+    obj_newline: str = "\n",
+) -> List[Tuple[int, int]]:
+    """
+    Split a single .txt file into multiple chunks.
+    """
+    partitions = []
+    obj_size = os.path.getsize(file_path)
+
+    if chunk_number:
+        chunk_rest = obj_size % chunk_number
+        obj_chunk_size = (obj_size // chunk_number) + round(
+            (chunk_rest / chunk_number) + 0.5
+        )
+    elif chunk_size:
+        obj_chunk_size = chunk_size
+    else:
+        obj_chunk_size = obj_size
+
+    logger.debug(f"Creating partitions from {file_path} ({obj_size} bytes)")
+
+    with open(file_path, "rb") as f:
+        size = 0
+        while size < obj_size:
+            start = size
+            end = min(size + obj_chunk_size, obj_size)
+            if end < obj_size:
+                f.seek(end)
+                while f.read(1) != obj_newline.encode() and f.tell() < obj_size:
+                    end += 1
+
+            partitions.append((start, end))
+            size = end + 1
+
+    return partitions
 
 
 class ThreadPoolProcessor:
@@ -75,30 +117,53 @@ class ThreadPoolProcessor:
         # TODO:
         # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus (DONE, HARDCODED)
         # 2. Update the configuration of the executor (FIXME ISSUE WITH RUNTIME_NUMCPUS, FOR NOW WE CAN ONLY PASS THE RUNTIME_MEMORY)
-        # 3. If it's a dataset composed of multiple files, before partitioning, we should "merge" (join the indices).
-        # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor
+        # 3.  PARTITIONING : Partition the file into multiple equal-sized chunks
+        #   3.1 partitioning happens before the map call, this is the preprocessing needed for converting InputS3Paths to chunks as well as converting the InputS3Path to its corresponding OutputS3Path (iterdata)
+        # 4. The lithops map function should be wrapped with a download-upload logic.
+        # 5. Call the map which will return the iterdata, pass the iterdata to the map
 
         print(f"Found datasets: {stage.input_file}")
 
-        # FIXME: wrapt error, it looks like we need a custom dockerfile now since a dataset is a set of s3paths
-
         input_file = stage.input_file
-        # Partition after the dataset is loaded?
-        # TODO: Partition here
-        # Placeholder for partitioning
+        print(f"stage input file: {input_file}")
+        input_file.download_file()
 
-        
+        # Partition after the dataset is loaded
+        # TODO: Partition here
+        partitions = split_txt_file(
+            input_file.local_path, chunk_number=stage.optimal_config.workers
+        )
+
+        print("Partitions: ", partitions)
+
+        # Prepare map_iterdata with the partitions
+        map_iterdata = [
+            InputS3Chunk(
+                bucket=input_file.bucket,
+                key=input_file.key,
+                output_bucket=stage.output_file.bucket,
+                output_key=stage.output_file.key,
+                local_base_path=input_file.local_base_path,
+                unique_id=input_file.unique_id,
+                chunk=chunk,
+            )
+            for chunk in partitions
+        ]
+
+        # Call the partitioner and pass the resulting iterdata to the function executor
         future = self._executor.map(
             map_function=stage.map_func,
-            map_iterdata=input_file,
+            map_iterdata=map_iterdata,
             runtime_memory=stage.optimal_config.memory,
         )
 
         self._executor.wait(future)
         future = StageFuture(stage.stage_id, future)
 
+        # Update the state of the stage based on the future result
         stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
 
+        # Call the callback function if provided
         if on_future_done:
             on_future_done(stage, future)
 
