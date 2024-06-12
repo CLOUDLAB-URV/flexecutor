@@ -7,7 +7,7 @@ from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig
 from flexecutor.utils.utils import get_my_exec_path
 from flexecutor.workflow.stagefuture import StageFuture, InputFile
-from flexecutor.storage import InputS3File, OutputS3File
+from flexecutor.storage import InputS3File, OutputS3Path
 
 
 class StageState(Enum):
@@ -35,7 +35,7 @@ class Stage:
         stage_id: str,
         func: Callable[[...], Any],
         input_file: InputS3File,
-        output_file: OutputS3File,
+        output_path: OutputS3Path,
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
     ):
         self._stage_unique_id = None
@@ -43,9 +43,7 @@ class Stage:
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
         self._input_file = input_file
-        # output_file might not be needed, dependencies should be sent via completed futures.
-        # we can rename it to _output_path, path where the outputs of the stage will be stored in os (by default {stage_name}/output)
-        self._output_file = output_file
+        self._output_path = output_path
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
@@ -97,9 +95,9 @@ class Stage:
         return self._input_file
 
     @property
-    def output_file(self) -> OutputS3File:
-        """Return the output file."""
-        return self._output_file
+    def output_path(self) -> OutputS3Path:
+        """Return the output path."""
+        return self._output_path
 
     @property
     def state(self) -> StageState:

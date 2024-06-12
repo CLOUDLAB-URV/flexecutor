@@ -10,7 +10,7 @@ from lithops import FunctionExecutor
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging
-from flexecutor.storage import InputS3Chunk
+from flexecutor.storage import DataSlice, S3Handler
 
 logger = setup_logging(level=logging.INFO)
 
@@ -129,28 +129,29 @@ class ThreadPoolProcessor:
         input_file.download_file()
 
         # Partition after the dataset is loaded
-        # TODO: Partition here
+        # TODO: Partition here, for now we are just splitting the file into equal chunks and we only support .txt files
         partitions = split_txt_file(
             input_file.local_path, chunk_number=stage.optimal_config.workers
         )
 
         print("Partitions: ", partitions)
 
-        # Prepare map_iterdata with the partitions
+        s3_handler = S3Handler()
+
         map_iterdata = [
-            InputS3Chunk(
+            DataSlice(
                 bucket=input_file.bucket,
                 key=input_file.key,
-                output_bucket=stage.output_file.bucket,
-                output_key=stage.output_file.key,
+                output_bucket=input_file.bucket,  # Assuming output in the same bucket
+                output_key=stage.output_path.generate_output_key(input_file.key, chunk),
                 local_base_path=input_file.local_base_path,
                 unique_id=input_file.unique_id,
                 chunk=chunk,
+                s3_handler=s3_handler,
             )
             for chunk in partitions
         ]
 
-        # Call the partitioner and pass the resulting iterdata to the function executor
         future = self._executor.map(
             map_function=stage.map_func,
             map_iterdata=map_iterdata,

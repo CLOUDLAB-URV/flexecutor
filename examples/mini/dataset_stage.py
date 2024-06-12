@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from functools import wraps
-from lithops import FunctionExecutor, Storage
+from lithops import FunctionExecutor
 from typing import Callable, Tuple, Any
 
 from flexecutor.modelling.perfmodel import PerfModelEnum
@@ -12,30 +11,22 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
-from flexecutor.storage import InputS3File, OutputS3File, InputS3Chunk
+from flexecutor.storage import InputS3File, OutputS3Path, DataSlice
 from functools import wraps
 
 
 logger = setup_logging(level=logging.INFO)
 
 
-def manage_s3_io(func: Callable[[InputS3Chunk], Any]):
+# This decorator does pre and post processing of the chunk in the remote worker
+def manage_s3_io(func: Callable[[DataSlice], Any]):
     @wraps(func)
-    def wrapper(chunk: InputS3Chunk, *args, **kwargs):
-        client = Storage()
+    def wrapper(data_slice: DataSlice, *args, **kwargs):
+        data_slice.s3_handler.download_chunk(data_slice)
 
-        # Download the input chunk
-        byte_range = chunk.chunk
-        extra_get_args = {"Range": f"bytes={byte_range[0]}-{byte_range[1]}"}
-        chunk_data = client.get_object(
-            chunk.bucket, chunk.key, extra_get_args=extra_get_args
-        )
+        result = func(data_slice, *args, **kwargs)
 
-        chunk.local_input_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(chunk.local_input_path, "wb") as f:
-            f.write(chunk_data)
-
-        result = func(chunk, *args, **kwargs)
+        data_slice.s3_handler.upload_chunk(data_slice)
 
         return result
 
@@ -45,24 +36,25 @@ def manage_s3_io(func: Callable[[InputS3Chunk], Any]):
 NUM_ITERATIONS = 1
 BUCKET_NAME = "test-bucket"
 input_file = InputS3File(f"{BUCKET_NAME}/tiny_shakespeare.txt", "/tmp", "1")
-output_file = OutputS3File(f"{BUCKET_NAME}/output.txt", "/tmp", "1")
+output_path = OutputS3Path(f"{BUCKET_NAME}/output", "/tmp", "1")
+
 if __name__ == "__main__":
 
     @flexorchestrator
     def main():
         dag = DAG("mini-dag")
 
-        # function to be applied to each chunk, the input of the function has to always be of type InputS3Chunk
+        # function to be applied to each chunk, the input of the function has to always be of type DataSlice
         @manage_s3_io
-        def func(chunk: InputS3Chunk):
-            print(chunk)
+        def word_count(data_slice: DataSlice):
+            print(data_slice)
 
         stage1 = Stage(
             "stage1",
-            func=func,
+            func=word_count,
             perf_model_type=PerfModelEnum.GENETIC,
             input_file=input_file,
-            output_file=output_file,
+            output_path=output_path,
         )
 
         dag.add_stages([stage1])

@@ -1,5 +1,6 @@
 import os
 import time
+import pickle
 from pathlib import Path
 from typing import Callable, Tuple, Any
 
@@ -23,6 +24,51 @@ def measure_operation(op_type: str):
         return wrapper
 
     return decorator
+
+
+class S3Handler:
+    def __init__(self):
+        self.client = Storage()
+
+    def _new_client(self):
+        return Storage()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove the client instance from the state
+        state["client"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Restore the client instance
+        self.client = self._new_client()
+
+    def download_chunk(self, data_slice: "DataSlice"):
+        byte_range = data_slice.chunk
+        extra_get_args = {"Range": f"bytes={byte_range[0]}-{byte_range[1]}"}
+        chunk_data = self.client.get_object(
+            data_slice.bucket, data_slice.key, extra_get_args=extra_get_args
+        )
+
+        data_slice.local_input_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(data_slice.local_input_path, "wb") as f:
+            f.write(chunk_data)
+
+    def upload_chunk(self, data_slice: "DataSlice"):
+        self.client.upload_file(
+            str(data_slice.local_output_path),
+            data_slice.output_bucket,
+            data_slice.output_key,
+        )
+
+    def generate_output_key(
+        self, input_key: str, chunk_range: Tuple[int, int], base_output_path: str
+    ) -> str:
+        output_key = (
+            f"{base_output_path}/{input_key}_chunk_{chunk_range[0]}_{chunk_range[1]}"
+        )
+        return output_key
 
 
 class DataSlice:
@@ -61,37 +107,6 @@ class DataSlice:
 
     def __repr__(self):
         return f"DataSlice(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
-
-
-class S3Handler:
-    def __init__(self):
-        self.client = Storage()
-
-    def download_chunk(self, data_slice: DataSlice):
-        byte_range = data_slice.chunk
-        extra_get_args = {"Range": f"bytes={byte_range[0]}-{byte_range[1]}"}
-        chunk_data = self.client.get_object(
-            data_slice.bucket, data_slice.key, extra_get_args=extra_get_args
-        )
-
-        data_slice.local_input_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(data_slice.local_input_path, "wb") as f:
-            f.write(chunk_data)
-
-    def upload_chunk(self, data_slice: DataSlice):
-        self.client.upload_file(
-            str(data_slice.local_output_path),
-            data_slice.output_bucket,
-            data_slice.output_key,
-        )
-
-    def generate_output_key(
-        self, input_key: str, chunk_range: Tuple[int, int], base_output_path: str
-    ) -> str:
-        output_key = (
-            f"{base_output_path}/{input_key}_chunk_{chunk_range[0]}_{chunk_range[1]}"
-        )
-        return output_key
 
 
 class InputS3File:

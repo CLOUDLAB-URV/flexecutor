@@ -1,1 +1,1 @@
-from .storage import InputS3File, OutputS3File, DataSlice
+from .storage import InputS3File, OutputS3Path, DataSlice, S3Handler
