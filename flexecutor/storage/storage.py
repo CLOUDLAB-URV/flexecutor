@@ -1,8 +1,7 @@
 import os
 import time
-
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Any
 
 from lithops import Storage
 from flexecutor.utils import setup_logging, initialize_timings
@@ -26,48 +25,106 @@ def measure_operation(op_type: str):
     return decorator
 
 
-class S3File:
+class DataSlice:
+    def __init__(
+        self,
+        bucket: str,
+        key: str,
+        output_bucket: str,
+        output_key: str,
+        local_base_path: str,
+        unique_id: str,
+        chunk: Tuple[int, int],
+        s3_handler: S3Handler,
+    ):
+        self.bucket = bucket
+        self.key = key
+        self.output_bucket = output_bucket
+        self.output_key = output_key
+        self.local_base_path = Path(local_base_path)
+        self.unique_id = unique_id
+        self.chunk = chunk
+        self.s3_handler = s3_handler
+        self.local_input_path = self._calculate_local_path(
+            self.bucket, self.key, "input"
+        )
+        self.local_output_path = self._calculate_local_path(
+            self.output_bucket, self.key, "output"
+        )
+        self.output_key = self.s3_handler.generate_output_key(
+            self.key, self.chunk, output_bucket
+        )
+
+    def _calculate_local_path(self, bucket, key, path_type):
+        local_path = self.local_base_path / self.unique_id / path_type / bucket / key
+        return local_path
+
+    def __repr__(self):
+        return f"DataSlice(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
+
+
+class S3Handler:
+    def __init__(self):
+        self.client = Storage()
+
+    def download_chunk(self, data_slice: DataSlice):
+        byte_range = data_slice.chunk
+        extra_get_args = {"Range": f"bytes={byte_range[0]}-{byte_range[1]}"}
+        chunk_data = self.client.get_object(
+            data_slice.bucket, data_slice.key, extra_get_args=extra_get_args
+        )
+
+        data_slice.local_input_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(data_slice.local_input_path, "wb") as f:
+            f.write(chunk_data)
+
+    def upload_chunk(self, data_slice: DataSlice):
+        self.client.upload_file(
+            str(data_slice.local_output_path),
+            data_slice.output_bucket,
+            data_slice.output_key,
+        )
+
+    def generate_output_key(
+        self, input_key: str, chunk_range: Tuple[int, int], base_output_path: str
+    ) -> str:
+        output_key = (
+            f"{base_output_path}/{input_key}_chunk_{chunk_range[0]}_{chunk_range[1]}"
+        )
+        return output_key
+
+
+class InputS3File:
     def __init__(self, path: str, local_base_path: str, unique_id: str):
-        parts = path.split("/", 1)
-        if len(parts) != 2:
-            raise ValueError("Path must be in the format 'bucket/key'")
-        self.bucket = parts[0]
-        self.key = parts[1]
+        self.client = Storage()
+        self.bucket, self.key = self._split_s3_path(path)
         self.unique_id = unique_id
         self.local_base_path = Path(local_base_path)
         self.local_path = self._calculate_local_path()
 
-    def _calculate_local_path(self):
-        local_path = self.local_base_path / self.unique_id / Path(self.key).name
-        return local_path
-
-    def __repr__(self):
-        return f"{self.bucket}/{self.key} ({self.unique_id})"
-
-    def __str__(self):
-        return self.__repr__()
-
-
-class InputS3File(S3File):
-    def __init__(
-        self, path: str, local_base_path: str, unique_id: str, *args, **kwargs
-    ):
-        self.client = Storage()
-        if not self._file_exists_in_s3(path):
+        if not self._file_exists_in_s3():
             raise FileNotFoundError(f"File {path} does not exist in bucket")
-        super().__init__(path, local_base_path, unique_id)
+
         self.logger = setup_logging("INFO")
         self.logger.info(
-            f"InputS3File initialized with S3 path {self} and local base path {self.local_base_path}"
+            f"InputS3File initialized with S3 path {self.bucket}/{self.key} and local base path {self.local_base_path}"
         )
 
-    def _file_exists_in_s3(self, path: str):
-        bucket, key = path.split("/", 1)
+    def _split_s3_path(self, s3_path: str) -> Tuple[str, str]:
+        parts = s3_path.split("/", 1)
+        if len(parts) != 2:
+            raise ValueError("Path must be in the format 'bucket/key'")
+        return parts[0], parts[1]
+
+    def _file_exists_in_s3(self) -> bool:
         try:
-            self.client.head_object(bucket, key)
+            self.client.head_object(self.bucket, self.key)
             return True
         except Exception:
             return False
+
+    def _calculate_local_path(self):
+        return self.local_base_path / self.unique_id / Path(self.key).name
 
     @measure_operation("read")
     def download_file(self):
@@ -88,70 +145,14 @@ class InputS3File(S3File):
             raise ValueError("Local base path must be a valid directory.")
 
 
-class OutputS3File(S3File):
-    def __init__(
-        self, path: str, local_base_path: str, unique_id: str, *args, **kwargs
-    ):
-        super().__init__(path, local_base_path, unique_id)
-        self.client = Storage()
-        self.logger = setup_logging("INFO")
-        self.logger.info(
-            f"OutputS3File initialized with S3 path {self} and local base path {self.local_base_path}"
-        )
-
-    def file_exists_locally(self):
-        return self.local_path.exists()
-
-    @measure_operation("write")
-    def upload_file(self):
-        self.validate_paths()
-        if not self.file_exists_locally():
-            self.logger.error(f"Local file {self.local_path} does not exist")
-            raise FileNotFoundError(f"Local file {self.local_path} does not exist")
-        self.logger.info(f"Uploading {self.local_path} to {self.key}")
-        try:
-            self.client.upload_file(str(self.local_path), self.bucket, self.key)
-            self.logger.info(f"Uploaded {self.local_path} to {self.key}")
-        except Exception as e:
-            self.logger.error(f"Failed to upload {self.local_path}: {e}")
-            raise
-
-    def validate_paths(self):
-        if not self.bucket or not self.key:
-            raise ValueError("Both bucket and key must be defined in the S3 path.")
-        if not self.local_base_path.is_dir():
-            raise ValueError("Local base path must be a valid directory.")
-
-
-class InputS3Chunk:
-    def __init__(
-        self,
-        bucket: str,
-        key: str,
-        output_bucket: str,
-        output_key: str,
-        local_base_path: str,
-        unique_id: str,
-        chunk: Tuple[int, int],
-    ):
-        self.bucket = bucket
-        self.key = key
-        self.output_bucket = output_bucket
-        self.output_key = output_key
+class OutputS3Path:
+    def __init__(self, base_output_path: str, local_base_path: str, unique_id: str):
+        self.base_output_path = base_output_path
         self.local_base_path = Path(local_base_path)
         self.unique_id = unique_id
-        self.chunk = chunk
-        self.local_input_path = self._calculate_local_path(self.bucket, self.key)
-        self.local_output_path = self._calculate_local_path(
-            self.output_bucket, self.output_key
-        )
 
-    def _calculate_local_path(self, bucket, key):
-        local_path = self.local_base_path / self.unique_id / bucket / key
-        return local_path
-
-    def __repr__(self):
-        return f"InputS3Chunk(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
+    def generate_output_key(self, input_key: str, chunk_range: Tuple[int, int]) -> str:
+        return f"{self.base_output_path}/{input_key}_chunk_{chunk_range[0]}_{chunk_range[1]}"
 
 
 if __name__ == "__main__":
