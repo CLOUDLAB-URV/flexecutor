@@ -41,6 +41,7 @@ class S3Handler:
             f.write(chunk_data)
 
     def upload_chunk(self, data_slice: "DataSlice"):
+        data_slice.local_output_path.parent.mkdir(parents=True, exist_ok=True)
         self.client.upload_file(
             str(data_slice.local_output_path),
             data_slice.output_bucket,
@@ -140,7 +141,7 @@ class DataSlice:
     ):
         self.bucket = bucket
         self.key = key
-        self.output_bucket = output_bucket
+        self.output_bucket = output_bucket.split("/")[0]  # Ensure only bucket name
         self.local_base_path = Path(local_base_path)
         self.unique_id = unique_id
         self.chunk = chunk
@@ -158,7 +159,7 @@ class DataSlice:
         return local_path
 
     def __repr__(self):
-        return f"DataSlice(bucket={self.bucket}, key={self.key}, chunk={self.chunk})"
+        return f"DataSlice(bucket={self.bucket}, key={self.key}, output_bucket={self.output_bucket}, local_base_path={self.local_base_path}, unique_id={self.unique_id}, chunk={self.chunk}, local_input_path={self.local_input_path}, local_output_path={self.local_output_path}, output_key={self.output_key})"
 
 
 if __name__ == "__main__":

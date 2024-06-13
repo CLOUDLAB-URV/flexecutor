@@ -114,14 +114,6 @@ class ThreadPoolProcessor:
         :param stage: stage to process
         :param on_future_done: Callback to execute every time a future is done
         """
-        # TODO:
-        # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus (DONE, HARDCODED)
-        # 2. Update the configuration of the executor (FIXME ISSUE WITH RUNTIME_NUMCPUS, FOR NOW WE CAN ONLY PASS THE RUNTIME_MEMORY)
-        # 3.  PARTITIONING : Partition the file into multiple equal-sized chunks
-        #   3.1 partitioning happens before the map call, this is the preprocessing needed for converting InputS3Paths to chunks as well as converting the InputS3Path to its corresponding OutputS3Path (iterdata)
-        # 4. The lithops map function should be wrapped with a download-upload logic.
-        # 5. Call the map which will return the iterdata, pass the iterdata to the map
-
         print(f"Found datasets: {stage.input_file}")
 
         input_file = stage.input_file
@@ -129,7 +121,6 @@ class ThreadPoolProcessor:
         input_file.download_file()
 
         # Partition after the dataset is loaded
-        # TODO: Partition here, for now we are just splitting the file into equal chunks and we only support .txt files
         partitions = split_txt_file(
             input_file.local_path, chunk_number=stage.optimal_config.workers
         )
