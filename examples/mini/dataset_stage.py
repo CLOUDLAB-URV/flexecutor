@@ -11,13 +11,13 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
-from flexecutor.storage import InputS3File, OutputS3Path, DataSlice, S3Handler
+from flexecutor.storage import InputS3File, OutputS3Path, DataSlice
 
 logger = setup_logging(level=logging.INFO)
 
 
 # This decorator does pre and post processing of the chunk in the remote worker.
-def manage_s3_io(func: Callable[[DataSlice], Any]):
+def chunkprocessor(func: Callable[[DataSlice], Any]):
     @wraps(func)
     def wrapper(data_slice: DataSlice, *args, **kwargs):
         print(
@@ -30,7 +30,7 @@ def manage_s3_io(func: Callable[[DataSlice], Any]):
         print(
             f"Uploading chunk: {data_slice.chunk} to bucket: {data_slice.output_bucket}, key: {data_slice.output_key}"
         )
-        data_slice.s3_handler.upload_chunk(data_slice)
+        data_slice.s3_handler.upload_chunk(data_slice, data_slice.unique_output_path)
 
         return result
 
@@ -47,7 +47,7 @@ output_path = OutputS3Path(f"{BUCKET_NAME}/output", "/tmp", "1")
 def main():
     dag = DAG("mini-dag")
 
-    @manage_s3_io
+    @chunkprocessor
     def word_count(data_slice: DataSlice):
         print(f"Processing DataSlice: {data_slice}")
 
@@ -58,9 +58,13 @@ def main():
             content = f.read()
         word_count = len(content.split())
 
-        print(f"Writing result to local output path: {data_slice.local_output_path}")
-        with open(data_slice.local_output_path, "w") as f:
+        unique_output_path = data_slice.local_output_path.with_name(
+            f"{data_slice.local_output_path.stem}_{data_slice.chunk[0]}_{data_slice.chunk[1]}{data_slice.local_output_path.suffix}"
+        )
+        with open(unique_output_path, "w") as f:
             f.write(str(word_count))
+
+        data_slice.unique_output_path = unique_output_path
 
         print(f"Finished processing DataSlice: {data_slice}")
 
