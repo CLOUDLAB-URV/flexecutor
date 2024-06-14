@@ -1,56 +1,59 @@
-from __future__ import annotations
-import os
-import logging
-
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Callable, Sequence, List, Tuple
+import os
+import logging
 
 from lithops import FunctionExecutor
 
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging
-from flexecutor.storage import DataSlice, S3Handler
+from flexecutor.storage import DataSlice, S3Handler, InputS3Path
 
 logger = setup_logging(level=logging.INFO)
 
 
-def split_txt_file(
-    file_path: str,
+def split_txt_files(
+    file_paths: List[str],
     chunk_size: int = None,
     chunk_number: int = None,
     obj_newline: str = "\n",
-) -> List[Tuple[int, int]]:
+) -> List[Tuple[str, int, int]]:
     """
-    Split a single .txt file into multiple chunks.
+    Split multiple .txt files into multiple chunks.
     """
     partitions = []
-    obj_size = os.path.getsize(file_path)
+    total_size = sum(os.path.getsize(file_path) for file_path in file_paths)
 
     if chunk_number:
-        chunk_rest = obj_size % chunk_number
-        obj_chunk_size = (obj_size // chunk_number) + round(
-            (chunk_rest / chunk_number) + 0.5
-        )
+        chunk_rest = total_size % chunk_number
+        obj_chunk_size = (total_size // chunk_number) + (1 if chunk_rest else 0)
     elif chunk_size:
         obj_chunk_size = chunk_size
     else:
-        obj_chunk_size = obj_size
+        obj_chunk_size = total_size
 
-    logger.debug(f"Creating partitions from {file_path} ({obj_size} bytes)")
+    logger.debug(
+        f"Creating partitions from {len(file_paths)} files ({total_size} bytes)"
+    )
 
-    with open(file_path, "rb") as f:
-        size = 0
-        while size < obj_size:
-            start = size
-            end = min(size + obj_chunk_size, obj_size)
-            if end < obj_size:
-                f.seek(end)
-                while f.read(1) != obj_newline.encode() and f.tell() < obj_size:
-                    end += 1
+    current_size = 0
+    current_file_index = 0
 
-            partitions.append((start, end))
-            size = end + 1
+    while current_size < total_size:
+        start_file = file_paths[current_file_index]
+        current_file_size = os.path.getsize(start_file)
+        start_position = current_size % current_file_size
+        end_position = min(start_position + obj_chunk_size, current_file_size)
+
+        if end_position < current_file_size:
+            partitions.append((start_file, start_position, end_position))
+            current_size += end_position - start_position
+        else:
+            partitions.append((start_file, start_position, current_file_size))
+            current_size += current_file_size - start_position
+            if current_file_index + 1 < len(file_paths):
+                current_file_index += 1
 
     return partitions
 
@@ -114,34 +117,41 @@ class ThreadPoolProcessor:
         :param stage: stage to process
         :param on_future_done: Callback to execute every time a future is done
         """
-        print(f"Found datasets: {stage.input_file}")
+        print(f"Found datasets: {stage.input_paths}")
 
-        input_file = stage.input_file
-        print(f"stage input file: {input_file}")
-        input_file.download_file()
+        local_files = []
+        for input_s3_path in stage.input_paths:
+            input_s3_path.download_files()
+            local_files.extend([str(file) for file in input_s3_path.local_paths])
 
-        # Partition after the dataset is loaded
-        partitions = split_txt_file(
-            input_file.local_path, chunk_number=stage.optimal_config.workers
+        # Partition after the dataset is loaded, currently the files are downloaded locally, indexes are created locally and then iterdata is generated
+        partitions = split_txt_files(
+            local_files, chunk_number=stage.optimal_config.workers
         )
 
         print("Partitions: ", partitions)
 
         s3_handler = S3Handler()
 
-        map_iterdata = [
-            DataSlice(
-                bucket=input_file.bucket,
-                key=input_file.key,
-                output_bucket=stage.output_path.base_output_path,
-                local_base_path=input_file.local_base_path,
-                unique_id=input_file.unique_id,
-                chunk=chunk,
-                s3_handler=s3_handler,
-                output_s3_path=stage.output_path,
+        map_iterdata = []
+
+        for file, start, end in partitions:
+            bucket, key = input_s3_path.get_bucket_and_key(file)
+            print(f"bucket: {bucket}, key: {key}")
+            map_iterdata.append(
+                DataSlice(
+                    bucket=bucket,
+                    key=key,
+                    output_bucket=stage.output_path.base_output_path,
+                    local_base_path=input_s3_path.local_base_path,
+                    unique_id=input_s3_path.unique_id,
+                    chunk=(start, end),
+                    s3_handler=s3_handler,
+                    output_s3_path=stage.output_path,
+                )
             )
-            for chunk in partitions
-        ]
+
+        print(f"Map iterdata: {map_iterdata}")
 
         future = self._executor.map(
             map_function=stage.map_func,

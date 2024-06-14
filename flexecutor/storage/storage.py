@@ -122,6 +122,8 @@ class InputS3File:
         )
 
     def _split_s3_path(self, s3_path: str) -> Tuple[str, str]:
+        if s3_path.startswith("s3://"):
+            s3_path = s3_path[5:]
         parts = s3_path.split("/", 1)
         if len(parts) != 2:
             raise ValueError("Path must be in the format 'bucket/key'")
@@ -135,7 +137,7 @@ class InputS3File:
             return False
 
     def _calculate_local_path(self):
-        return self.local_base_path / self.unique_id / Path(self.key).name
+        return self.local_base_path / self.unique_id / self.key  # Mirror S3 structure
 
     @measure_operation("read")
     def download_file(self):
@@ -155,38 +157,59 @@ class InputS3File:
         if not self.local_base_path.is_dir():
             raise ValueError("Local base path must be a valid directory.")
 
-    def __str__(self):
-        return f"{self.bucket}/{self.key}"
-
 
 class InputS3Path:
-    def __init__(self, input_dir: str, local_base_path: str, unique_id: str):
-        self.input_dir = input_dir
-        self.local_base_path = local_base_path
+    def __init__(self, path: str, local_base_path: str, unique_id: str):
+        self.path = path
+        self.local_base_path = Path(local_base_path)  # Convert to Path object
         self.unique_id = unique_id
-        self.inputs3files = self.from_dir(input_dir, local_base_path, unique_id)
+        self.bucket, self.prefix = self._split_s3_path(self.path)
+        self.files = self._list_files()
+        self.total_size = self._calculate_total_size()
 
-    @classmethod
-    def from_dir(
-        cls, input_dir: str, local_base_path: str, unique_id: str
-    ) -> List[InputS3File]:
-        s3_files = []
+    def get_bucket_and_key(self, file: str) -> Tuple[str, str]:
+        bucket, key = self._split_s3_path(file)
+        return bucket, key
+
+    def _list_files(self) -> List[str]:
         storage = Storage()
-        bucket, prefix = cls._split_s3_path(input_dir)
-        objects = storage.list_objects(bucket, prefix)
-
-        for obj in objects:
-            s3_path = f"{bucket}/{obj['Key']}"
-            s3_files.append(InputS3File(s3_path, local_base_path, unique_id))
-
-        return s3_files
+        objects = storage.list_objects(self.bucket, self.prefix)
+        return [f"s3://{self.bucket}/{obj['Key']}" for obj in objects]
 
     @staticmethod
     def _split_s3_path(s3_path: str) -> Tuple[str, str]:
+        if s3_path.startswith("s3://"):
+            s3_path = s3_path[5:]
         parts = s3_path.split("/", 1)
         if len(parts) != 2:
             raise ValueError("Path must be in the format 'bucket/key'")
         return parts[0], parts[1]
+
+    def _calculate_total_size(self) -> int:
+        storage = Storage()
+        total_size = 0
+        for file in self.files:
+            bucket, key = self._split_s3_path(file)
+            obj = storage.head_object(bucket, key)
+            total_size += int(obj["content-length"])
+        return total_size
+
+    def download_files(self):
+        for file in self.files:
+            local_path = self._calculate_local_path(file)
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            InputS3File(file, str(self.local_base_path), self.unique_id).download_file()
+
+    def _calculate_local_path(self, file: str) -> Path:
+        _, key = self._split_s3_path(file)
+        return self.local_base_path / self.unique_id / key
+
+    @property
+    def local_paths(self) -> List[Path]:
+        return [self._calculate_local_path(file) for file in self.files]
+
+    def __str__(self):
+        return f"InputS3Path with {len(self.files)} files, total size: {self.total_size} bytes"
 
 
 class OutputS3Path:
@@ -205,8 +228,8 @@ if __name__ == "__main__":
     print("hello")
     try:
         print("hello")
-        input_s3_path = InputS3Path("test-bucket/dir/", "/tmp", unique_id="1")
-        for input_file in input_s3_path.inputs3files:
+        input_s3_path = InputS3Path("s3://test-bucket/dir/", "/tmp", unique_id="1")
+        for input_file in input_s3_path.files:
             print(input_file)
     except FileNotFoundError as e:
         print(e)

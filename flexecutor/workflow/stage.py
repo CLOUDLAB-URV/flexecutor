@@ -1,13 +1,12 @@
 from __future__ import annotations
-
 from enum import Enum
-from typing import Any, Set, List, Optional, Callable
+from typing import Any, Set, List, Optional, Callable, Union
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig
 from flexecutor.utils.utils import get_my_exec_path
-from flexecutor.workflow.stagefuture import StageFuture, InputFile
-from flexecutor.storage import InputS3File, OutputS3Path
+from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.storage import InputS3Path, OutputS3Path
 
 
 class StageState(Enum):
@@ -25,16 +24,15 @@ class StageState(Enum):
 
 class Stage:
     """
-
     :param stage_id: Stage ID
-    :param input_file: Input data for the operator
+    :param input_paths: List of InputS3Path instances for the operator
     """
 
     def __init__(
         self,
         stage_id: str,
         func: Callable[[...], Any],
-        input_file: InputS3File,
+        input_paths: Union[InputS3Path, List[InputS3Path]],
         output_path: OutputS3Path,
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
     ):
@@ -42,7 +40,9 @@ class Stage:
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_file = input_file
+        self._input_paths = (
+            input_paths if isinstance(input_paths, list) else [input_paths]
+        )
         self._output_path = output_path
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
@@ -90,9 +90,9 @@ class Stage:
         return self._children
 
     @property
-    def input_file(self) -> InputS3File:
-        """Return the input file."""
-        return self._input_file
+    def input_paths(self) -> List[InputS3Path]:
+        """Return the list of input paths."""
+        return self._input_paths
 
     @property
     def output_path(self) -> OutputS3Path:

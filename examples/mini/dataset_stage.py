@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from lithops import FunctionExecutor
-from typing import Callable, Tuple, Any
+from typing import Callable, Tuple, Any, List
 from functools import wraps
 
 from flexecutor.modelling.perfmodel import PerfModelEnum
@@ -11,7 +11,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
-from flexecutor.storage import InputS3File, OutputS3Path, DataSlice
+from flexecutor.storage import InputS3Path, OutputS3Path, DataSlice
 
 logger = setup_logging(level=logging.INFO)
 
@@ -39,8 +39,8 @@ def chunkprocessor(func: Callable[[DataSlice], Any]):
 
 NUM_ITERATIONS = 1
 BUCKET_NAME = "test-bucket"
-input_file = InputS3File(f"{BUCKET_NAME}/tiny_shakespeare.txt", "/tmp", "1")
-output_path = OutputS3Path(f"{BUCKET_NAME}/output", "/tmp", "1")
+input_path = InputS3Path(f"s3://{BUCKET_NAME}/dir/", "/tmp", unique_id="1")
+output_path = OutputS3Path(f"s3://{BUCKET_NAME}/output", "/tmp", "1")
 
 
 @flexorchestrator
@@ -72,7 +72,7 @@ def main():
         "stage1",
         func=word_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=input_file,
+        input_paths=[input_path],
         output_path=output_path,
     )
 
