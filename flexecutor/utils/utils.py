@@ -6,6 +6,17 @@ import time
 from contextlib import contextmanager
 
 
+class IOManager:
+    def input_paths(self, param):
+        pass
+
+    def output_paths(self, param):
+        pass
+
+    def next_output_path(self, param):
+        pass
+
+
 def initialize_timings():
     return {"read": 0, "compute": 0, "write": 0}
 
