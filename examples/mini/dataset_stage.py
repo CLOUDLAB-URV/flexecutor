@@ -1,78 +1,52 @@
 from __future__ import annotations
 
 import logging
+import time
+
 from lithops import FunctionExecutor
-from typing import Callable, Tuple, Any, List
-from functools import wraps
 
 from flexecutor.modelling.perfmodel import PerfModelEnum
+from flexecutor.storage.storage import OutputS3Path
+from flexecutor.storage.storage import InputS3File
+from flexecutor.utils import setup_logging
+from flexecutor.utils.iomanager import IOManager
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-from flexecutor.utils import setup_logging
-from flexecutor.storage import InputS3Path, OutputS3Path, DataSlice
 
 logger = setup_logging(level=logging.INFO)
 
 
-# This decorator does pre and post processing of the chunk in the remote worker.
-def chunkprocessor(func: Callable[[DataSlice], Any]):
-    @wraps(func)
-    def wrapper(data_slice: DataSlice, *args, **kwargs):
-        print(
-            f"Downloading chunk: {data_slice.chunk} from bucket: {data_slice.bucket}, key: {data_slice.key}"
-        )
-        data_slice.s3_handler.download_chunk(data_slice)
-
-        result = func(data_slice, *args, **kwargs)
-
-        print(
-            f"Uploading chunk: {data_slice.chunk} to bucket: {data_slice.output_bucket}, key: {data_slice.output_key}"
-        )
-        data_slice.s3_handler.upload_chunk(data_slice, data_slice.unique_output_path)
-
-        return result
-
-    return wrapper
-
-
 NUM_ITERATIONS = 1
 BUCKET_NAME = "test-bucket"
-input_path = InputS3Path(f"s3://{BUCKET_NAME}/dir/", "/tmp", unique_id="1")
-output_path = OutputS3Path(f"s3://{BUCKET_NAME}/output", "/tmp", "1")
+input_file = InputS3File(BUCKET_NAME, "dir/tiny-shakespeare.txt")
+output_path = OutputS3Path(BUCKET_NAME, "count")
 
 
 @flexorchestrator
 def main():
     dag = DAG("mini-dag")
 
-    @chunkprocessor
-    def word_count(data_slice: DataSlice):
-        print(f"Processing DataSlice: {data_slice}")
+    def word_count(io: IOManager):
+        worker_id = io.params["worker_id"]
+        print(f"I'm worker_id #{worker_id}")
 
-        data_slice.local_output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        print(f"Reading from local input path: {data_slice.local_input_path}")
-        with open(data_slice.local_input_path, "r") as f:
+        [txt_path] = io.input_file_func("txt")
+        with open(txt_path, "r") as f:
             content = f.read()
-        word_count = len(content.split())
 
-        unique_output_path = data_slice.local_output_path.with_name(
-            f"{data_slice.local_output_path.stem}_{data_slice.chunk[0]}_{data_slice.chunk[1]}{data_slice.local_output_path.suffix}"
-        )
-        with open(unique_output_path, "w") as f:
-            f.write(str(word_count))
+        count = len(content.split())
 
-        data_slice.unique_output_path = unique_output_path
-
-        print(f"Finished processing DataSlice: {data_slice}")
+        count_path = io.output_paths("count")
+        with open(count_path, "w") as f:
+            f.write(str(count))
 
     stage1 = Stage(
         "stage1",
         func=word_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_paths=[input_path],
+        input_file=input_file,
         output_path=output_path,
     )
 

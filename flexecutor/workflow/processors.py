@@ -5,10 +5,12 @@ import logging
 
 from lithops import FunctionExecutor
 
+from flexecutor.storage.wrapper import worker_wrapper
+from flexecutor.utils.iomanager import IOManager
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging
-from flexecutor.storage import DataSlice, S3Handler, InputS3Path
+# from flexecutor.storage.storage import DataSlice, S3Handler, InputS3Path
 
 logger = setup_logging(level=logging.INFO)
 
@@ -117,46 +119,22 @@ class ThreadPoolProcessor:
         :param stage: stage to process
         :param on_future_done: Callback to execute every time a future is done
         """
-        print(f"Found datasets: {stage.input_paths}")
 
-        local_files = []
-        for input_s3_path in stage.input_paths:
-            input_s3_path.download_files()
-            local_files.extend([str(file) for file in input_s3_path.local_paths])
+        # for input_path in stage.input_file:
+        #     if input_path.partitioner:
+        #         input_path.partitioner.partitionize()
 
-        # Partition after the dataset is loaded, currently the files are downloaded locally, indexes are created locally and then iterdata is generated
-        partitions = split_txt_files(
-            local_files, chunk_number=stage.optimal_config.workers
-        )
-
-        print("Partitions: ", partitions)
-
-        s3_handler = S3Handler()
+        # s3_handler = S3Handler()
 
         map_iterdata = []
-
-        for file, start, end in partitions:
-            bucket, key = input_s3_path.get_bucket_and_key(file)
-            print(f"bucket: {bucket}, key: {key}")
-            map_iterdata.append(
-                DataSlice(
-                    bucket=bucket,
-                    key=key,
-                    output_bucket=stage.output_path.base_output_path,
-                    local_base_path=input_s3_path.local_base_path,
-                    unique_id=input_s3_path.unique_id,
-                    chunk=(start, end),
-                    s3_handler=s3_handler,
-                    output_s3_path=stage.output_path,
-                )
-            )
-
-        print(f"Map iterdata: {map_iterdata}")
+        for i in range(stage.optimal_config.workers):
+            io = IOManager(i, stage.input_file, stage.output_path)
+            map_iterdata.append(io)
 
         future = self._executor.map(
-            map_function=stage.map_func,
+            map_function=worker_wrapper(stage.map_func),
             map_iterdata=map_iterdata,
-            runtime_memory=stage.optimal_config.memory,
+            runtime_memory=int(stage.optimal_config.memory),
         )
 
         self._executor.wait(future)

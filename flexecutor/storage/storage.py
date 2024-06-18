@@ -1,28 +1,28 @@
 import os
 import time
+from functools import wraps
 from pathlib import Path
-from typing import Callable, Tuple, List
+from typing import Callable, Tuple, List, Any
 
 from lithops import Storage
-from flexecutor.utils import setup_logging, initialize_timings
+# from flexecutor.utils import initialize_timings
 
-
-def measure_operation(op_type: str):
-    def decorator(func: Callable):
-        def wrapper(self, *args, **kwargs):
-            if not hasattr(self, "timings"):
-                self.timings = initialize_timings()
-
-            start_time = time.time()
-            result = func(self, *args, **kwargs)
-            end_time = time.time()
-
-            self.timings[op_type] += end_time - start_time
-            return result
-
-        return wrapper
-
-    return decorator
+# def measure_operation(op_type: str):
+#     def decorator(func: Callable):
+#         def wrapper(self, *args, **kwargs):
+#             if not hasattr(self, "timings"):
+#                 self.timings = initialize_timings()
+#
+#             start_time = time.time()
+#             result = func(self, *args, **kwargs)
+#             end_time = time.time()
+#
+#             self.timings[op_type] += end_time - start_time
+#             return result
+#
+#         return wrapper
+#
+#     return decorator
 
 
 class DataSlice:
@@ -106,56 +106,10 @@ class S3Handler:
 
 
 class InputS3File:
-    def __init__(self, path: str, local_base_path: str, unique_id: str):
-        self.client = Storage()
-        self.bucket, self.key = self._split_s3_path(path)
-        self.unique_id = unique_id
-        self.local_base_path = Path(local_base_path)
-        self.local_path = self._calculate_local_path()
-
-        if not self._file_exists_in_s3():
-            raise FileNotFoundError(f"File {path} does not exist in bucket")
-
-        self.logger = setup_logging("INFO")
-        self.logger.info(
-            f"InputS3File initialized with S3 path {self.bucket}/{self.key} and local base path {self.local_base_path}"
-        )
-
-    def _split_s3_path(self, s3_path: str) -> Tuple[str, str]:
-        if s3_path.startswith("s3://"):
-            s3_path = s3_path[5:]
-        parts = s3_path.split("/", 1)
-        if len(parts) != 2:
-            raise ValueError("Path must be in the format 'bucket/key'")
-        return parts[0], parts[1]
-
-    def _file_exists_in_s3(self) -> bool:
-        try:
-            self.client.head_object(self.bucket, self.key)
-            return True
-        except Exception:
-            return False
-
-    def _calculate_local_path(self):
-        return self.local_base_path / self.unique_id / self.key  # Mirror S3 structure
-
-    @measure_operation("read")
-    def download_file(self):
-        self.validate_paths()
-        self.local_path.parent.mkdir(parents=True, exist_ok=True)
-        self.logger.info(f"Downloading {self.key} to {self.local_path}")
-        try:
-            self.client.download_file(self.bucket, self.key, str(self.local_path))
-            self.logger.info(f"Downloaded {self.key} to {self.local_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to download {self.key}: {e}")
-            raise
-
-    def validate_paths(self):
-        if not self.bucket or not self.key:
-            raise ValueError("Both bucket and key must be defined in the S3 path.")
-        if not self.local_base_path.is_dir():
-            raise ValueError("Local base path must be a valid directory.")
+    def __init__(self, bucket: str, key: str, local_base_path: str = "/tmp"):
+        self.bucket = bucket
+        self.key = key
+        self.local_path = str(Path(local_base_path) / self.key)
 
 
 class InputS3Path:
@@ -166,6 +120,7 @@ class InputS3Path:
         self.bucket, self.prefix = self._split_s3_path(self.path)
         self.files = self._list_files()
         self.total_size = self._calculate_total_size()
+        self.partitioner = None
 
     def get_bucket_and_key(self, file: str) -> Tuple[str, str]:
         bucket, key = self._split_s3_path(file)
@@ -213,23 +168,12 @@ class InputS3Path:
 
 
 class OutputS3Path:
-    def __init__(self, base_output_path: str, local_base_path: str, unique_id: str):
-        self.base_output_path = base_output_path
-        self.local_base_path = Path(local_base_path)
-        self.unique_id = unique_id
+    def __init__(self, bucket, output_dir, local_base_path="/tmp"):
+        self.output_dir = output_dir
+        self.local_base_path = Path(local_base_path) / output_dir
+        self.bucket = bucket
 
     def generate_output_key(
         self, input_key: str, chunk_range: Tuple[int, int], unique_id: str
     ) -> str:
-        return f"{self.base_output_path}/{unique_id}/{Path(input_key).stem}_chunk_{chunk_range[0]}_{chunk_range[1]}{Path(input_key).suffix}"
-
-
-if __name__ == "__main__":
-    print("hello")
-    try:
-        print("hello")
-        input_s3_path = InputS3Path("s3://test-bucket/dir/", "/tmp", unique_id="1")
-        for input_file in input_s3_path.files:
-            print(input_file)
-    except FileNotFoundError as e:
-        print(e)
+        return f"{self.output_dir}/{unique_id}/{Path(input_key).stem}_chunk_{chunk_range[0]}_{chunk_range[1]}{Path(input_key).suffix}"
