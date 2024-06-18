@@ -55,7 +55,9 @@ def main():
     executor = DAGExecutor(dag, executor=FunctionExecutor())
 
     logger.info("Starting DAG execution")
-    executor.execute()
+    results = executor.execute()
+    times = results['stage1'].get_timings()
+    print(times)
     executor.shutdown()
     logger.info("Tasks completed")
 

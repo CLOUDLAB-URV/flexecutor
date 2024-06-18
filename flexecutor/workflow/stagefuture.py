@@ -13,7 +13,10 @@ class StageFuture:
         self.__future = future
 
     def result(self) -> Any:
-        return self.__future.get_result()
+        return [i[0] for i in self.__future.get_result()]
+
+    def _timings_list(self) -> list[FunctionTimes]:
+        return [i[1] for i in self.__future.get_result()]
 
     @property
     def stats(self):
@@ -32,17 +35,11 @@ class StageFuture:
     def get_timings(self) -> List[FunctionTimes]:
         """Get the timings of the future."""
         timings_list = []
-        for r, s in zip(self.result(), self.stats):
+        for r, s in zip(self._timings_list(), self.stats):
             host_submit_tstamp = s["host_submit_tstamp"]
             worker_start_tstamp = s["worker_start_tstamp"]
-            r["cold_start"] = worker_start_tstamp - host_submit_tstamp
-            timings_list.append(
-                FunctionTimes(read=r["read"],
-                              compute=r["compute"],
-                              write=r["write"],
-                              cold_start=r["cold_start"],
-                              total=r["read"] + r["compute"] + r["write"] + r["cold_start"])
-            )
+            r.cold_start = worker_start_tstamp - host_submit_tstamp
+            timings_list.append(r)
         return timings_list
 
 
