@@ -7,7 +7,7 @@ from joblib import dump, load
 from numpy.linalg import eig
 from sklearn.base import BaseEstimator
 
-from flexecutor.utils.utils import IOManager
+from flexecutor.utils.iomanager import IOManager
 
 
 class MergedLGBMClassifier(BaseEstimator):
@@ -47,64 +47,13 @@ def pca(io: IOManager):
     values, vectors = eig(va)
     pa = vectors.T.dot(ca.T)
 
-    vectors_pca_path = io.output_paths("vectors-pca")
-    training_data_transform = io.output_paths("training-data-transform")
+    vectors_pca_path = io.next_output_path("vectors-pca")
+    training_data_transform = io.next_output_path("training-data-transform")
     np.savetxt(vectors_pca_path, vectors, delimiter="\t")
     first_n_a = pa.T[:, 0:100].real
     train_labels = train_labels.reshape(train_labels.shape[0], 1)
     first_n_a_label = np.concatenate((train_labels, first_n_a), axis=1)
     np.savetxt(training_data_transform, first_n_a_label, delimiter="\t")
-
-
-def train_with_multiprocessing(io: IOManager):
-    task_id = 0
-    num_process = 48
-    num_vcpu = 6
-
-    processes = []
-    manager = mp.Manager()
-    res_dict = manager.dict()
-    param = {"feature_fraction": 1, "max_depth": 8, "num_of_trees": 30, "chance": 1}
-
-    training_data_path = io.input_paths("training-data-transform")
-
-    for i in range(num_process):
-        feature_fraction = round(random() / 2 + 0.5, 1)
-        chance = round(random() / 2 + 0.5, 1)
-
-        param["feature_fraction"] = feature_fraction
-        param["chance"] = chance
-
-        pro = mp.Process(
-            target=train,
-            args=(
-                io,
-                task_id,
-                i,
-                param["feature_fraction"],
-                param["max_depth"],
-                param["num_of_trees"],
-                param["chance"],
-                training_data_path,
-            ),
-        )
-        processes.append(pro)
-
-    start_ids = 0
-    end_ids = start_ids + num_vcpu
-
-    while start_ids < num_process:
-        end_ids = min(end_ids, num_process)
-        for i in range(start_ids, end_ids):
-            processes[i].start()
-
-        for i in range(start_ids, end_ids):
-            processes[i].join()
-
-        start_ids += num_vcpu
-        end_ids += num_vcpu
-
-    return None
 
 
 def train(
@@ -147,12 +96,39 @@ def train(
     )
 
     y_pred = gbm.predict(x_train, num_iteration=gbm.best_iteration)
-    accuracy = calc_accuracy(y_pred, y_train)
+    # accuracy = calc_accuracy(y_pred, y_train)
 
-    model_path = io.next_output_path("models")
-    gbm.save_model(model_path)
+    return gbm
 
-    return accuracy
+
+def train_with_multiprocessing(io: IOManager):
+    # TODO: make that number of processes launched in training can be defined by user
+    task_id = 0
+    num_process = 12
+    param = {"feature_fraction": 1, "max_depth": 8, "num_of_trees": 30, "chance": 1}
+
+    [training_data_path] = io.input_paths("training-data-transform")
+
+    with mp.Pool(processes=num_process) as pool:
+        results = pool.starmap(
+            train,
+            [
+                (
+                    io,
+                    task_id,
+                    i,
+                    param["feature_fraction"],
+                    param["max_depth"],
+                    param["num_of_trees"],
+                    param["chance"],
+                    training_data_path,
+                )
+                for i in range(num_process)
+            ],
+        )
+        for result in results:
+            model_path = io.next_output_path("models")
+            result.save_model(model_path)
 
 
 def calc_accuracy(y_pred, y_train):
@@ -181,13 +157,13 @@ def aggregate(io: IOManager):
 
     # Merge models
     forest = MergedLGBMClassifier(model_list)
-    [forest_path] = io.output_paths("forests")
+    forest_path = io.next_output_path("forests")
     forest.save_model(forest_path)
 
     # Predict
     y_pred = forest.predict(x_test)
     acc = calc_accuracy(y_pred, y_test)
-    [prediction_path] = io.output_paths("predictions")
+    prediction_path = io.next_output_path("predictions")
     np.savetxt(prediction_path, y_pred, delimiter="\t")
 
     return acc
@@ -206,6 +182,6 @@ def test(io: IOManager):
     y_pred = sum(predictions) / len(predictions)
     acc = calc_accuracy(y_pred, y_test)
 
-    accuracy_path = io.next_output_path("accuracy")
+    accuracy_path = io.next_output_path("accuracies")
     with open(accuracy_path, "w") as f:
         f.write("My accuracy is: " + str(acc))

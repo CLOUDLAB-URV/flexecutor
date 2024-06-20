@@ -26,6 +26,8 @@ class FlexInput:
         """
         self._input_id = input_id
         self.bucket = bucket
+        if prefix and prefix[-1] != "/":
+            prefix += "/"
         self.prefix = prefix or ""
         self.keys = [key] if key else []
         self.strategy = strategy
