@@ -142,6 +142,7 @@ class DAGExecutor:
 
         # Before the execution, get the optimal configurations for all stages in the DAG
         # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
+
         # self.train()
         # FIXME: the optimal config seems to be an array, why is that?
         self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))

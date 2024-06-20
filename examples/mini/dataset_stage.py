@@ -6,8 +6,8 @@ import time
 from lithops import FunctionExecutor
 
 from flexecutor.modelling.perfmodel import PerfModelEnum
-from flexecutor.storage.storage import OutputS3Path
-from flexecutor.storage.storage import InputS3File
+from flexecutor.storage.storage import FlexOutput
+from flexecutor.storage.storage import FlexInput
 from flexecutor.utils import setup_logging
 from flexecutor.utils.iomanager import IOManager
 from flexecutor.utils.utils import flexorchestrator
@@ -20,8 +20,8 @@ logger = setup_logging(level=logging.INFO)
 
 NUM_ITERATIONS = 1
 BUCKET_NAME = "test-bucket"
-input_file = InputS3File(BUCKET_NAME, "dir/tiny-shakespeare.txt")
-output_path = OutputS3Path(BUCKET_NAME, "count")
+input_file = FlexInput("txt", bucket=BUCKET_NAME, prefix="dir")
+output_path = FlexOutput("count", bucket=BUCKET_NAME, prefix="count")
 
 
 @flexorchestrator
@@ -29,25 +29,23 @@ def main():
     dag = DAG("mini-dag")
 
     def word_count(io: IOManager):
-        worker_id = io.params["worker_id"]
-        print(f"I'm worker_id #{worker_id}")
+        txt_paths = io.input_paths("txt")
+        for txt_path in txt_paths:
+            with open(txt_path, "r") as f:
+                content = f.read()
 
-        [txt_path] = io.input_file_func("txt")
-        with open(txt_path, "r") as f:
-            content = f.read()
+            count = len(content.split())
 
-        count = len(content.split())
-
-        count_path = io.output_paths("count")
-        with open(count_path, "w") as f:
-            f.write(str(count))
+            count_path = io.next_output_path("count")
+            with open(count_path, "w") as f:
+                f.write(str(count))
 
     stage1 = Stage(
         "stage1",
         func=word_count,
         perf_model_type=PerfModelEnum.GENETIC,
-        input_file=input_file,
-        output_path=output_path,
+        inputs=[input_file],
+        outputs=[output_path],
     )
 
     dag.add_stages([stage1])

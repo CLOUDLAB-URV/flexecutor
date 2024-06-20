@@ -1,13 +1,12 @@
 from __future__ import annotations
+
 from enum import Enum
-from typing import Any, Set, List, Optional, Callable, Union
+from typing import Any, Set, List, Optional, Callable
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.storage.storage import InputS3File
+from flexecutor.storage.storage import FlexInput
+from flexecutor.storage.storage import FlexOutput
 from flexecutor.utils.dataclass import StageConfig
-from flexecutor.utils.utils import get_my_exec_path
-from flexecutor.workflow.stagefuture import StageFuture
-from flexecutor.storage.storage import InputS3Path, OutputS3Path
 
 
 class StageState(Enum):
@@ -26,23 +25,23 @@ class StageState(Enum):
 class Stage:
     """
     :param stage_id: Stage ID
-    :param input_file: List of InputS3Path instances for the operator
+    :param inputs: List of InputS3Path instances for the operator
     """
 
     def __init__(
         self,
         stage_id: str,
         func: Callable[[...], Any],
-        input_file: InputS3File,
-        output_path: OutputS3Path,
+        inputs: list[FlexInput],
+        outputs: list[FlexOutput],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
     ):
         self._stage_unique_id = None
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_file = input_file
-        self._output_path = output_path
+        self._inputs = inputs
+        self._outputs = outputs
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
@@ -89,14 +88,14 @@ class Stage:
         return self._children
 
     @property
-    def input_file(self) -> InputS3File:
+    def inputs(self) -> list[FlexInput]:
         """Return the list of input paths."""
-        return self._input_file
+        return self._inputs
 
     @property
-    def output_path(self) -> OutputS3Path:
+    def outputs(self) -> list[FlexOutput]:
         """Return the output path."""
-        return self._output_path
+        return self._outputs
 
     @property
     def state(self) -> StageState:

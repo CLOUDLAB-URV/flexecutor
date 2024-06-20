@@ -14,17 +14,26 @@ def worker_wrapper(func: Callable[[...], Any]):
     def wrapper(io: IOManager, *args, **kwargs):
         before_read = time.time()
         storage = Storage()
-        storage.download_file(
-            io.input_file.bucket, io.input_file.key, io.input_file.local_path
-        )
+        for input_id, flex_input in io.inputs.items():
+            start_index, end_index = flex_input.chunk_indexes
+            for index in range(start_index, end_index):
+                storage.download_file(
+                    flex_input.bucket,
+                    flex_input.keys[index],
+                    flex_input.local_paths[index],
+                )
         after_read = time.time()
 
         result = func(io, *args, **kwargs)
 
         before_write = time.time()
-        storage.upload_file(
-            io.output_paths("foo"), io.output_path.bucket, io.output_key
-        )
+        for output_id, flex_output in io.outputs.items():
+            for index in range(len(flex_output.local_paths)):
+                storage.upload_file(
+                    flex_output.local_paths[index],
+                    flex_output.bucket,
+                    flex_output.keys[index],
+                )
         after_write = time.time()
 
         times = {
@@ -32,7 +41,7 @@ def worker_wrapper(func: Callable[[...], Any]):
             "compute": before_write - after_read,
             "write": after_write - before_write,
         }
-        times['total'] = np.mean(list(times.values()))
+        times["total"] = np.mean(list(times.values()))
         func_times = FunctionTimes(**times)
 
         return result, func_times
