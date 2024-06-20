@@ -140,9 +140,7 @@ class StagePerfModel(PerfModel):
         keys = {"read", "compute", "write"}
         for profile_data in stage_profile_data.values():
                 assert isinstance(profile_data, dict) and keys <= profile_data.keys()
-        
-        print(f"Training Stage performance model for {self._stage_name}")
-
+                
         def get_metric(metric):
             return np.array([data[metric] for data in stage_profile_data.values()])[:, 1:, 0].reshape(-1)
 
