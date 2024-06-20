@@ -41,6 +41,7 @@ if __name__ == "__main__":
                 ),
             ],
             params={"n_components": 2},
+            max_concurrency=1,
         )
 
         stage1 = Stage(stage_id="stage1", func=train_with_multiprocessing, inputs=[

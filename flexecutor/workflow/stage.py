@@ -35,7 +35,8 @@ class Stage:
         inputs: list[FlexInput],
         outputs: list[FlexOutput],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
-        params: Optional[dict[str, Any]] = None
+        params: Optional[dict[str, Any]] = None,
+        max_concurrency: int = 1024,
     ):
         if params is None:
             params = {}
@@ -50,6 +51,7 @@ class Stage:
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
         self._map_func = func
+        self._max_concurrency = max_concurrency
         self.dag_id = None
         self.optimal_config: Optional[StageConfig] = None
         self.resource_config: Optional[StageConfig] = None
@@ -75,6 +77,10 @@ class Stage:
     @property
     def perf_model(self) -> PerfModel:
         return self._perf_model
+
+    @property
+    def max_concurrency(self) -> int:
+        return self._max_concurrency
 
     @property
     def stage_id(self) -> str:

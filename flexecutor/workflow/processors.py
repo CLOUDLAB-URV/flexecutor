@@ -128,7 +128,7 @@ class ThreadPoolProcessor:
         # s3_handler = S3Handler()
 
         map_iterdata = []
-        num_workers = stage.resource_config.workers
+        num_workers = min(stage.resource_config.workers, stage.max_concurrency)
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
             for input_item in copy_inputs:
