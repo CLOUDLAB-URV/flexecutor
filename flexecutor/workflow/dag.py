@@ -83,3 +83,4 @@ class DAG:
         nx.draw(graph, pos, labels=labels, with_labels=True, node_size=2000, node_color="skyblue", font_size=10,
                 font_weight="bold", arrows=True)
         plt.show()
+        

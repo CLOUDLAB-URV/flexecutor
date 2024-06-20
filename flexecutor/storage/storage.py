@@ -39,9 +39,10 @@ class FlexInput:
     def id(self):
         return self._input_id
 
-    def set_chunk_indexes(self, worker_id, num_workers):
-        # if self.prefix is None:
-        #     return
+    def set_chunk_indexes(self, worker_id, num_workers) -> None:
+        if self.keys:  # single file input
+            self.chunk_indexes = (0, len(self.keys))
+            return
         self.keys = [
             obj["Key"]
             for obj in Storage().list_objects(self.bucket, prefix=self.prefix)

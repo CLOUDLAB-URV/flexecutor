@@ -18,10 +18,9 @@ class IOManager:
         start, end = self.inputs[input_id].chunk_indexes
         return self.inputs[input_id].local_paths[start:end]
 
-    # TODO: mechanism to pass variables between stages
-    # @property
-    # def params(self):
-    #     return {"worker_id": 0}
+    @property
+    def params(self):
+        return {"worker_id": 0}
 
     def next_output_path(self, param):
         os.makedirs(self.outputs[param].local_base_path, exist_ok=True)

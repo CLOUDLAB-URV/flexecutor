@@ -1,13 +1,13 @@
 import multiprocessing as mp
-import os
 from random import random
-from flexecutor.utils.utils import IOManager
 
+import lightgbm as lgb
+import numpy as np
+from joblib import dump, load
 from numpy.linalg import eig
 from sklearn.base import BaseEstimator
-from joblib import dump, load
-import numpy as np
-import lightgbm as lgb
+
+from flexecutor.utils.utils import IOManager
 
 
 class MergedLGBMClassifier(BaseEstimator):
@@ -149,7 +149,7 @@ def train(
     y_pred = gbm.predict(x_train, num_iteration=gbm.best_iteration)
     accuracy = calc_accuracy(y_pred, y_train)
 
-    model_path = io.next_output_path("model-path")
+    model_path = io.next_output_path("models")
     gbm.save_model(model_path)
 
     return accuracy
@@ -199,11 +199,13 @@ def test(io: IOManager):
         np.genfromtxt(prediction_path, delimiter="\t")
         for prediction_path in predictions_paths
     ]
-    test_path = io.input_paths("test")
+    [test_path] = io.input_paths("training-data-transform")
     test_data = np.genfromtxt(test_path, delimiter="\t")
 
     y_test = test_data[5000:, 0]
     y_pred = sum(predictions) / len(predictions)
     acc = calc_accuracy(y_pred, y_test)
 
-    return acc
+    accuracy_path = io.next_output_path("accuracy")
+    with open(accuracy_path, "w") as f:
+        f.write("My accuracy is: " + str(acc))

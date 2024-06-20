@@ -28,7 +28,12 @@ if __name__ == "__main__":
             func=split_videos,
             inputs=[FlexInput("videos", bucket="test-bucket", prefix="videos")],
             outputs=[
-                FlexOutput("video-chunks", bucket="test-bucket", prefix="video-chunks", suffix=".mp4")
+                FlexOutput(
+                    "video-chunks",
+                    bucket="test-bucket",
+                    prefix="video-chunks",
+                    suffix=".mp4",
+                )
             ],
         )
         stage1 = Stage(
@@ -38,7 +43,12 @@ if __name__ == "__main__":
                 FlexInput("video-chunks", bucket="test-bucket", prefix="video-chunks")
             ],
             outputs=[
-                FlexOutput("mainframes", bucket="test-bucket", prefix="mainframes", suffix=".jpg")
+                FlexOutput(
+                    "mainframes",
+                    bucket="test-bucket",
+                    prefix="mainframes",
+                    suffix=".jpg",
+                )
             ],
         )
         stage2 = Stage(
@@ -46,17 +56,29 @@ if __name__ == "__main__":
             func=sharpening_filter,
             inputs=[FlexInput("mainframes", bucket="test-bucket", prefix="mainframes")],
             outputs=[
-                FlexOutput("filtered-frames", bucket="test-bucket", prefix="filtered-frames", suffix=".jpg")
+                FlexOutput(
+                    "filtered-frames",
+                    bucket="test-bucket",
+                    prefix="filtered-frames",
+                    suffix=".jpg",
+                )
             ],
         )
         stage3 = Stage(
             stage_id="stage3",
             func=classify_images,
             inputs=[
-                FlexInput("filtered-frames", bucket="test-bucket", prefix="filtered-frames")
+                FlexInput(
+                    "filtered-frames", bucket="test-bucket", prefix="filtered-frames"
+                )
             ],
             outputs=[
-                FlexOutput("classification", bucket="test-bucket", prefix="classification", suffix=".json")
+                FlexOutput(
+                    "classification",
+                    bucket="test-bucket",
+                    prefix="classification",
+                    suffix=".json",
+                )
             ],
         )
 

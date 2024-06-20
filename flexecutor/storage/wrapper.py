@@ -15,6 +15,7 @@ def worker_wrapper(func: Callable[[...], Any]):
     def wrapper(io: IOManager, *args, **kwargs):
         before_read = time.time()
         storage = Storage()
+        # TODO: parallelize download?
         for input_id, flex_input in io.inputs.items():
             start_index, end_index = flex_input.chunk_indexes
             os.makedirs(flex_input.local_base_path, exist_ok=True)
@@ -29,6 +30,7 @@ def worker_wrapper(func: Callable[[...], Any]):
         result = func(io, *args, **kwargs)
 
         before_write = time.time()
+        # TODO: parallelize upload?
         for output_id, flex_output in io.outputs.items():
             for index in range(len(flex_output.local_paths)):
                 storage.upload_file(
