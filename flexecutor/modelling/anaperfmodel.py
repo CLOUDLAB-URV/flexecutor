@@ -59,22 +59,18 @@ class AnaPerfModel(PerfModel):
     @overrides
     def train(self, stage_profile_data: Dict) -> None:
         self._profiling_results = stage_profile_data
-        # print(profiling_results)
-        assert (
-            isinstance(stage_profile_data, dict)
-            and "read" in stage_profile_data
-            and "compute" in stage_profile_data
-            and "write" in stage_profile_data
-        )
 
         print("Training Analytical performance model for %s" % self._stage_name)
 
         cold_arr = np.array(
             [data["cold_start_time"] for _, data in stage_profile_data.items()]
         )
+
+        print(f'cold_arr: {cold_arr}')
+
         self._cold_params = np.mean(cold_arr)
 
-        # print(cold_arr)
+        print(f'Cold params: {self._cold_params}')
 
         size2points_read = {}
         size2points_comp = {}

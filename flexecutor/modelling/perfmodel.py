@@ -16,7 +16,7 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def predict(self, num_cpu, runtime_memory, num_workers, chunk_size=None) -> Prediction:
+    def predict(self, num_cpu, runtime_memory, num_workers, chunk_size=None):
         raise NotImplementedError
 
     @abstractmethod
@@ -49,5 +49,8 @@ class PerfModel(ABC):
         elif model_type == 'genetic':
             from flexecutor.modelling.gaperfmodel import GAPerfModel
             return GAPerfModel(model_name=model_name, model_dst=model_dst)
+        elif model_type == 'stage':
+            from flexecutor.modelling.stageperfmodel import StagePerfModel
+            return StagePerfModel(stage_id=0, stage_name='stage', model_name=model_name, model_dst=model_dst)
         else:
             raise ValueError("Invalid model type")

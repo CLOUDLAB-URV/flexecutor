@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 @dataclass
 class Prediction:
     read_time: float | None

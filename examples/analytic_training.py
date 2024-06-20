@@ -206,7 +206,7 @@ if __name__ == "__main__":
     perfmodel.update_allow_parallel(True)
     perfmodel.train(profiling_results)
 
-    print(perfmodel.parameters)
+    #print(perfmodel.parameters)
 
     # perfmodel.visualize(step="compute", degree=2)
     # perfmodel.visualize(step="read", degree=2)
