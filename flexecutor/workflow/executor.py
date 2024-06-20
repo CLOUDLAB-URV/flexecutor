@@ -61,6 +61,7 @@ class DAGExecutor:
             os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
         elif asset_type == AssetType.IMAGE:
+            os.makedirs(f"{self._base_path}/images/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
 
     def _store_profiling(
@@ -145,7 +146,9 @@ class DAGExecutor:
 
         # self.train()
         # FIXME: the optimal config seems to be an array, why is that?
-        self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
+        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
+        for stage in self._dag.stages:
+            stage.resource_config = StageConfig(cpu=5, memory=722, workers=2)
 
         self._futures = dict()
 
@@ -279,17 +282,17 @@ class DAGExecutor:
         """
         Sets the optimal configuration for each stage.
         """
-        # result = []
+        result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
             # Hardcoded config for now
-            optimal_config = StageConfig(cpu=5, memory=722, workers=10)
+            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
             print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
             stage.optimal_config = optimal_config
 
-            # result.append(optimal_config)
-        # return result
+            result.append(optimal_config)
+        return result
 
     def shutdown(self):
         """

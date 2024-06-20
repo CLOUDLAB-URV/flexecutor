@@ -1,6 +1,10 @@
-from lithops import LocalhostExecutor
+from lithops import FunctionExecutor
 
-from examples.mini.functions.word_occurrence import word_occurrence_count
+from examples.mini.functions.word_count import (
+    word_count,
+    word_count_output,
+    word_count_input,
+)
 from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.dataclass import StageConfig, ConfigBounds
 from flexecutor.utils.utils import flexorchestrator
@@ -8,22 +12,24 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 
-NUM_CONFIGS = 5
+NUM_CONFIGS = 2
 
 if __name__ == "__main__":
+
     @flexorchestrator
     def main(num_configs=NUM_CONFIGS):
-        dag = DAG('large-example-dag')
+        dag = DAG("large-example-dag")
 
         stage1 = Stage(
-            'stage1',
-            func=word_occurrence_count,
+            "stage1",
+            func=word_count,
             perf_model_type=PerfModelEnum.GENETIC,
-            # input_file="test-bucket/corpus.txt"
+            inputs=[word_count_input],
+            outputs=[word_count_output],
         )
 
         dag.add_stages([stage1])
-        executor = DAGExecutor(dag, executor=LocalhostExecutor())
+        executor = DAGExecutor(dag, executor=FunctionExecutor())
 
         config_spaces = [
             (3, 1024, 2),  # 1 vCPU, 512 MB per worker, 10 workers
@@ -45,7 +51,9 @@ if __name__ == "__main__":
             (5, 10240, 2),  # 5 vCPUs, 10240 MB per worker, 2 workers
             (6, 12288, 1),  # 6 vCPUs, 12288 MB per worker, 1 worker
         ]
-        config_spaces_obj = [StageConfig(*resource_config) for resource_config in config_spaces]
+        config_spaces_obj = [
+            StageConfig(*resource_config) for resource_config in config_spaces
+        ]
         num_configs = min(num_configs, len(config_spaces_obj) - 1)
         config_spaces_obj = config_spaces_obj[:num_configs]
 
@@ -73,8 +81,12 @@ if __name__ == "__main__":
         executor.shutdown()
 
         # Print metrics
-        actual_latency = sum([i.read + i.cold_start + i.compute + i.write for i in timings]) / len(timings)
+        actual_latency = sum(
+            [i.read + i.cold_start + i.compute + i.write for i in timings]
+        ) / len(timings)
         print("Actual latency", actual_latency)
-        print(f"Accuracy {100 - (actual_latency - predicted_latency.total) / predicted_latency.total * 100} %")
+        print(
+            f"Accuracy {100 - (actual_latency - predicted_latency.total) / predicted_latency.total * 100} %"
+        )
 
     main()
