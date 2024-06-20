@@ -40,75 +40,61 @@ if __name__ == "__main__":
                     prefix="training-data-transform",
                 ),
             ],
+            params={"n_components": 2},
         )
 
-        stage1 = Stage(
-            stage_id="stage1",
-            func=train_with_multiprocessing,
-            inputs=[
-                FlexInput(
-                    "vectors-pca",
-                    bucket="test-bucket",
-                    prefix="training-data-transform",
-                    strategy=StrategyEnum.BROADCAST,
-                )
-            ],
-            outputs=[
-                FlexOutput(
-                    "models",
-                    bucket="test-bucket",
-                    prefix="models",
-                )
-            ],
-        )
+        stage1 = Stage(stage_id="stage1", func=train_with_multiprocessing, inputs=[
+            FlexInput(
+                "vectors-pca",
+                bucket="test-bucket",
+                prefix="training-data-transform",
+                strategy=StrategyEnum.BROADCAST,
+            )
+        ], outputs=[
+            FlexOutput(
+                "models",
+                bucket="test-bucket",
+                prefix="models",
+            )
+        ])
 
-        stage2 = Stage(
-            stage_id="stage2",
-            func=aggregate,
-            inputs=[
-                FlexInput(
-                    "training-data-transform",
-                    bucket="test-bucket",
-                    prefix="training-data-transform",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
-                FlexInput("models", bucket="test-bucket", prefix="models"),
-            ],
-            outputs=[
-                FlexOutput(
-                    "forests",
-                    bucket="test-bucket",
-                    prefix="forests",
-                ),
-                FlexOutput(
-                    "predictions",
-                    bucket="test-bucket",
-                    prefix="predictions",
-                ),
-            ],
-        )
+        stage2 = Stage(stage_id="stage2", func=aggregate, inputs=[
+            FlexInput(
+                "training-data-transform",
+                bucket="test-bucket",
+                prefix="training-data-transform",
+                strategy=StrategyEnum.BROADCAST,
+            ),
+            FlexInput("models", bucket="test-bucket", prefix="models"),
+        ], outputs=[
+            FlexOutput(
+                "forests",
+                bucket="test-bucket",
+                prefix="forests",
+            ),
+            FlexOutput(
+                "predictions",
+                bucket="test-bucket",
+                prefix="predictions",
+            ),
+        ])
 
-        stage3 = Stage(
-            stage_id="stage3",
-            func=test,
-            inputs=[
-                FlexInput("predictions", bucket="test-bucket", prefix="predictions"),
-                FlexInput(
-                    "training-data-transform",
-                    bucket="test-bucket",
-                    prefix="training-data-transform",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
-            ],
-            outputs=[
-                FlexOutput(
-                    "accuracies",
-                    bucket="test-bucket",
-                    prefix="accuracies",
-                    suffix=".txt",
-                )
-            ],
-        )
+        stage3 = Stage(stage_id="stage3", func=test, inputs=[
+            FlexInput("predictions", bucket="test-bucket", prefix="predictions"),
+            FlexInput(
+                "training-data-transform",
+                bucket="test-bucket",
+                prefix="training-data-transform",
+                strategy=StrategyEnum.BROADCAST,
+            ),
+        ], outputs=[
+            FlexOutput(
+                "accuracies",
+                bucket="test-bucket",
+                prefix="accuracies",
+                suffix=".txt",
+            )
+        ])
 
         stage0 >> [stage1, stage2, stage3]
         stage1 >> stage2

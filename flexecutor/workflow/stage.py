@@ -35,13 +35,17 @@ class Stage:
         inputs: list[FlexInput],
         outputs: list[FlexOutput],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
+        params: Optional[dict[str, Any]] = None
     ):
+        if params is None:
+            params = {}
         self._stage_unique_id = None
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
         self._inputs = inputs
         self._outputs = outputs
+        self._params = params
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
@@ -96,6 +100,11 @@ class Stage:
     def outputs(self) -> list[FlexOutput]:
         """Return the output path."""
         return self._outputs
+
+    @property
+    def params(self) -> dict[str, Any]:
+        """Return the parameters of the stage."""
+        return self._params
 
     @property
     def state(self) -> StageState:
