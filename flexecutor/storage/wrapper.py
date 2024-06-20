@@ -1,4 +1,5 @@
 import time
+import os
 from functools import wraps
 from typing import Callable, Any
 
@@ -16,6 +17,7 @@ def worker_wrapper(func: Callable[[...], Any]):
         storage = Storage()
         for input_id, flex_input in io.inputs.items():
             start_index, end_index = flex_input.chunk_indexes
+            os.makedirs(flex_input.local_base_path, exist_ok=True)
             for index in range(start_index, end_index):
                 storage.download_file(
                     flex_input.bucket,

@@ -3,8 +3,8 @@ import json
 import cv2
 import numpy as np
 from PIL import Image
-from moviepy.video.io.VideoFileClip import VideoFileClip
 from imageai.Detection import ObjectDetection
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from flexecutor.utils.utils import IOManager
 
@@ -19,10 +19,10 @@ def split_videos(io: IOManager):
         start_size = 0
         while start_size < video_len:
             end_size = min(start_size + chunk_size, video_len)
-            chunk_path = io.next_output_path("video-chunks")
+            chunk_path = f"{io.next_output_path('video-chunks')}"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
-                chunk_path, temp_audiofile="/tmp/temp-audio.mp3", logger=None
+                chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"]
             )
             del clip_vc
             start_size += chunk_size
@@ -51,13 +51,13 @@ def extract_frames(io: IOManager):
                 best_frame = frame
 
         pil_image = Image.fromarray(best_frame)
-        frame_path = io.next_output_path("frames")
+        frame_path = io.next_output_path("mainframes")
         pil_image.save(frame_path)
         video_clip.close()
 
 
 def sharpening_filter(io: IOManager):
-    frame_paths = io.input_paths("frames")
+    frame_paths = io.input_paths("mainframes")
     for index, frame_path in enumerate(frame_paths):
         image = cv2.imread(frame_path)
         sharpening_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
@@ -81,6 +81,6 @@ def classify_images(io: IOManager):
         )
 
         json_data = json.dumps(detection, indent=4)
-        tmp_filename = io.next_output_path("detections")
+        tmp_filename = io.next_output_path("classification")
         with open(tmp_filename, "w") as json_file:
             json_file.write(json_data)

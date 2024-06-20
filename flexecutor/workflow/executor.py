@@ -284,7 +284,7 @@ class DAGExecutor:
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
             # Hardcoded config for now
-            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
+            optimal_config = StageConfig(cpu=5, memory=722, workers=10)
             print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
             stage.optimal_config = optimal_config
 

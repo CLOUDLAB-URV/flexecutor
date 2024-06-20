@@ -26,23 +26,29 @@ class FlexInput:
         """
         self._input_id = input_id
         self.bucket = bucket
-        self.prefix = prefix
-        if prefix is not None:
-            self.keys = [
-                obj["Key"]
-                for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
-            ]
-        else:
-            self.keys = [key]
+        self.prefix = prefix or ""
+        self.keys = [key] if key else []
         self.strategy = strategy
         self.chunk_indexes: Optional[(int, int)] = None
-        self.local_paths = [str(Path(local_base_path) / key) for key in self.keys]
+        self.local_base_path = Path(local_base_path) / self.prefix
+        self.local_paths = [
+            str(self.local_base_path / key.split("/")[-1]) for key in self.keys
+        ]
 
     @property
     def id(self):
         return self._input_id
 
     def set_chunk_indexes(self, worker_id, num_workers):
+        # if self.prefix is None:
+        #     return
+        self.keys = [
+            obj["Key"]
+            for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
+        ]
+        self.local_paths = [
+            str(self.local_base_path / key.split("/")[-1]) for key in self.keys
+        ]
         num_files = len(self.local_paths)
         start = (worker_id * num_files) // num_workers
         end = ((worker_id + 1) * num_files) // num_workers
@@ -50,7 +56,9 @@ class FlexInput:
 
 
 class FlexOutput:
-    def __init__(self, output_id, bucket, prefix, suffix=".file", local_base_path="/tmp"):
+    def __init__(
+        self, output_id, bucket, prefix, suffix=".file", local_base_path="/tmp"
+    ):
         self._output_id = output_id
         self.prefix = prefix
         self.suffix = suffix
@@ -62,5 +70,3 @@ class FlexOutput:
     @property
     def id(self):
         return self._output_id
-
-

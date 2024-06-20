@@ -5,7 +5,9 @@ from flexecutor.storage.storage import FlexInput, FlexOutput
 
 
 class IOManager:
-    def __init__(self, worker_id, num_workers, inputs: list[FlexInput], outputs: list[FlexOutput]):
+    def __init__(
+        self, worker_id, num_workers, inputs: list[FlexInput], outputs: list[FlexOutput]
+    ):
         self.worker_id = worker_id
         self.num_workers = num_workers
         self.inputs: dict[str, FlexInput] = {i.id: i for i in inputs}
@@ -22,6 +24,7 @@ class IOManager:
     #     return {"worker_id": 0}
 
     def next_output_path(self, param):
+        os.makedirs(self.outputs[param].local_base_path, exist_ok=True)
         serial = str(uuid.uuid4())[0:8] + self.outputs[param].suffix
         local_path = f"{self.outputs[param].local_base_path}/{serial}"
         self.outputs[param].local_paths.append(local_path)
