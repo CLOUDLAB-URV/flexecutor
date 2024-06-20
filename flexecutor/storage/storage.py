@@ -49,9 +49,13 @@ class FlexInput:
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
-        num_files = len(self.local_paths)
-        start = (worker_id * num_files) // num_workers
-        end = ((worker_id + 1) * num_files) // num_workers
+        if self.strategy == StrategyEnum.BROADCAST:
+            start = 0
+            end = len(self.local_paths)
+        else:  # SCATTER
+            num_files = len(self.local_paths)
+            start = (worker_id * num_files) // num_workers
+            end = ((worker_id + 1) * num_files) // num_workers
         self.chunk_indexes = (start, end)
 
 
