@@ -23,7 +23,7 @@ if __name__ == "__main__":
         stage0 = Stage(
             stage_id="stage0",
             func=split_videos,
-            inputs=[FlexInput(prefix="videos")],
+            inputs=[FlexInput("videos")],
             outputs=[
                 FlexOutput(
                     prefix="video-chunks",
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         stage1 = Stage(
             stage_id="stage1",
             func=extract_frames,
-            inputs=[FlexInput(prefix="video-chunks")],
+            inputs=[FlexInput("video-chunks")],
             outputs=[
                 FlexOutput(
                     prefix="mainframes",
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         stage2 = Stage(
             stage_id="stage2",
             func=sharpening_filter,
-            inputs=[FlexInput(prefix="mainframes")],
+            inputs=[FlexInput("mainframes")],
             outputs=[
                 FlexOutput(
                     prefix="filtered-frames",
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         stage3 = Stage(
             stage_id="stage3",
             func=classify_images,
-            inputs=[FlexInput(prefix="filtered-frames")],
+            inputs=[FlexInput("filtered-frames")],
             outputs=[
                 FlexOutput(
                     prefix="classification",

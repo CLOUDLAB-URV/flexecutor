@@ -86,7 +86,7 @@ class ThreadPoolProcessor:
             copy_inputs = [deepcopy(item) for item in stage.inputs]
             copy_outputs = [deepcopy(item) for item in stage.outputs]
             for input_item in copy_inputs:
-                input_item.set_chunk_indexes(worker_id, num_workers)
+                input_item.scan_objects(worker_id, num_workers)
             io = IOManager(
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
             )

@@ -16,15 +16,8 @@ if __name__ == "__main__":
         stage0 = Stage(
             stage_id="stage0",
             func=pca,
-            inputs=[FlexInput(prefix="training-data")],
-            outputs=[
-                FlexOutput(
-                    prefix="vectors-pca",
-                ),
-                FlexOutput(
-                    prefix="training-data-transform",
-                ),
-            ],
+            inputs=[FlexInput("training-data")],
+            outputs=[FlexOutput("vectors-pca"), FlexOutput("training-data-transform")],
             params={"n_components": 2},
             max_concurrency=1,
         )
@@ -33,35 +26,21 @@ if __name__ == "__main__":
             stage_id="stage1",
             func=train_with_multiprocessing,
             inputs=[
-                FlexInput(
-                    prefix="training-data-transform",
-                    strategy=StrategyEnum.BROADCAST,
-                )
+                FlexInput("training-data-transform", strategy=StrategyEnum.BROADCAST)
             ],
-            outputs=[
-                FlexOutput(
-                    prefix="models",
-                )
-            ],
+            outputs=[FlexOutput("models")],
         )
 
         stage2 = Stage(
             stage_id="stage2",
             func=aggregate,
             inputs=[
-                FlexInput(
-                    prefix="training-data-transform",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
-                FlexInput("models", prefix="models"),
+                FlexInput("training-data-transform", strategy=StrategyEnum.BROADCAST),
+                FlexInput("models"),
             ],
             outputs=[
-                FlexOutput(
-                    prefix="forests",
-                ),
-                FlexOutput(
-                    prefix="predictions",
-                ),
+                FlexOutput("forests"),
+                FlexOutput("predictions"),
             ],
         )
 
@@ -69,18 +48,10 @@ if __name__ == "__main__":
             stage_id="stage3",
             func=test,
             inputs=[
-                FlexInput(prefix="predictions"),
-                FlexInput(
-                    prefix="training-data-transform",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
+                FlexInput("predictions"),
+                FlexInput("training-data-transform", strategy=StrategyEnum.BROADCAST),
             ],
-            outputs=[
-                FlexOutput(
-                    prefix="accuracies",
-                    suffix=".txt",
-                )
-            ],
+            outputs=[FlexOutput("accuracies", suffix=".txt")],
         )
 
         stage0 >> [stage1, stage2, stage3]

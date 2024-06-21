@@ -16,8 +16,7 @@ class StrategyEnum(Enum):
 class FlexInput:
     def __init__(
         self,
-        key: str = None,
-        prefix: str = None,
+        prefix: str,
         bucket=None,
         custom_input_id=None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
@@ -30,26 +29,22 @@ class FlexInput:
         """
         self._input_id = custom_input_id or prefix
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
-        if prefix and prefix[-1] != "/":
+        if prefix[-1] != "/":
             prefix += "/"
         self.prefix = prefix or ""
-        self.keys = [key] if key else []
         self.strategy = strategy
         self.chunk_indexes: Optional[(int, int)] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
-        self.local_paths = [
-            str(self.local_base_path / key.split("/")[-1]) for key in self.keys
-        ]
+        self.keys = []
+        self.local_paths = []
 
     @property
     def id(self):
         return self._input_id
 
-    def set_chunk_indexes(self, worker_id, num_workers) -> None:
-        if self.keys:  # single file input
-            self.chunk_indexes = (0, len(self.keys))
-            return
+    def scan_objects(self, worker_id, num_workers) -> None:
+        # Update keys and local_paths
         self.keys = [
             obj["Key"]
             for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
@@ -57,11 +52,9 @@ class FlexInput:
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
+        # Define chunk indexes
         if self.chunker:
             self.chunk_indexes = (0, num_workers)
-            self.local_paths = [
-                str(self.local_base_path / key.split("/")[-1]) for key in self.keys
-            ]
             return
         if self.strategy == StrategyEnum.BROADCAST:
             start = 0
@@ -75,7 +68,12 @@ class FlexInput:
 
 class FlexOutput:
     def __init__(
-        self, prefix, bucket=None, custom_output_id=None, suffix=".file", local_base_path="/tmp"
+        self,
+        prefix,
+        bucket=None,
+        custom_output_id=None,
+        suffix=".file",
+        local_base_path="/tmp",
     ):
         self._output_id = custom_output_id or prefix
         self.prefix = prefix
