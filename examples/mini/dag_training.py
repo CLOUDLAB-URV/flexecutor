@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import logging
 
-from lithops import LocalhostExecutor
+from lithops import FunctionExecutor
 
-from examples.mini.functions.word_occurrence import word_occurrence_count
+from examples.mini.functions.word_count import (
+    word_count,
+    word_count_output,
+    word_count_input,
+)
 from flexecutor.utils.dataclass import StageConfig
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
@@ -17,38 +21,40 @@ LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(messag
 logging.basicConfig(format=LOGGER_FORMAT, level=logging.INFO)
 
 logger = logging.getLogger(__name__)
-BUCKET_NAME = "lithops-manri-urv"
 
 
 NUM_ITERATIONS = 1
 
 if __name__ == "__main__":
 
-    @flexorchestrator
+    @flexorchestrator()
     def main():
         dag = DAG("mini-dag")
 
         stage1 = Stage(
             "stage1",
-            func=word_occurrence_count,
-            # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
+            func=word_count,
+            inputs=[word_count_input],
+            outputs=[word_count_output],
         )
         stage2 = Stage(
             "stage2",
-            func=word_occurrence_count,
-            # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
+            func=word_count,
+            inputs=[word_count_input],
+            outputs=[word_count_output],
         )
         stage3 = Stage(
             "stage3",
-            func=word_occurrence_count,
-            # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
+            func=word_count,
+            inputs=[word_count_input],
+            outputs=[word_count_output],
         )
 
         stage1 >> stage2 << stage3
 
         dag.add_stages([stage1, stage2, stage3])
 
-        executor = DAGExecutor(dag, executor=LocalhostExecutor())
+        executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.train()
 
         prediction = executor.predict(

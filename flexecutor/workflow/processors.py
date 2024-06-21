@@ -1,16 +1,18 @@
-from __future__ import annotations
-
-import logging
-
 from concurrent.futures import ThreadPoolExecutor, wait
-from typing import Callable, Sequence
+from copy import deepcopy
+from typing import Callable, Sequence, List, Tuple
+import os
+import logging
 
 from lithops import FunctionExecutor
 
+from flexecutor.storage.wrapper import worker_wrapper
+from flexecutor.utils.iomanager import InternalIOManager
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.utils import setup_logging
 
-logger = logging.getLogger(__name__)
+logger = setup_logging(level=logging.INFO)
 
 
 class ThreadPoolProcessor:
@@ -73,32 +75,37 @@ class ThreadPoolProcessor:
         :param stage: stage to process
         :param on_future_done: Callback to execute every time a future is done
         """
-        # TODO:
-        # 1. Do a predict call to the model to get the optimal number of workers, memory and vcpus (DONE, HARDCODED)
-        # 2. Update the configuration of the executor (FIXME ISSUE WITH RUNTIME_NUMCPUS, FOR NOW WE CAN ONLY PASS THE RUNTIME_MEMORY)
-        # 3. If it's a dataset composed of multiple files, before partitioning, we should "merge" (join the indices).
-        # 3. Call the partitioner and pass the resulting iterdata of the partitioner to the function executor
 
-        print(f"Found datasets: {stage.input_dataset.paths}")
+        # STATIC PARTITIONING ???
+        # for input_path in stage.input_file:
+        #     if input_path.partitioner:
+        #         input_path.partitioner.partitionize()
 
-        # FIXME: wrapt error, it looks like we need a custom dockerfile now since a dataset is a set of s3paths
-
-        input_datasets = [str(path) for path in stage.input_dataset.paths]
-        # Partition after the dataset is loaded?
-        # TODO: Partition here
-        # Placeholder for partitioning
+        map_iterdata = []
+        num_workers = min(stage.resource_config.workers, stage.max_concurrency)
+        for worker_id in range(num_workers):
+            copy_inputs = [deepcopy(item) for item in stage.inputs]
+            copy_outputs = [deepcopy(item) for item in stage.outputs]
+            for input_item in copy_inputs:
+                input_item.scan_objects(worker_id, num_workers)
+            io = InternalIOManager(
+                worker_id, num_workers, copy_inputs, copy_outputs, stage.params
+            )
+            map_iterdata.append(io)
 
         future = self._executor.map(
-            map_function=stage.map_func,
-            map_iterdata=input_datasets,
-            runtime_memory=stage.optimal_config.memory,
+            map_function=worker_wrapper(stage.map_func),
+            map_iterdata=map_iterdata,
+            runtime_memory=int(stage.resource_config.memory),
         )
 
         self._executor.wait(future)
         future = StageFuture(stage.stage_id, future)
 
+        # Update the state of the stage based on the future result
         stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
 
+        # Call the callback function if provided
         if on_future_done:
             on_future_done(stage, future)
 

@@ -1,36 +1,40 @@
-from lithops import LocalhostExecutor
+from lithops import FunctionExecutor
 
-from examples.mini.functions.word_occurrence import word_occurrence_count
+from examples.mini.functions.word_count import (
+    word_count,
+    word_count_input,
+    word_count_output,
+)
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor, StageConfig
 from flexecutor.workflow.stage import Stage
 
-BUCKET_NAME = "lithops-manri-urv"
+
+@flexorchestrator()
+def main():
+    config_space = [
+        StageConfig(0.5, 256, 2),
+        # ...
+    ]
+
+    dag = DAG("stage-obj-profiling")
+
+    stage1 = Stage(
+        "stage1",
+        func=word_count,
+        inputs=[word_count_input],
+        outputs=[word_count_output],
+    )
+
+    dag.add_stages([stage1])
+
+    executor = DAGExecutor(dag, executor=FunctionExecutor())
+    executor.profile(config_space, num_iterations=1)
+    executor.shutdown()
+
+    print("stages completed")
+
 
 if __name__ == "__main__":
-
-    @flexorchestrator
-    def main():
-        config_space = [
-            StageConfig(0.5, 256, 32),
-            # ...
-        ]
-
-        dag = DAG("stage-obj-profiling")
-
-        stage1 = Stage(
-            "stage1",
-            func=word_occurrence_count,
-            # input_file=f"/tmp/{BUCKET_NAME}/test-bucket/tiny_shakespeare.txt"
-        )
-
-        dag.add_stages([stage1])
-
-        executor = DAGExecutor(dag, executor=LocalhostExecutor())
-        executor.profile(config_space, num_iterations=1)
-        executor.shutdown()
-
-        print("stages completed")
-
     main()

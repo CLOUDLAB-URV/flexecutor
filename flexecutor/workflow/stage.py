@@ -4,9 +4,9 @@ from enum import Enum
 from typing import Any, Set, List, Optional, Callable
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
+from flexecutor.storage.storage import FlexInput
+from flexecutor.storage.storage import FlexOutput
 from flexecutor.utils.dataclass import StageConfig
-from flexecutor.workflow.stagefuture import StageFuture
-from flexecutor.storage import Dataset
 
 
 class StageState(Enum):
@@ -24,31 +24,34 @@ class StageState(Enum):
 
 class Stage:
     """
-
     :param stage_id: Stage ID
-    :param input_file: Input data for the operator
+    :param inputs: List of InputS3Path instances for the operator
     """
 
     def __init__(
         self,
         stage_id: str,
-        func: Callable[..., Any],
+        func: Callable[[...], Any],
+        inputs: list[FlexInput],
+        outputs: list[FlexOutput],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
-        input_dataset: Optional[Dataset] = None,
-        output_file: Optional[StageFuture] = None,
+        params: Optional[dict[str, Any]] = None,
+        max_concurrency: int = 1024,
     ):
+        if params is None:
+            params = {}
         self._stage_unique_id = None
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
-        self._input_dataset = input_dataset
-        # output_file might not be needed, dependencies should be sent via completed futures.
-        # we can rename it to _output_path, path where the outputs of the stage will be stored in os (by default {stage_name}/output)
-        self._output_file = output_file
+        self._inputs = inputs
+        self._outputs = outputs
+        self._params = params
         self._children: Set[Stage] = set()
         self._parents: Set[Stage] = set()
         self._state = StageState.NONE
         self._map_func = func
+        self._max_concurrency = max_concurrency
         self.dag_id = None
         self.optimal_config: Optional[StageConfig] = None
         self.resource_config: Optional[StageConfig] = None
@@ -68,13 +71,16 @@ class Stage:
         self._dag_id = value
         self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
         self._perf_model = PerfModel.instance(
-            model_type=self._perf_model_type,
-            model_name=self._stage_unique_id
+            model_type=self._perf_model_type, model_name=self._stage_unique_id
         )
 
     @property
     def perf_model(self) -> PerfModel:
         return self._perf_model
+
+    @property
+    def max_concurrency(self) -> int:
+        return self._max_concurrency
 
     @property
     def stage_id(self) -> str:
@@ -92,9 +98,19 @@ class Stage:
         return self._children
 
     @property
-    def input_dataset(self) -> StageFuture:
-        """Return the input dataset."""
-        return self._input_dataset
+    def inputs(self) -> list[FlexInput]:
+        """Return the list of input paths."""
+        return self._inputs
+
+    @property
+    def outputs(self) -> list[FlexOutput]:
+        """Return the output path."""
+        return self._outputs
+
+    @property
+    def params(self) -> dict[str, Any]:
+        """Return the parameters of the stage."""
+        return self._params
 
     @property
     def state(self) -> StageState:

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from contextlib import contextmanager
 
 
@@ -69,35 +70,42 @@ FLEXECUTOR_EXEC_PATH = "FLEXECUTOR_EXEC_PATH"
 
 def get_my_exec_path():
     """
-    Get the path where the flexorchestrator script is located.
-    @flexorchestrator decorator is responsible for setting this path.
+    Get the path where the flexorchestrator script is located
+    @flexorchestrator() decorator is responsible for setting this path
+
     :return: the path where the flexorchestrator script is located
     """
     return os.environ.get(FLEXECUTOR_EXEC_PATH, None)
 
 
-def flexorchestrator(func):
-    """
-    Decorator to initializations previous to the execution of user scripts.
-    You must use it only in the main function of your script.
-    Responsible for:
-    - Set the path where the flexorchestrator main script is located
-    :param func:
-    :return:
-    """
+def flexorchestrator(bucket=""):
+    def function(func):
+        """
+        Decorator to initializations previous to the execution of user scripts.
+        You must use it only in the main function of your script.
+        Responsible for:
+        - Set the path if where the flexorchestrator main script is located
+        :param func:
+        :return:
+        """
 
-    def wrapper(*args, **kwargs):
-        # Set the path of the flexorchestrator file
-        key = FLEXECUTOR_EXEC_PATH
-        frame = inspect.currentframe()
-        caller_frame = frame.f_back
-        caller_file = caller_frame.f_globals["__file__"]
-        value = os.path.dirname(os.path.abspath(caller_file))
-        os.environ[key] = value
-        try:
-            result = func(*args, **kwargs)
-        finally:
-            os.environ.pop(key, None)
-        return result
+        def wrapper(*args, **kwargs):
+            # Set the path of the flexorchestrator file
+            key = FLEXECUTOR_EXEC_PATH
+            frame = inspect.currentframe()
+            caller_frame = frame.f_back
+            caller_file = caller_frame.f_globals["__file__"]
+            value = os.path.dirname(os.path.abspath(caller_file))
+            os.environ[key] = value
+            # Set the bucket
+            key = "FLEX_BUCKET"
+            os.environ[key] = bucket
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                os.environ.pop(key, None)
+            return result
 
-    return wrapper
+        return wrapper
+
+    return function

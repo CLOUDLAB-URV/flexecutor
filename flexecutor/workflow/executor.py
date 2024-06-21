@@ -61,6 +61,7 @@ class DAGExecutor:
             os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
         elif asset_type == AssetType.IMAGE:
+            os.makedirs(f"{self._base_path}/images/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
 
     def _store_profiling(
@@ -84,7 +85,7 @@ class DAGExecutor:
 
     def profile(
         self,
-        config_spaces: Iterable[StageConfig],
+        config_space: Iterable[StageConfig],
         stage: Optional[Stage] = None,
         num_iterations: int = 1,
     ) -> None:
@@ -92,7 +93,7 @@ class DAGExecutor:
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-            for resource_config in config_spaces:
+            for resource_config in config_space:
                 stage.resource_config = resource_config
                 for iteration in range(num_iterations):
                     timings = self.execute_stage(stage)
@@ -142,9 +143,12 @@ class DAGExecutor:
 
         # Before the execution, get the optimal configurations for all stages in the DAG
         # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
+
         # self.train()
         # FIXME: the optimal config seems to be an array, why is that?
-        self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
+        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
+        for stage in self._dag.stages:
+            stage.resource_config = StageConfig(cpu=5, memory=722, workers=2)
 
         self._futures = dict()
 
@@ -178,10 +182,10 @@ class DAGExecutor:
         return self._futures
 
     def model_perf_metrics(
-        self, stage: Stage, config_spaces: List[StageConfig]
+        self, stage: Stage, config_space: List[StageConfig]
     ) -> DataFrame:
         actual_latencies, predicted_latencies = self._prediction_vs_actual(
-            stage, config_spaces
+            stage, config_space
         )
 
         actual_latencies = np.array(actual_latencies)
@@ -199,7 +203,7 @@ class DAGExecutor:
                     (actual - predicted) ** 2,
                 ]
                 for config, actual, predicted in zip(
-                    config_spaces, actual_latencies, predicted_latencies
+                    config_space, actual_latencies, predicted_latencies
                 )
             ]
         )
@@ -219,13 +223,13 @@ class DAGExecutor:
 
         return df
 
-    def plot_model_performance(self, stage: Stage, config_spaces: List[StageConfig]):
+    def plot_model_performance(self, stage: Stage, config_space: List[StageConfig]):
         actual_latencies, predicted_latencies = self._prediction_vs_actual(
-            stage, config_spaces
+            stage, config_space
         )
 
         fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(config_spaces))
+        x = np.arange(len(config_space))
 
         ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
 
@@ -236,21 +240,21 @@ class DAGExecutor:
         ax.set_ylabel("Latency")
         ax.set_title("Model Performance Comparison")
         ax.set_xticks(x)
-        ax.set_xticklabels([str(i.key) for i in config_spaces], rotation=45, ha="right")
+        ax.set_xticklabels([str(i.key) for i in config_space], rotation=45, ha="right")
         ax.legend()
 
         plt.tight_layout()
 
         plt.savefig(self._get_asset_path(stage, AssetType.IMAGE))
 
-    def _prediction_vs_actual(self, stage: Stage, config_spaces: List[StageConfig]):
+    def _prediction_vs_actual(self, stage: Stage, config_space: List[StageConfig]):
         actual_latencies = []
         predicted_latencies = []
         profiling_data = load_profiling_results(
             f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
         )
         stage.perf_model.train(profiling_data)
-        for config in config_spaces:
+        for config in config_space:
             if config.key in profiling_data:
                 executions = profiling_data[config.key]
                 total_latencies = [
@@ -278,7 +282,7 @@ class DAGExecutor:
         """
         Sets the optimal configuration for each stage.
         """
-        # result = []
+        result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
@@ -287,8 +291,8 @@ class DAGExecutor:
             print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
             stage.optimal_config = optimal_config
 
-            # result.append(optimal_config)
-        # return result
+            result.append(optimal_config)
+        return result
 
     def shutdown(self):
         """
