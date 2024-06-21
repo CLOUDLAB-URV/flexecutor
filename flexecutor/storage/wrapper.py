@@ -22,8 +22,8 @@ def worker_wrapper(func: Callable[[...], Any]):
         for input_id, flex_input in io.inputs.items():
             os.makedirs(flex_input.local_base_path, exist_ok=True)
             if (
-                len(flex_input.keys) > io.num_workers
-                and flex_input.strategy is not StrategyEnum.BROADCAST
+                len(flex_input.keys) >= io.num_workers
+                or flex_input.strategy is StrategyEnum.BROADCAST
             ):  # More files than workers and scattering
                 start_index, end_index = flex_input.chunk_indexes
                 for index in range(start_index, end_index):
