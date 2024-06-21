@@ -22,6 +22,4 @@ word_count_input = FlexInput(
     prefix="dir",
     chunker=FileChunker(),
 )
-word_count_output = FlexOutput(
-    "count", bucket="test-bucket", prefix="count", suffix=".count"
-)
+word_count_output = FlexOutput(bucket="test-bucket", prefix="count", suffix=".count")

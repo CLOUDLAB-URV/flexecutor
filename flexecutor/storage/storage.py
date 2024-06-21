@@ -16,10 +16,10 @@ class StrategyEnum(Enum):
 class FlexInput:
     def __init__(
         self,
-        input_id: str,
         key: str = None,
         prefix: str = None,
         bucket=None,
+        custom_input_id=None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
         chunker: Optional[Chunker] = None,
         local_base_path: str = "/tmp",
@@ -28,7 +28,7 @@ class FlexInput:
         A class for define inputs in flex stages.
         ...
         """
-        self._input_id = input_id
+        self._input_id = custom_input_id or prefix
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         if prefix and prefix[-1] != "/":
             prefix += "/"
@@ -75,9 +75,9 @@ class FlexInput:
 
 class FlexOutput:
     def __init__(
-        self, output_id, prefix, bucket=None, suffix=".file", local_base_path="/tmp"
+        self, prefix, bucket=None, custom_output_id=None, suffix=".file", local_base_path="/tmp"
     ):
-        self._output_id = output_id
+        self._output_id = custom_output_id or prefix
         self.prefix = prefix
         self.suffix = suffix
         self.local_base_path = Path(local_base_path) / prefix

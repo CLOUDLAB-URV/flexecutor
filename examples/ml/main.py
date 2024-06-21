@@ -1,5 +1,3 @@
-from typing import Any
-
 from lithops import FunctionExecutor
 
 from examples.ml.functions import pca, train_with_multiprocessing, aggregate, test
@@ -8,7 +6,6 @@ from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-
 
 if __name__ == "__main__":
 
@@ -19,14 +16,12 @@ if __name__ == "__main__":
         stage0 = Stage(
             stage_id="stage0",
             func=pca,
-            inputs=[FlexInput("training-data", prefix="training-data")],
+            inputs=[FlexInput(prefix="training-data")],
             outputs=[
                 FlexOutput(
-                    "vectors-pca",
                     prefix="vectors-pca",
                 ),
                 FlexOutput(
-                    "training-data-transform",
                     prefix="training-data-transform",
                 ),
             ],
@@ -39,14 +34,12 @@ if __name__ == "__main__":
             func=train_with_multiprocessing,
             inputs=[
                 FlexInput(
-                    "training-data-transform",
                     prefix="training-data-transform",
                     strategy=StrategyEnum.BROADCAST,
                 )
             ],
             outputs=[
                 FlexOutput(
-                    "models",
                     prefix="models",
                 )
             ],
@@ -57,7 +50,6 @@ if __name__ == "__main__":
             func=aggregate,
             inputs=[
                 FlexInput(
-                    "training-data-transform",
                     prefix="training-data-transform",
                     strategy=StrategyEnum.BROADCAST,
                 ),
@@ -65,11 +57,9 @@ if __name__ == "__main__":
             ],
             outputs=[
                 FlexOutput(
-                    "forests",
                     prefix="forests",
                 ),
                 FlexOutput(
-                    "predictions",
                     prefix="predictions",
                 ),
             ],
@@ -79,16 +69,14 @@ if __name__ == "__main__":
             stage_id="stage3",
             func=test,
             inputs=[
-                FlexInput("predictions", prefix="predictions"),
+                FlexInput(prefix="predictions"),
                 FlexInput(
-                    "training-data-transform",
                     prefix="training-data-transform",
                     strategy=StrategyEnum.BROADCAST,
                 ),
             ],
             outputs=[
                 FlexOutput(
-                    "accuracies",
                     prefix="accuracies",
                     suffix=".txt",
                 )

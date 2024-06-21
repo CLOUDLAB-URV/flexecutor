@@ -1,5 +1,3 @@
-from typing import Any
-
 from lithops import FunctionExecutor
 
 from examples.video.functions import (
@@ -14,7 +12,6 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 
-
 if __name__ == "__main__":
 
     @flexorchestrator(bucket="test-bucket")
@@ -26,10 +23,9 @@ if __name__ == "__main__":
         stage0 = Stage(
             stage_id="stage0",
             func=split_videos,
-            inputs=[FlexInput("videos", prefix="videos")],
+            inputs=[FlexInput(prefix="videos")],
             outputs=[
                 FlexOutput(
-                    "video-chunks",
                     prefix="video-chunks",
                     suffix=".mp4",
                 )
@@ -38,10 +34,9 @@ if __name__ == "__main__":
         stage1 = Stage(
             stage_id="stage1",
             func=extract_frames,
-            inputs=[FlexInput("video-chunks", prefix="video-chunks")],
+            inputs=[FlexInput(prefix="video-chunks")],
             outputs=[
                 FlexOutput(
-                    "mainframes",
                     prefix="mainframes",
                     suffix=".jpg",
                 )
@@ -50,10 +45,9 @@ if __name__ == "__main__":
         stage2 = Stage(
             stage_id="stage2",
             func=sharpening_filter,
-            inputs=[FlexInput("mainframes", prefix="mainframes")],
+            inputs=[FlexInput(prefix="mainframes")],
             outputs=[
                 FlexOutput(
-                    "filtered-frames",
                     prefix="filtered-frames",
                     suffix=".jpg",
                 )
@@ -62,10 +56,9 @@ if __name__ == "__main__":
         stage3 = Stage(
             stage_id="stage3",
             func=classify_images,
-            inputs=[FlexInput("filtered-frames", prefix="filtered-frames")],
+            inputs=[FlexInput(prefix="filtered-frames")],
             outputs=[
                 FlexOutput(
-                    "classification",
                     prefix="classification",
                     suffix=".json",
                 )
