@@ -10,12 +10,12 @@ from lithops import Storage
 from flexecutor.storage.chunker import ChunkerInfo
 from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.dataclass import FunctionTimes
-from flexecutor.utils.iomanager import IOManager
+from flexecutor.utils.iomanager import InternalIOManager, IOManager
 
 
 def worker_wrapper(func: Callable[[...], Any]):
     @wraps(func)
-    def wrapper(io: IOManager, *args, **kwargs):
+    def wrapper(io: InternalIOManager, *args, **kwargs):
         before_read = time.time()
         storage = Storage()
         # TODO: parallelize download?
@@ -55,7 +55,8 @@ def worker_wrapper(func: Callable[[...], Any]):
 
         after_read = time.time()
 
-        result = func(io, *args, **kwargs)
+        func_io = IOManager(io)
+        result = func(func_io, *args, **kwargs)
 
         before_write = time.time()
         # TODO: parallelize upload?

@@ -5,7 +5,7 @@ from typing import Optional, Any
 from flexecutor.storage.storage import FlexInput, FlexOutput
 
 
-class IOManager:
+class InternalIOManager:
     def __init__(
         self,
         worker_id,
@@ -34,3 +34,19 @@ class IOManager:
         self.outputs[param].local_paths.append(local_path)
         self.outputs[param].keys.append(f"{self.outputs[param].prefix}/{serial}")
         return local_path
+
+
+# IOManager is a facade for IOBigManager
+class IOManager:
+    def __init__(self, manager: InternalIOManager):
+        self._manager = manager
+
+    def input_paths(self, input_id: str) -> list[str]:
+        return self._manager.input_paths(input_id)
+
+    def get_param(self, key: str) -> Any:
+        return self._manager.get_param(key)
+
+    def next_output_path(self, param: str) -> str:
+        return self._manager.next_output_path(param)
+

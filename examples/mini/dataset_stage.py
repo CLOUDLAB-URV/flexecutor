@@ -22,7 +22,7 @@ logger = setup_logging(level=logging.INFO)
 NUM_ITERATIONS = 1
 
 
-@flexorchestrator
+@flexorchestrator()
 def main():
     dag = DAG("mini-dag")
 

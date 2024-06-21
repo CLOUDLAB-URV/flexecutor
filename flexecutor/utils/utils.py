@@ -71,13 +71,13 @@ FLEXECUTOR_EXEC_PATH = "FLEXECUTOR_EXEC_PATH"
 def get_my_exec_path():
     """
     Get the path where the flexorchestrator script is located
-    @flexorchestrator decorator is responsible for setting this path
+    @flexorchestrator() decorator is responsible for setting this path
     :return: the path where the flexorchestrator script is located
     """
     return os.environ.get(FLEXECUTOR_EXEC_PATH, None)
 
 
-def flexorchestrator(bucket):
+def flexorchestrator(bucket=""):
     def function(func):
         """
         Decorator to initializations previous to the execution of user scripts.

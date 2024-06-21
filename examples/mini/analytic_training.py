@@ -6,7 +6,7 @@ from flexecutor.utils.utils import load_profiling_results, flexorchestrator
 
 
 if __name__ == "__main__":
-    @flexorchestrator
+    @flexorchestrator()
     def main():
         profile_data = load_profiling_results("profiling/mocks/test1.json")
 

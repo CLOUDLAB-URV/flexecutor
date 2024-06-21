@@ -16,7 +16,7 @@ NUM_CONFIGS = 2
 
 if __name__ == "__main__":
 
-    @flexorchestrator
+    @flexorchestrator()
     def main(num_configs=NUM_CONFIGS):
         dag = DAG("large-example-dag")
 

@@ -11,7 +11,7 @@ from flexecutor.workflow.executor import DAGExecutor, StageConfig
 from flexecutor.workflow.stage import Stage
 
 
-@flexorchestrator
+@flexorchestrator()
 def main():
     config_spaces = [
         StageConfig(0.5, 256, 2),

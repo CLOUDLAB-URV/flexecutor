@@ -27,7 +27,7 @@ NUM_ITERATIONS = 1
 
 if __name__ == "__main__":
 
-    @flexorchestrator
+    @flexorchestrator()
     def main():
         dag = DAG("mini-dag")
 

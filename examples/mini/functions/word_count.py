@@ -17,9 +17,6 @@ def word_count(io: IOManager):
 
 
 word_count_input = FlexInput(
-    "txt",
-    bucket="test-bucket",
-    prefix="dir",
-    chunker=FileChunker(),
+    prefix="dir", custom_input_id="txt", bucket="test-bucket", chunker=FileChunker()
 )
-word_count_output = FlexOutput(bucket="test-bucket", prefix="count", suffix=".count")
+word_count_output = FlexOutput(prefix="count", bucket="test-bucket", suffix=".count")

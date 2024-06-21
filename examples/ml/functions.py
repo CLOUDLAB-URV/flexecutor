@@ -1,5 +1,4 @@
 import multiprocessing as mp
-from random import random
 
 import lightgbm as lgb
 import numpy as np

@@ -27,7 +27,7 @@ BUCKET_NAME = "lithops-manri-urv"
 
 if __name__ == "__main__":
 
-    @flexorchestrator
+    @flexorchestrator()
     def main():
         config_spaces = [
             StageConfig(2, 1024, 3),

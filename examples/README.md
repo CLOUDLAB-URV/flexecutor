@@ -16,4 +16,4 @@ When running the examples, some files are generated in its use-case folder:
 - `models/`: This folder contains the models generated after the training of the app.
 
 ## How to write an example
-> ⚠️ IMPORTANT: decorate your main script with the `@flexorchestrator` decorator for correct behavior.
+> ⚠️ IMPORTANT: decorate your main script with the `@flexorchestrator()` decorator for correct behavior.
