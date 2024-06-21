@@ -11,54 +11,8 @@ from flexecutor.utils.iomanager import IOManager
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging
-# from flexecutor.storage.storage import DataSlice, S3Handler, InputS3Path
 
 logger = setup_logging(level=logging.INFO)
-
-
-# def split_txt_files(
-#     file_paths: List[str],
-#     chunk_size: int = None,
-#     chunk_number: int = None,
-#     obj_newline: str = "\n",
-# ) -> List[Tuple[str, int, int]]:
-#     """
-#     Split multiple .txt files into multiple chunks.
-#     """
-#     partitions = []
-#     total_size = sum(os.path.getsize(file_path) for file_path in file_paths)
-#
-#     if chunk_number:
-#         chunk_rest = total_size % chunk_number
-#         obj_chunk_size = (total_size // chunk_number) + (1 if chunk_rest else 0)
-#     elif chunk_size:
-#         obj_chunk_size = chunk_size
-#     else:
-#         obj_chunk_size = total_size
-#
-#     logger.debug(
-#         f"Creating partitions from {len(file_paths)} files ({total_size} bytes)"
-#     )
-#
-#     current_size = 0
-#     current_file_index = 0
-#
-#     while current_size < total_size:
-#         start_file = file_paths[current_file_index]
-#         current_file_size = os.path.getsize(start_file)
-#         start_position = current_size % current_file_size
-#         end_position = min(start_position + obj_chunk_size, current_file_size)
-#
-#         if end_position < current_file_size:
-#             partitions.append((start_file, start_position, end_position))
-#             current_size += end_position - start_position
-#         else:
-#             partitions.append((start_file, start_position, current_file_size))
-#             current_size += current_file_size - start_position
-#             if current_file_index + 1 < len(file_paths):
-#                 current_file_index += 1
-#
-#     return partitions
 
 
 class ThreadPoolProcessor:
@@ -121,19 +75,21 @@ class ThreadPoolProcessor:
         :param on_future_done: Callback to execute every time a future is done
         """
 
+        # STATIC PARTITIONING ???
         # for input_path in stage.input_file:
         #     if input_path.partitioner:
         #         input_path.partitioner.partitionize()
-
-        # s3_handler = S3Handler()
 
         map_iterdata = []
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
+            copy_outputs = [deepcopy(item) for item in stage.outputs]
             for input_item in copy_inputs:
                 input_item.set_chunk_indexes(worker_id, num_workers)
-            io = IOManager(worker_id, num_workers, copy_inputs, stage.outputs, stage.params)
+            io = IOManager(
+                worker_id, num_workers, copy_inputs, copy_outputs, stage.params
+            )
             map_iterdata.append(io)
 
         future = self._executor.map(

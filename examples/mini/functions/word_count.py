@@ -1,3 +1,4 @@
+from flexecutor.storage.chunker import FileChunker
 from flexecutor.storage.storage import FlexInput, FlexOutput
 from flexecutor.utils.iomanager import IOManager
 
@@ -15,7 +16,12 @@ def word_count(io: IOManager):
             f.write(str(count))
 
 
-word_count_input = FlexInput("txt", bucket="test-bucket", prefix="dir")
+word_count_input = FlexInput(
+    "txt",
+    bucket="test-bucket",
+    prefix="dir",
+    chunker=FileChunker(),
+)
 word_count_output = FlexOutput(
     "count", bucket="test-bucket", prefix="count", suffix=".count"
 )

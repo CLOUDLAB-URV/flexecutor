@@ -4,8 +4,11 @@ from functools import wraps
 from typing import Callable, Any
 
 import numpy as np
+from botocore.response import StreamingBody
 from lithops import Storage
 
+from flexecutor.storage.chunker import ChunkerInfo
+from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.dataclass import FunctionTimes
 from flexecutor.utils.iomanager import IOManager
 
@@ -17,14 +20,39 @@ def worker_wrapper(func: Callable[[...], Any]):
         storage = Storage()
         # TODO: parallelize download?
         for input_id, flex_input in io.inputs.items():
-            start_index, end_index = flex_input.chunk_indexes
             os.makedirs(flex_input.local_base_path, exist_ok=True)
-            for index in range(start_index, end_index):
-                storage.download_file(
+            if (
+                len(flex_input.keys) > io.num_workers
+                and flex_input.strategy is not StrategyEnum.BROADCAST
+            ):  # More files than workers and scattering
+                start_index, end_index = flex_input.chunk_indexes
+                for index in range(start_index, end_index):
+                    storage.download_file(
+                        flex_input.bucket,
+                        flex_input.keys[index],
+                        flex_input.local_paths[index],
+                    )
+            else:  # Fewer files than workers --> chunking
+                if flex_input.chunker is None:
+                    raise Exception(
+                        "Chunker is required for scatter strategy with more workers than files."
+                    )
+                # TODO: fix, only works for one file
+                chunker: ChunkerInfo = flex_input.chunker.my_byte_range(
+                    flex_input, io.worker_id, io.num_workers
+                )[0]
+                extra_args = {"Range": f"bytes={chunker.start}-{chunker.end}"}
+                chunk = storage.get_object(
                     flex_input.bucket,
-                    flex_input.keys[index],
-                    flex_input.local_paths[index],
+                    flex_input.keys[0],
+                    flex_input.local_paths[0],
+                    extra_get_args=extra_args,
                 )
+                flex_input.local_paths[0] += ".part" + str(io.worker_id)
+                with open(flex_input.local_paths[0], "wb") as f:
+                    if isinstance(chunk, StreamingBody):
+                        f.write(chunk.read())
+
         after_read = time.time()
 
         result = func(io, *args, **kwargs)

@@ -4,6 +4,8 @@ from typing import Optional
 
 from lithops import Storage
 
+from flexecutor.storage.chunker import Chunker
+
 
 class StrategyEnum(Enum):
     SCATTER = 1
@@ -18,6 +20,7 @@ class FlexInput:
         key: str = None,
         prefix: str = None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
+        chunker: Optional[Chunker] = None,
         local_base_path: str = "/tmp",
     ):
         """
@@ -32,6 +35,7 @@ class FlexInput:
         self.keys = [key] if key else []
         self.strategy = strategy
         self.chunk_indexes: Optional[(int, int)] = None
+        self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
@@ -52,6 +56,12 @@ class FlexInput:
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
+        if self.chunker:
+            self.chunk_indexes = (0, num_workers)
+            self.local_paths = [
+                str(self.local_base_path / key.split("/")[-1]) for key in self.keys
+            ]
+            return
         if self.strategy == StrategyEnum.BROADCAST:
             start = 0
             end = len(self.local_paths)
