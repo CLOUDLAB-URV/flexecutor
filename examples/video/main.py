@@ -17,7 +17,7 @@ from flexecutor.workflow.stage import Stage
 
 if __name__ == "__main__":
 
-    @flexorchestrator
+    @flexorchestrator(bucket="test-bucket")
     def main():
         dag = DAG("video-analytics")
 
@@ -26,11 +26,10 @@ if __name__ == "__main__":
         stage0 = Stage(
             stage_id="stage0",
             func=split_videos,
-            inputs=[FlexInput("videos", bucket="test-bucket", prefix="videos")],
+            inputs=[FlexInput("videos", prefix="videos")],
             outputs=[
                 FlexOutput(
                     "video-chunks",
-                    bucket="test-bucket",
                     prefix="video-chunks",
                     suffix=".mp4",
                 )
@@ -39,13 +38,10 @@ if __name__ == "__main__":
         stage1 = Stage(
             stage_id="stage1",
             func=extract_frames,
-            inputs=[
-                FlexInput("video-chunks", bucket="test-bucket", prefix="video-chunks")
-            ],
+            inputs=[FlexInput("video-chunks", prefix="video-chunks")],
             outputs=[
                 FlexOutput(
                     "mainframes",
-                    bucket="test-bucket",
                     prefix="mainframes",
                     suffix=".jpg",
                 )
@@ -54,11 +50,10 @@ if __name__ == "__main__":
         stage2 = Stage(
             stage_id="stage2",
             func=sharpening_filter,
-            inputs=[FlexInput("mainframes", bucket="test-bucket", prefix="mainframes")],
+            inputs=[FlexInput("mainframes", prefix="mainframes")],
             outputs=[
                 FlexOutput(
                     "filtered-frames",
-                    bucket="test-bucket",
                     prefix="filtered-frames",
                     suffix=".jpg",
                 )
@@ -67,15 +62,10 @@ if __name__ == "__main__":
         stage3 = Stage(
             stage_id="stage3",
             func=classify_images,
-            inputs=[
-                FlexInput(
-                    "filtered-frames", bucket="test-bucket", prefix="filtered-frames"
-                )
-            ],
+            inputs=[FlexInput("filtered-frames", prefix="filtered-frames")],
             outputs=[
                 FlexOutput(
                     "classification",
-                    bucket="test-bucket",
                     prefix="classification",
                     suffix=".json",
                 )

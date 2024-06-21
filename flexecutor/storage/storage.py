@@ -1,3 +1,4 @@
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -16,9 +17,9 @@ class FlexInput:
     def __init__(
         self,
         input_id: str,
-        bucket: str,
         key: str = None,
         prefix: str = None,
+        bucket=None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
         chunker: Optional[Chunker] = None,
         local_base_path: str = "/tmp",
@@ -28,7 +29,7 @@ class FlexInput:
         ...
         """
         self._input_id = input_id
-        self.bucket = bucket
+        self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         if prefix and prefix[-1] != "/":
             prefix += "/"
         self.prefix = prefix or ""
@@ -74,13 +75,13 @@ class FlexInput:
 
 class FlexOutput:
     def __init__(
-        self, output_id, bucket, prefix, suffix=".file", local_base_path="/tmp"
+        self, output_id, prefix, bucket=None, suffix=".file", local_base_path="/tmp"
     ):
         self._output_id = output_id
         self.prefix = prefix
         self.suffix = suffix
         self.local_base_path = Path(local_base_path) / prefix
-        self.bucket = bucket
+        self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         self.keys = []
         self.local_paths = []
 
