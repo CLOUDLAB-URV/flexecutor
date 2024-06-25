@@ -10,7 +10,7 @@ from flexecutor.utils.iomanager import IOManager
 
 
 def split_videos(io: IOManager):
-    video_paths = io.input_paths("videos")
+    video_paths = io.get_input_paths("videos")
     chunk_size = 10
 
     for index, video_path in enumerate(video_paths):
@@ -37,7 +37,7 @@ def extract_frames(io: IOManager):
         average_pixel_value = np.mean(gray_image)
         return average_pixel_value
 
-    chunk_paths = io.input_paths("video-chunks")
+    chunk_paths = io.get_input_paths("video-chunks")
 
     for index, chunk_path in enumerate(chunk_paths):
         best_frame = None
@@ -57,7 +57,7 @@ def extract_frames(io: IOManager):
 
 
 def sharpening_filter(io: IOManager):
-    frame_paths = io.input_paths("mainframes")
+    frame_paths = io.get_input_paths("mainframes")
     for index, frame_path in enumerate(frame_paths):
         image = cv2.imread(frame_path)
         sharpening_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
@@ -66,7 +66,7 @@ def sharpening_filter(io: IOManager):
 
 
 def classify_images(io: IOManager):
-    frame_paths = io.input_paths("filtered-frames")
+    frame_paths = io.get_input_paths("filtered-frames")
 
     detector = ObjectDetection()
     detector.setModelTypeAsTinyYOLOv3()

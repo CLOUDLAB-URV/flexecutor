@@ -35,7 +35,7 @@ class MergedLGBMClassifier(BaseEstimator):
 
 
 def pca(io: IOManager):
-    [training_data_path] = io.input_paths("training-data")
+    [training_data_path] = io.get_input_paths("training-data")
 
     train_data = np.genfromtxt(training_data_path, delimiter="\t")
     train_labels = train_data[:, 0]
@@ -106,7 +106,7 @@ def train_with_multiprocessing(io: IOManager):
     num_process = 12
     param = {"feature_fraction": 1, "max_depth": 8, "num_of_trees": 30, "chance": 1}
 
-    [training_data_path] = io.input_paths("training-data-transform")
+    [training_data_path] = io.get_input_paths("training-data-transform")
 
     with mp.Pool(processes=num_process) as pool:
         results = pool.starmap(
@@ -142,8 +142,8 @@ def calc_accuracy(y_pred, y_train):
 
 
 def aggregate(io: IOManager):
-    [training_data_path] = io.input_paths("training-data-transform")
-    model_paths = io.input_paths("models")
+    [training_data_path] = io.get_input_paths("training-data-transform")
+    model_paths = io.get_input_paths("models")
 
     test_data = np.genfromtxt(training_data_path, delimiter="\t")
     y_test = test_data[5000:, 0]
@@ -169,12 +169,12 @@ def aggregate(io: IOManager):
 
 
 def test(io: IOManager):
-    predictions_paths = io.input_paths("predictions")
+    predictions_paths = io.get_input_paths("predictions")
     predictions = [
         np.genfromtxt(prediction_path, delimiter="\t")
         for prediction_path in predictions_paths
     ]
-    [test_path] = io.input_paths("training-data-transform")
+    [test_path] = io.get_input_paths("training-data-transform")
     test_data = np.genfromtxt(test_path, delimiter="\t")
 
     y_test = test_data[5000:, 0]

@@ -41,7 +41,7 @@ class IOManager:
     def __init__(self, manager: InternalIOManager):
         self._manager = manager
 
-    def input_paths(self, input_id: str) -> list[str]:
+    def get_input_paths(self, input_id: str) -> list[str]:
         return self._manager.input_paths(input_id)
 
     def get_param(self, key: str) -> Any:

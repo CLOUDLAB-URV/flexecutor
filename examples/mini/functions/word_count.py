@@ -4,7 +4,7 @@ from flexecutor.utils.iomanager import IOManager
 
 
 def word_count(io: IOManager):
-    txt_paths = io.input_paths("txt")
+    txt_paths = io.get_input_paths("txt")
     for txt_path in txt_paths:
         with open(txt_path, "r") as f:
             content = f.read()
