@@ -24,10 +24,7 @@ def worker_wrapper(func: Callable[[...], Any]):
             if (
                 len(flex_input.keys) >= io.num_workers
                 or flex_input.strategy is StrategyEnum.BROADCAST
-                or (
-                    flex_input.chunker is not None
-                    and flex_input.chunker.chunker_type is ChunkerTypeEnum.STATIC
-                )
+                or flex_input.requires_preprocessing()
             ):  # More files than workers and scattering
                 start_index, end_index = flex_input.chunk_indexes
                 for index in range(start_index, end_index):
