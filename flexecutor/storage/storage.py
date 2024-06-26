@@ -5,7 +5,7 @@ from typing import Optional
 
 from lithops import Storage
 
-from flexecutor.storage.chunker import Chunker
+from flexecutor.storage.chunker import Chunker, ChunkerTypeEnum
 
 
 class StrategyEnum(Enum):
@@ -64,6 +64,12 @@ class FlexInput:
             start = (worker_id * num_files) // num_workers
             end = ((worker_id + 1) * num_files) // num_workers
         self.chunk_indexes = (start, end)
+
+    def requires_preprocessing(self):
+        return (
+            self.chunker is not None
+            and self.chunker.chunker_type is ChunkerTypeEnum.STATIC
+        )
 
 
 class FlexOutput:

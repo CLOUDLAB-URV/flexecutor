@@ -148,7 +148,7 @@ class DAGExecutor:
         # FIXME: the optimal config seems to be an array, why is that?
         # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
         for stage in self._dag.stages:
-            stage.resource_config = StageConfig(cpu=5, memory=722, workers=2)
+            stage.resource_config = StageConfig(cpu=5, memory=722, workers=7)
 
         self._futures = dict()
 

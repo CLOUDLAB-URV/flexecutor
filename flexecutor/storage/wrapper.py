@@ -7,7 +7,7 @@ import numpy as np
 from botocore.response import StreamingBody
 from lithops import Storage
 
-from flexecutor.storage.chunker import ChunkerInfo
+from flexecutor.storage.chunker import ChunkerInfo, ChunkerTypeEnum
 from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.dataclass import FunctionTimes
 from flexecutor.utils.iomanager import InternalIOManager, IOManager
@@ -24,6 +24,10 @@ def worker_wrapper(func: Callable[[...], Any]):
             if (
                 len(flex_input.keys) >= io.num_workers
                 or flex_input.strategy is StrategyEnum.BROADCAST
+                or (
+                    flex_input.chunker is not None
+                    and flex_input.chunker.chunker_type is ChunkerTypeEnum.STATIC
+                )
             ):  # More files than workers and scattering
                 start_index, end_index = flex_input.chunk_indexes
                 for index in range(start_index, end_index):
@@ -38,7 +42,7 @@ def worker_wrapper(func: Callable[[...], Any]):
                         "Chunker is required for scatter strategy with more workers than files."
                     )
                 # TODO: fix, only works for one file
-                chunker: ChunkerInfo = flex_input.chunker.my_byte_range(
+                chunker: ChunkerInfo = flex_input.chunker.get_my_chunk(
                     flex_input, io.worker_id, io.num_workers
                 )[0]
                 extra_args = {"Range": f"bytes={chunker.start}-{chunker.end}"}

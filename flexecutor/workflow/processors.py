@@ -76,13 +76,13 @@ class ThreadPoolProcessor:
         :param on_future_done: Callback to execute every time a future is done
         """
 
-        # STATIC PARTITIONING ???
-        # for input_path in stage.input_file:
-        #     if input_path.partitioner:
-        #         input_path.partitioner.partitionize()
-
         map_iterdata = []
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
+
+        for flex_input in stage.inputs:
+            if flex_input.requires_preprocessing():
+                flex_input.chunker.preprocess(flex_input, None, num_workers)
+
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
             copy_outputs = [deepcopy(item) for item in stage.outputs]
