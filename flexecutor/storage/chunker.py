@@ -20,7 +20,7 @@ class ChunkerInfo:
 
 class Chunker(ABC):
     def __init__(self, prefix, chunker_type: ChunkerTypeEnum):
-        if prefix[-1] != "/":
+        if prefix and prefix[-1] != "/":
             prefix += "/"
         self.prefix = prefix
         self.chunker_type = chunker_type
@@ -35,8 +35,8 @@ class Chunker(ABC):
 
 
 class CarelessFileChunker(Chunker):
-    def __init__(self, prefix):
-        super().__init__(prefix, ChunkerTypeEnum.DYNAMIC)
+    def __init__(self, ):
+        super().__init__("", ChunkerTypeEnum.DYNAMIC)
 
     def preprocess(self, flex_input, worker_id, num_workers) -> None:
         """
@@ -59,14 +59,11 @@ class WordCounterChunker(Chunker):
         super().__init__(prefix, ChunkerTypeEnum.STATIC)
 
     def preprocess(self, flex_input, worker_id, num_workers) -> None:
-        # TODO: support more than one file scenarios
         storage = Storage()
-        # [key] = flex_input.keys
-        # TODO: quit hardcoding file
-        key = "dir/tiny-shakespeare.txt"
+        filename = "tiny-shakespeare.txt"
+        key = f"{self.prefix}{filename}"
         file_size = int(storage.head_object(flex_input.bucket, key)["content-length"])
         file = storage.get_object(flex_input.bucket, key)
-        key = key.split("/")[-1]
         text = file.decode("utf-8")
         start = 0
         for worker_id in range(num_workers):
@@ -74,7 +71,7 @@ class WordCounterChunker(Chunker):
             end = min(text.rfind(" ", start, end), end)
             storage.put_object(
                 flex_input.bucket,
-                f"{flex_input.prefix}{key}.part{worker_id}",
+                f"{flex_input.prefix}{filename}.part{worker_id}",
                 text[start:end].encode("utf-8"),
             )
             start = end + 1

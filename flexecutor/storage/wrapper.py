@@ -33,7 +33,7 @@ def worker_wrapper(func: Callable[[...], Any]):
                         flex_input.keys[index],
                         flex_input.local_paths[index],
                     )
-            else:  # Fewer files than workers --> chunking
+            else: # Dynamic partitioning
                 if flex_input.chunker is None:
                     raise Exception(
                         "Chunker is required for scatter strategy with more workers than files."
