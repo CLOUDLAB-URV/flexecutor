@@ -24,7 +24,7 @@ def worker_wrapper(func: Callable[[...], Any]):
             if (
                 len(flex_input.keys) >= io.num_workers
                 or flex_input.strategy is StrategyEnum.BROADCAST
-                or flex_input.requires_preprocessing()
+                or flex_input.has_chunker_type(ChunkerTypeEnum.STATIC)
             ):  # More files than workers and scattering
                 start_index, end_index = flex_input.chunk_indexes
                 for index in range(start_index, end_index):
@@ -33,7 +33,7 @@ def worker_wrapper(func: Callable[[...], Any]):
                         flex_input.keys[index],
                         flex_input.local_paths[index],
                     )
-            else: # Dynamic partitioning
+            else:  # Dynamic partitioning
                 if flex_input.chunker is None:
                     raise Exception(
                         "Chunker is required for scatter strategy with more workers than files."

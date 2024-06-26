@@ -53,8 +53,11 @@ class FlexInput:
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
         # Define chunk indexes
-        if self.chunker:
+        if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
             self.chunk_indexes = (0, num_workers)
+            return
+        if self.has_chunker_type(ChunkerTypeEnum.STATIC):
+            self.chunk_indexes = (worker_id, worker_id + 1)
             return
         if self.strategy == StrategyEnum.BROADCAST:
             start = 0
@@ -65,10 +68,10 @@ class FlexInput:
             end = ((worker_id + 1) * num_files) // num_workers
         self.chunk_indexes = (start, end)
 
-    def requires_preprocessing(self):
+    def has_chunker_type(self, chunking_type: ChunkerTypeEnum):
         return (
-            self.chunker is not None
-            and self.chunker.chunker_type is ChunkerTypeEnum.STATIC
+                self.chunker is not None
+                and self.chunker.chunker_type is chunking_type
         )
 
 

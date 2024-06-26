@@ -6,6 +6,7 @@ import logging
 
 from lithops import FunctionExecutor
 
+from flexecutor.storage.chunker import ChunkerTypeEnum
 from flexecutor.storage.wrapper import worker_wrapper
 from flexecutor.utils.iomanager import InternalIOManager
 from flexecutor.workflow.stage import Stage, StageState
@@ -80,7 +81,7 @@ class ThreadPoolProcessor:
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
 
         for flex_input in stage.inputs:
-            if flex_input.requires_preprocessing():
+            if flex_input.has_chunker_type(ChunkerTypeEnum.STATIC):
                 flex_input.chunker.preprocess(flex_input, None, num_workers)
 
         for worker_id in range(num_workers):
