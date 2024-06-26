@@ -1,8 +1,10 @@
+import io
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+import pandas as pd
 from lithops import Storage
 
 
@@ -76,6 +78,40 @@ class WordCounterChunker(Chunker):
             )
             start = end + 1
         return
+
+    def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
+        pass
+
+
+class CsvStaticChunker(Chunker):
+    def __init__(self, prefix):
+        super().__init__(prefix, ChunkerTypeEnum.STATIC)
+
+    def preprocess(self, flex_input, worker_id, num_workers) -> None:
+        storage = Storage()
+        filename = "titanic.csv"
+        key = f"{self.prefix}{filename}"
+        df = pd.read_csv(io.BytesIO(storage.get_object(flex_input.bucket, key)))
+        chunk_size = len(df) // num_workers
+        chunks = [df[i : i + chunk_size] for i in range(0, len(df), chunk_size)]
+        for worker_id, chunk in enumerate(chunks):
+            storage.put_object(
+                flex_input.bucket,
+                f"{flex_input.prefix}{filename}.part{worker_id}",
+                chunk.to_csv(index=False).encode("utf-8"),
+            )
+        return
+
+    def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
+        pass
+
+
+class CsvDynamicChunker(Chunker):
+    def __init__(self, prefix):
+        super().__init__(prefix, ChunkerTypeEnum.DYNAMIC)
+
+    def preprocess(self, flex_input, worker_id, num_workers) -> None:
+        pass
 
     def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
         pass
