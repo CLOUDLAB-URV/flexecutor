@@ -15,13 +15,11 @@ from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
+from flexecutor.utils import setup_logging
 
+logger = setup_logging(level=logging.INFO)
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
-logging.basicConfig(format=LOGGER_FORMAT, level=logging.INFO)
-
-logger = logging.getLogger(__name__)
 
 NUM_ITERATIONS = 1
 
