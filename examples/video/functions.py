@@ -6,7 +6,7 @@ from PIL import Image
 from imageai.Detection import ObjectDetection
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from flexecutor.flexecutor.utils.storagecontext import StorageContext
+from flexecutor.utils import StorageContext
 
 
 def split_videos(st_context: StorageContext):
