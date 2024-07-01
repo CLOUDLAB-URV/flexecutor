@@ -1,9 +1,9 @@
 from flexecutor.storage.chunker import FileChunker
 from flexecutor.storage.storage import FlexInput, FlexOutput
-from flexecutor.utils.iomanager import IOManager
+from flexecutor.flexecutor.utils.storagecontext import StorageContext
 
 
-def word_count(io: IOManager):
+def word_count(io: StorageContext):
     txt_paths = io.get_input_paths("txt")
     for txt_path in txt_paths:
         with open(txt_path, "r") as f:

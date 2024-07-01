@@ -5,7 +5,7 @@ from typing import Optional, Any
 from flexecutor.storage.storage import FlexInput, FlexOutput
 
 
-class InternalIOManager:
+class InternalStorageContext:
     def __init__(
         self,
         worker_id,
@@ -36,9 +36,8 @@ class InternalIOManager:
         return local_path
 
 
-# IOManager is a facade for IOBigManager
-class IOManager:
-    def __init__(self, manager: InternalIOManager):
+class StorageContext:
+    def __init__(self, manager: InternalStorageContext):
         self._manager = manager
 
     def get_input_paths(self, input_id: str) -> list[str]:
@@ -49,4 +48,3 @@ class IOManager:
 
     def next_output_path(self, param: str) -> str:
         return self._manager.next_output_path(param)
-

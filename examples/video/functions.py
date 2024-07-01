@@ -6,11 +6,11 @@ from PIL import Image
 from imageai.Detection import ObjectDetection
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from flexecutor.utils.iomanager import IOManager
+from flexecutor.flexecutor.utils.storagecontext import StorageContext
 
 
-def split_videos(io: IOManager):
-    video_paths = io.get_input_paths("videos")
+def split_videos(st_context: StorageContext):
+    video_paths = st_context.get_input_paths("videos")
     chunk_size = 10
 
     for index, video_path in enumerate(video_paths):
@@ -19,7 +19,7 @@ def split_videos(io: IOManager):
         start_size = 0
         while start_size < video_len:
             end_size = min(start_size + chunk_size, video_len)
-            chunk_path = f"{io.next_output_path('video-chunks')}"
+            chunk_path = f"{st_context.next_output_path('video-chunks')}"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
                 chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"]
@@ -29,7 +29,7 @@ def split_videos(io: IOManager):
         vc.close()
 
 
-def extract_frames(io: IOManager):
+def extract_frames(st_context: StorageContext):
     def calculate_average_pixel_value(image):
         # Convert image to grayscale image
         gray_image = np.mean(image, axis=2).astype(np.uint8)
@@ -37,7 +37,7 @@ def extract_frames(io: IOManager):
         average_pixel_value = np.mean(gray_image)
         return average_pixel_value
 
-    chunk_paths = io.get_input_paths("video-chunks")
+    chunk_paths = st_context.get_input_paths("video-chunks")
 
     for index, chunk_path in enumerate(chunk_paths):
         best_frame = None
@@ -51,22 +51,22 @@ def extract_frames(io: IOManager):
                 best_frame = frame
 
         pil_image = Image.fromarray(best_frame)
-        frame_path = io.next_output_path("mainframes")
+        frame_path = st_context.next_output_path("mainframes")
         pil_image.save(frame_path)
         video_clip.close()
 
 
-def sharpening_filter(io: IOManager):
-    frame_paths = io.get_input_paths("mainframes")
+def sharpening_filter(st_context: StorageContext):
+    frame_paths = st_context.get_input_paths("mainframes")
     for index, frame_path in enumerate(frame_paths):
         image = cv2.imread(frame_path)
         sharpening_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
         sharpened_image = cv2.filter2D(image, -1, sharpening_kernel)
-        cv2.imwrite(io.next_output_path("filtered-frames"), sharpened_image)
+        cv2.imwrite(st_context.next_output_path("filtered-frames"), sharpened_image)
 
 
-def classify_images(io: IOManager):
-    frame_paths = io.get_input_paths("filtered-frames")
+def classify_images(st_context: StorageContext):
+    frame_paths = st_context.get_input_paths("filtered-frames")
 
     detector = ObjectDetection()
     detector.setModelTypeAsTinyYOLOv3()
@@ -81,6 +81,6 @@ def classify_images(io: IOManager):
         )
 
         json_data = json.dumps(detection, indent=4)
-        tmp_filename = io.next_output_path("classification")
+        tmp_filename = st_context.next_output_path("classification")
         with open(tmp_filename, "w") as json_file:
             json_file.write(json_data)
