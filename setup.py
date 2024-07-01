@@ -5,11 +5,11 @@ setup(
     version="0.1.0",
     author="Daniel Barcelona, Ayman Bourramouss, Enrique Molina, Stepan Klymonchuk (DAGium donation)",
     author_email="daniel.barcelona@urv.cat, ayman.bourramouss@urv.cat, enrique.molina@urv.cat, "
-                 "stepan.klymonchuk@urv.cat",
+    "stepan.klymonchuk@urv.cat",
     description="A flexible and DAG-optimized executor over Lithops",
     url="https://github.com/abourramouss/smart-datastaging-layer/",
-    long_description=open('README.md').read(),
-    long_description_content_type='text/markdown',
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     license="Apache 2.0",
     license_files=["LICENSE"],
     classifiers=[
@@ -34,17 +34,13 @@ setup(
         "deap",
         "scipy",
         "numpy",
-        "pandas"
+        "pandas",
+        "overrides",
+        "matplotlib",
     ],
     extras_require={
-        "examples": [
-            "S3path",
-            "boto3"
-        ],
-        "drawing": [
-            "matplotlib",
-            "networkx"
-        ]
+        "examples": ["S3path", "boto3"],
+        "drawing": ["matplotlib", "networkx"],
     },
     packages=find_packages(),
     package_dir={"": "."},

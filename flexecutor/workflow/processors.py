@@ -7,7 +7,7 @@ import logging
 from lithops import FunctionExecutor
 
 from flexecutor.storage.wrapper import worker_wrapper
-from flexecutor.flexecutor.utils.storagecontext import InternalStorageContext
+from flexecutor.utils.storagecontext import InternalStorageContext
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging

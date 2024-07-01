@@ -10,7 +10,7 @@ from lithops import Storage
 from flexecutor.storage.chunker import ChunkerInfo
 from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.dataclass import FunctionTimes
-from flexecutor.flexecutor.utils.storagecontext import (
+from flexecutor.utils.storagecontext import (
     InternalStorageContext,
     StorageContext,
 )
