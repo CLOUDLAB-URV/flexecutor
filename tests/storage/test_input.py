@@ -28,7 +28,7 @@ class TestFlexInput(unittest.TestCase):
         ]
         self.assertEqual(self.flex_input.keys, expected_keys)
         self.assertEqual(self.flex_input.local_paths, expected_local_paths)
-        self.assertEqual(self.flex_input.chunk_indexes, (0, 2))
+        self.assertEqual(self.flex_input.file_index, (0, 2))
 
     def tearDown(self):
         pass

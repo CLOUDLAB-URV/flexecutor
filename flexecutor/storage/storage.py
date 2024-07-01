@@ -33,11 +33,14 @@ class FlexInput:
             prefix += "/"
         self.prefix = prefix or ""
         self.strategy = strategy
-        self.chunk_indexes: Optional[(int, int)] = None
+        self.file_index: Optional[(int, int)] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
         self.keys = []
         self.local_paths = []
+
+    def __repr__(self):
+        return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_index={self.file_index})"
 
     @property
     def id(self):
@@ -54,7 +57,7 @@ class FlexInput:
         ]
         # Define chunk indexes
         if self.chunker:
-            self.chunk_indexes = (0, num_workers)
+            self.file_index = (0, num_workers)
             return
         if self.strategy == StrategyEnum.BROADCAST:
             start = 0
@@ -63,7 +66,7 @@ class FlexInput:
             num_files = len(self.local_paths)
             start = (worker_id * num_files) // num_workers
             end = ((worker_id + 1) * num_files) // num_workers
-        self.chunk_indexes = (start, end)
+        self.file_index = (start, end)
 
 
 class FlexOutput:
@@ -82,6 +85,9 @@ class FlexOutput:
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         self.keys = []
         self.local_paths = []
+
+    def __repr__(self):
+        return f"FlexOutput(prefix={self.prefix}, bucket={self.bucket}, suffix={self.suffix}, local_base_path={self.local_base_path})"
 
     @property
     def id(self):

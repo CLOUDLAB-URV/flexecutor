@@ -20,8 +20,11 @@ class InternalStorageContext:
         self.outputs: dict[str, FlexOutput] = {o.id: o for o in outputs}
         self._params = params
 
+    def __repr__(self):
+        return f"InternalStorageContext(worker_id={self.worker_id}, num_workers={self.num_workers}, inputs={self.inputs}, outputs={self.outputs}, params={self._params})"
+
     def input_paths(self, input_id: str) -> list[str]:
-        start, end = self.inputs[input_id].chunk_indexes
+        start, end = self.inputs[input_id].file_index
         return self.inputs[input_id].local_paths[start:end]
 
     def get_param(self, key: str) -> Any:
@@ -37,14 +40,18 @@ class InternalStorageContext:
 
 
 class StorageContext:
-    def __init__(self, manager: InternalStorageContext):
-        self._manager = manager
+
+    def __init__(self, context: InternalStorageContext):
+        self._context = context
+
+    def __repr__(self):
+        return f"StorageContext(manager={self._context})"
 
     def get_input_paths(self, input_id: str) -> list[str]:
-        return self._manager.input_paths(input_id)
+        return self._context.input_paths(input_id)
 
     def get_param(self, key: str) -> Any:
-        return self._manager.get_param(key)
+        return self._context.get_param(key)
 
     def next_output_path(self, param: str) -> str:
-        return self._manager.next_output_path(param)
+        return self._context.next_output_path(param)

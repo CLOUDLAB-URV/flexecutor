@@ -28,7 +28,7 @@ def worker_wrapper(func: Callable[[...], Any]):
                 len(flex_input.keys) >= st_context.num_workers
                 or flex_input.strategy is StrategyEnum.BROADCAST
             ):  # More files than workers and scattering
-                start_index, end_index = flex_input.chunk_indexes
+                start_index, end_index = flex_input.file_index
                 for index in range(start_index, end_index):
                     storage.download_file(
                         flex_input.bucket,
