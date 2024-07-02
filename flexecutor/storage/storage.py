@@ -79,13 +79,11 @@ class FlexInput:
             self.keys = []
             self.local_paths = []
             self.file_index = None
-            raise
         except Exception as e:
             print(f"Error: {e}")
             self.keys = []
             self.local_paths = []
             self.file_index = None
-            raise
 
 
 class FlexOutput:

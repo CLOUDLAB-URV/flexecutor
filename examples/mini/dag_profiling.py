@@ -6,8 +6,11 @@ from lithops import FunctionExecutor
 
 from examples.mini.functions.word_count import (
     word_count,
+    sum_counts,
     word_count_input,
     word_count_output,
+    reduce_input,
+    reduce_output,
 )
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
@@ -29,37 +32,36 @@ if __name__ == "__main__":
     def main():
         config_space = [
             StageConfig(2, 1024, 3),
-            StageConfig(0.5, 1568, 5),
+            StageConfig(1, 1024, 3),
             # ...
         ]
 
         dag = DAG("mini-dag")
 
         stage1 = Stage(
-            "stage1",
+            "map",
             func=word_count,
             inputs=[word_count_input],
             outputs=[word_count_output],
         )
         stage2 = Stage(
-            "stage2",
-            func=word_count,
-            inputs=[word_count_input],
-            outputs=[word_count_output],
-        )
-        stage3 = Stage(
-            "stage3",
-            func=word_count,
-            inputs=[word_count_input],
-            outputs=[word_count_output],
+            "reduce",
+            func=sum_counts,
+            inputs=[reduce_input],
+            outputs=[reduce_output],
+            max_concurrency=1,
         )
 
-        stage1 >> stage2 << stage3
+        stage1 >> stage2
 
-        dag.add_stages([stage1, stage2, stage3])
+        dag.add_stages([stage1, stage2])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
-        executor.profile(config_space, num_iterations=NUM_ITERATIONS)
+        # executor.profile(config_space, num_iterations=NUM_ITERATIONS)
+        executor.execute(
+            profile=True, config_space=config_space, num_iterations=NUM_ITERATIONS
+        )
+
         executor.shutdown()
         print("Tasks completed")
 

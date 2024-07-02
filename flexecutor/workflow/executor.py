@@ -10,7 +10,11 @@ from matplotlib import pyplot as plt
 from pandas import DataFrame
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
-from flexecutor.utils.utils import load_profiling_results, save_profiling_results, get_my_exec_path
+from flexecutor.utils.utils import (
+    load_profiling_results,
+    save_profiling_results,
+    get_my_exec_path,
+)
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
 from flexecutor.workflow.stage import Stage
@@ -23,6 +27,7 @@ class AssetType(Enum):
     """
     Enum class for asset types
     """
+
     MODEL = ("model", ".pkl")
     PROFILE = ("profile", ".json")
     IMAGE = ("image", ".png")
@@ -58,8 +63,12 @@ class DAGExecutor:
             os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
         elif asset_type == AssetType.PROFILE:
-            os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            os.makedirs(
+                f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True
+            )
+            return (
+                f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            )
         elif asset_type == AssetType.IMAGE:
             os.makedirs(f"{self._base_path}/images/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
@@ -126,7 +135,9 @@ class DAGExecutor:
         """Train the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            profile_data = load_profiling_results(self._get_asset_path(stage, AssetType.PROFILE))
+            profile_data = load_profiling_results(
+                self._get_asset_path(stage, AssetType.PROFILE)
+            )
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
 
