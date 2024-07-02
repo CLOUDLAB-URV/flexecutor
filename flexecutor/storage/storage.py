@@ -22,7 +22,6 @@ class FlexInput:
         strategy: StrategyEnum = StrategyEnum.SCATTER,
         chunker: Optional[Chunker] = None,
         local_base_path: str = "/tmp",
-        storage=None,
     ):
         """
         A class for define inputs in flex stages.
@@ -39,7 +38,6 @@ class FlexInput:
         self.local_base_path = Path(local_base_path) / self.prefix
         self.keys = []
         self.local_paths = []
-        self.storage = Storage() if storage is not None else storage
 
     def __repr__(self):
         return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_index={self.file_index})"
@@ -52,12 +50,12 @@ class FlexInput:
         # Update keys and local_paths
         self.keys = [
             obj["Key"]
-            for obj in self.storage.list_objects(self.bucket, prefix=self.prefix)
+            for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
         ]
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
-        # Define file indexes
+        # Define chunk indexes
         if self.chunker:
             self.file_index = (0, num_workers)
             return
