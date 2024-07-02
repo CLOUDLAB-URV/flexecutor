@@ -54,9 +54,8 @@ class ThreadPoolProcessor:
 
             stage.state = StageState.RUNNING
             ex_futures[stage.stage_id] = self._pool.submit(
-                lambda: self._process_stage(stage, on_future_done)
+                lambda s=stage: self._process_stage(s, on_future_done)
             )
-
         wait(ex_futures.values())
 
         return {

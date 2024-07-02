@@ -57,11 +57,8 @@ if __name__ == "__main__":
         dag.add_stages([stage1, stage2])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
-        # executor.profile(config_space, num_iterations=NUM_ITERATIONS)
-        executor.execute(
-            profile=True, config_space=config_space, num_iterations=NUM_ITERATIONS
-        )
-
+        executor.profile(config_space, num_iterations=NUM_ITERATIONS)
+        # executor.execute()
         executor.shutdown()
         print("Tasks completed")
 
