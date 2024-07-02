@@ -52,9 +52,9 @@ if __name__ == "__main__":
             max_concurrency=1,
         )
 
-        stage1 >> stage2
+        stage1
 
-        dag.add_stages([stage1, stage2])
+        dag.add_stages([stage1])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.profile(config_space, num_iterations=NUM_ITERATIONS)

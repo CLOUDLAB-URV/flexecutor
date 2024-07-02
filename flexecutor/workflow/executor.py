@@ -8,6 +8,7 @@ import pandas as pd
 from lithops import FunctionExecutor
 from matplotlib import pyplot as plt
 from pandas import DataFrame
+from copy import deepcopy
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import (
@@ -17,7 +18,7 @@ from flexecutor.utils.utils import (
 )
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
-from flexecutor.workflow.stage import Stage
+from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 
 logger = logging.getLogger(__name__)
@@ -93,20 +94,60 @@ class DAGExecutor:
         save_profiling_results(file, profile_data)
 
     def profile(
-        self,
-        config_space: Iterable[StageConfig],
-        stage: Optional[Stage] = None,
-        num_iterations: int = 1,
+        self, config_space: Iterable[StageConfig], num_iterations: int = 1
     ) -> None:
-        """Profile the DAG."""
-        stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
-            profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-            for resource_config in config_space:
-                stage.resource_config = resource_config
-                for iteration in range(num_iterations):
-                    timings = self.execute_stage(stage)
-                    self._store_profiling(profiling_file, timings, resource_config)
+        logger.info(f"Profiling DAG {self._dag.dag_id}")
+
+        for config in config_space:
+            logger.info(f"Testing configuration: {config}")
+            for iteration in range(num_iterations):
+                logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
+                iteration_stages = {
+                    stage.stage_id: deepcopy(stage) for stage in self._dag.stages
+                }
+                for stage in iteration_stages.values():
+                    stage.resource_config = config
+                    stage.state = StageState.NONE
+
+                self._futures = {}
+                self._dependence_free_stages = set(
+                    iteration_stages[stage.stage_id] for stage in self._dag.root_stages
+                )
+                self._running_stages = set()
+                self._finished_stages = set()
+
+                while self._dependence_free_stages or self._running_stages:
+                    batch = list(self._dependence_free_stages)
+                    self._running_stages.update(batch)
+                    futures = self._processor.process(batch)
+
+                    for stage in batch:
+                        future = futures[stage.stage_id]
+                        self._futures[stage.stage_id] = future
+                        if future.error():
+                            logger.error(f"Error processing stage {stage.stage_id}")
+                        else:
+                            timings = future.get_timings()
+                            profiling_file = self._get_asset_path(
+                                stage, AssetType.PROFILE
+                            )
+                            # self._store_profiling(profiling_file, [timings], config)
+
+                    self._running_stages.difference_update(batch)
+                    self._dependence_free_stages.difference_update(batch)
+                    self._finished_stages.update(batch)
+
+                    for stage in batch:
+                        for child_id in iteration_stages[stage.stage_id].children:
+                            child_stage = iteration_stages[child_id]
+                            if all(
+                                parent_id in self._finished_stages
+                                for parent_id in child_stage.parents
+                            ):
+                                self._dependence_free_stages.add(child_stage)
+
+                logger.info(f"Iteration {iteration + 1} for config {config} completed")
+        logger.info("Profiling completed for all configurations")
 
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
@@ -124,12 +165,6 @@ class DAGExecutor:
         for stage, resource_config in zip(stages_list, resource_config):
             result.append(stage.perf_model.predict(resource_config))
         return result
-
-    def execute_stage(self, stage: Stage) -> List[FunctionTimes]:
-        """Run a stage with a given configuration space."""
-        futures = self._processor.process([stage])
-        [future] = futures.values()
-        return future.get_timings()
 
     def train(self, stage: Optional[Stage] = None) -> None:
         """Train the DAG."""

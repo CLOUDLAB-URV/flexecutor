@@ -20,11 +20,11 @@ class ThreadPoolProcessor:
     Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self, executor: FunctionExecutor, max_concurrency=256):
+    def __init__(self, executor: FunctionExecutor, max_threadpool_concurrency=256):
         super().__init__()
         self._executor = executor
-        self._max_concurrency = max_concurrency
-        self._pool = ThreadPoolExecutor(max_workers=max_concurrency)
+        self._max_concurrency = max_threadpool_concurrency
+        self._pool = ThreadPoolExecutor(max_workers=max_threadpool_concurrency)
 
     def process(
         self,
