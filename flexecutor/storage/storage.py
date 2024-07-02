@@ -47,26 +47,45 @@ class FlexInput:
         return self._input_id
 
     def scan_objects(self, worker_id, num_workers) -> None:
-        # Update keys and local_paths
-        self.keys = [
-            obj["Key"]
-            for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
-        ]
-        self.local_paths = [
-            str(self.local_base_path / key.split("/")[-1]) for key in self.keys
-        ]
-        # Define chunk indexes
-        if self.chunker:
-            self.file_index = (0, num_workers)
-            return
-        if self.strategy == StrategyEnum.BROADCAST:
-            start = 0
-            end = len(self.local_paths)
-        else:  # SCATTER
-            num_files = len(self.local_paths)
-            start = (worker_id * num_files) // num_workers
-            end = ((worker_id + 1) * num_files) // num_workers
-        self.file_index = (start, end)
+        try:
+            self.keys = [
+                obj["Key"]
+                for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
+            ]
+            if self.keys == []:
+                raise FileNotFoundError(
+                    "No files found in the specified bucket/prefix."
+                )
+
+            self.local_paths = [
+                str(self.local_base_path / key.split("/")[-1]) for key in self.keys
+            ]
+
+            if self.chunker:
+                self.file_index = (0, num_workers)
+                return
+
+            if self.strategy == StrategyEnum.BROADCAST:
+                start = 0
+                end = len(self.local_paths)
+            else:  # SCATTER
+                num_files = len(self.local_paths)
+                start = (worker_id * num_files) // num_workers
+                end = ((worker_id + 1) * num_files) // num_workers
+            self.file_index = (start, end)
+
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            self.keys = []
+            self.local_paths = []
+            self.file_index = None
+            raise
+        except Exception as e:
+            print(f"Error: {e}")
+            self.keys = []
+            self.local_paths = []
+            self.file_index = None
+            raise
 
 
 class FlexOutput:

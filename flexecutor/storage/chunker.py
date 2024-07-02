@@ -37,6 +37,7 @@ class FileChunker(Chunker):
         self, flex_input, worker_id, num_workers, *args, **kwargs
     ) -> list[ChunkInfo]:
         # TODO: support more than one file scenarios
+
         [key] = flex_input.keys
         file_size = int(Storage().head_object(flex_input.bucket, key)["content-length"])
         start = (worker_id * file_size) // num_workers

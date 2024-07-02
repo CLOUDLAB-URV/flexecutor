@@ -88,7 +88,7 @@ class TestFlexInput(unittest.TestCase):
         pass
 
     def test_scatter_more_workers_than_files(self):
-        # TODO: This must be partitioning the file into chunks
+        # TODO: This must  partition the file into chunks
         pass
 
     def tearDown(self):
