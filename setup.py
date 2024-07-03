@@ -30,6 +30,8 @@ setup(
     python_requires=">=3.6",
     install_requires=[
         "lithops",
+        "boto3",
+        "overrides",
         "cloudpickle",
         "deap",
         "scipy",
@@ -39,7 +41,6 @@ setup(
     extras_require={
         "examples": [
             "S3path",
-            "boto3"
         ],
         "drawing": [
             "matplotlib",

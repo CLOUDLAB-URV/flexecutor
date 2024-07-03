@@ -20,13 +20,16 @@ def worker_wrapper(func: Callable[[...], Any]):
         storage = Storage()
         # TODO: parallelize download?
         for input_id, flex_input in io.inputs.items():
+            print("Creating local folder for input" + str(flex_input.local_base_path))
             os.makedirs(flex_input.local_base_path, exist_ok=True)
+            print(f"Downloading {flex_input.keys} to {flex_input.local_paths}")
             if (
                 len(flex_input.keys) >= io.num_workers
                 or flex_input.strategy is StrategyEnum.BROADCAST
             ):  # More files than workers and scattering
                 start_index, end_index = flex_input.chunk_indexes
                 for index in range(start_index, end_index):
+                    print(f"Downloading {flex_input.keys[index]} to {flex_input.local_paths[index]}")
                     storage.download_file(
                         flex_input.bucket,
                         flex_input.keys[index],
