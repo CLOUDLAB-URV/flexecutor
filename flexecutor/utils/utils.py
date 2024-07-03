@@ -50,13 +50,15 @@ def setup_logging(level):
 
 
 def load_profiling_results(file: str) -> dict:
-    file = get_my_exec_path() + "/" + file
+    file = os.path.join(get_my_exec_path(), file)
     if not os.path.exists(file):
         return {}
     with open(file, "r") as f:
-        data = json.load(f)
-        results = {eval(k): v for k, v in data.items()}
-        return results
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            return {}
+    return data
 
 
 def save_profiling_results(file, profile_data):

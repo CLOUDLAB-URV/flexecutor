@@ -4,7 +4,7 @@ import logging
 
 from lithops import FunctionExecutor
 
-from examples.mini.functions.word_count import (
+from functions.word_count import (
     word_count,
     sum_counts,
     word_count_input,
@@ -22,7 +22,7 @@ logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-NUM_ITERATIONS = 1
+NUM_ITERATIONS = 2
 BUCKET_NAME = "lithops-manri-urv"
 
 
@@ -52,9 +52,9 @@ if __name__ == "__main__":
             max_concurrency=1,
         )
 
-        stage1
+        stage1 >> stage2
 
-        dag.add_stages([stage1])
+        dag.add_stages([stage1, stage2])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.profile(config_space, num_iterations=NUM_ITERATIONS)

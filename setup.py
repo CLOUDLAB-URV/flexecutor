@@ -39,7 +39,11 @@ setup(
         "matplotlib",
     ],
     extras_require={
-        "examples": ["S3path", "boto3"],
+        "examples": [
+            "S3path",
+            "boto3",
+            "botocore",
+        ],
         "drawing": ["matplotlib", "networkx"],
     },
     packages=find_packages(),

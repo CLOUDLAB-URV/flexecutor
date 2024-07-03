@@ -77,20 +77,23 @@ class DAGExecutor:
     def _store_profiling(
         self,
         file: str,
-        new_profile_data: List[FunctionTimes],
+        new_profile_data: List[List[FunctionTimes]],
         resource_config: StageConfig,
-    ) -> None:
+    ):
         profile_data = load_profiling_results(file)
-        config_key = resource_config.key
+        config_key = str(resource_config.key)
+
         if config_key not in profile_data:
-            profile_data[config_key] = {}
-        for key in FunctionTimes.profile_keys():
-            if key not in profile_data[config_key]:
-                profile_data[config_key][key] = []
-            profile_data[config_key][key].append([])
-        for profiling in new_profile_data:
-            for key in FunctionTimes.profile_keys():
-                profile_data[config_key][key][-1].append(getattr(profiling, key))
+            profile_data[config_key] = {key: [] for key in FunctionTimes.profile_keys()}
+
+        for batch_timings in new_profile_data:
+            batch_data = {
+                key: [getattr(timing, key) for timing in batch_timings]
+                for key in FunctionTimes.profile_keys()
+            }
+            for key in batch_data:
+                profile_data[config_key][key].append(batch_data[key])
+
         save_profiling_results(file, profile_data)
 
     def profile(
@@ -100,11 +103,15 @@ class DAGExecutor:
 
         for config in config_space:
             logger.info(f"Testing configuration: {config}")
+
             for iteration in range(num_iterations):
                 logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
+
+                # Create a fresh copy of the DAG for each iteration
                 iteration_stages = {
                     stage.stage_id: deepcopy(stage) for stage in self._dag.stages
                 }
+
                 for stage in iteration_stages.values():
                     stage.resource_config = config
                     stage.state = StageState.NONE
@@ -131,22 +138,25 @@ class DAGExecutor:
                             profiling_file = self._get_asset_path(
                                 stage, AssetType.PROFILE
                             )
-                            # self._store_profiling(profiling_file, [timings], config)
+                            self._store_profiling(profiling_file, [timings], config)
 
                     self._running_stages.difference_update(batch)
                     self._dependence_free_stages.difference_update(batch)
-                    self._finished_stages.update(batch)
+                    self._finished_stages.update(stage.stage_id for stage in batch)
 
                     for stage in batch:
-                        for child_id in iteration_stages[stage.stage_id].children:
-                            child_stage = iteration_stages[child_id]
+                        for child in stage.children:
                             if all(
-                                parent_id in self._finished_stages
-                                for parent_id in child_stage.parents
+                                parent.stage_id in self._finished_stages
+                                for parent in child.parents
                             ):
-                                self._dependence_free_stages.add(child_stage)
+                                self._dependence_free_stages.add(
+                                    iteration_stages[child.stage_id]
+                                )
 
                 logger.info(f"Iteration {iteration + 1} for config {config} completed")
+            logger.info(f"Profiling completed for config {config}")
+
         logger.info("Profiling completed for all configurations")
 
     def predict(
