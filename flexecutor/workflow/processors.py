@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, wait
 from copy import deepcopy
-from typing import Callable, Sequence, List, Tuple
-import os
+from typing import Callable, Sequence
 import logging
 
 from lithops import FunctionExecutor
