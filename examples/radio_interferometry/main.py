@@ -1,6 +1,6 @@
 from lithops import FunctionExecutor
 
-from examples.radio_interferometry.dp3 import (
+from examples.radio_interferometry.functions import (
     rebinning,
     calibration,
     subtraction,
