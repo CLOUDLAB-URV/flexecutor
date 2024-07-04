@@ -1,10 +1,11 @@
 import json
+from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image
 from imageai.Detection import ObjectDetection
 from moviepy.video.io.VideoFileClip import VideoFileClip
+from PIL import Image
 
 from flexecutor.utils import StorageContext
 
@@ -70,7 +71,7 @@ def classify_images(st_context: StorageContext):
 
     detector = ObjectDetection()
     detector.setModelTypeAsTinyYOLOv3()
-    detector.setModelPath("./tiny-yolov3.pt")
+    detector.setModelPath(Path(__file__).parent / "tiny-yolov3.pt")
     detector.loadModel()
 
     for index, frame_path in enumerate(frame_paths):

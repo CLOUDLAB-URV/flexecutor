@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import time
-import uuid
 from contextlib import contextmanager
 
 
@@ -81,16 +80,16 @@ def get_my_exec_path():
 
 
 def flexorchestrator(bucket=""):
-    def function(func):
-        """
-        Decorator to initializations previous to the execution of user scripts.
-        You must use it only in the main function of your script.
-        Responsible for:
-        - Set the path if where the flexorchestrator main script is located
-        :param func:
-        :return:
-        """
+    """
+    Decorator to initializations previous to the execution of user scripts.
+    You must use it only in the main function of your script.
+    Responsible for:
+    - Set the path if where the flexorchestrator main script is located
+    :param bucket:
+    :return:
+    """
 
+    def function(func):
         def wrapper(*args, **kwargs):
             # Set the path of the flexorchestrator file
             key = FLEXECUTOR_EXEC_PATH

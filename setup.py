@@ -1,4 +1,31 @@
 from setuptools import setup, find_packages
+from itertools import chain
+
+install_requires = [
+    "lithops",
+    "boto3",
+    "cloudpickle",
+    "overrides",
+    "deap",
+    "scipy",
+    "numpy",
+    "pandas",
+]
+
+extras_require = {
+    "examples": [
+        "S3path",
+    ],
+    "drawing": [
+        "matplotlib",
+        "networkx",
+    ],
+    "kubernetes": [
+        "lithops[kubernetes]",
+    ],
+}
+
+extras_require["all"] = list(set(chain.from_iterable(extras_require.values())))
 
 setup(
     name="flexecutor",
@@ -7,7 +34,7 @@ setup(
     author_email="daniel.barcelona@urv.cat, ayman.bourramouss@urv.cat, enrique.molina@urv.cat, "
     "stepan.klymonchuk@urv.cat",
     description="A flexible and DAG-optimized executor over Lithops",
-    url="https://github.com/abourramouss/smart-datastaging-layer/",
+    url="https://github.com/CLOUDLAB-URV/flexecutor",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="Apache 2.0",
@@ -28,24 +55,8 @@ setup(
         "Topic :: System :: Distributed Computing",
     ],
     python_requires=">=3.6",
-    install_requires=[
-        "lithops",
-        "cloudpickle",
-        "deap",
-        "scipy",
-        "numpy",
-        "pandas",
-        "overrides",
-        "matplotlib",
-    ],
-    extras_require={
-        "examples": [
-            "S3path",
-            "boto3",
-            "botocore",
-        ],
-        "drawing": ["matplotlib", "networkx"],
-    },
+    install_requires=install_requires,
+    extras_require=extras_require,
     packages=find_packages(),
     package_dir={"": "."},
 )

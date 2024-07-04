@@ -28,7 +28,6 @@ if __name__ == "__main__":
 
     @flexorchestrator()
     def main():
-
         dag = DAG("mini-dag")
 
         stage1 = Stage(
