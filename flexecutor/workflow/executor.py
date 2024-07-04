@@ -188,7 +188,7 @@ class DAGExecutor:
 
     def execute(self) -> Dict[str, StageFuture]:
         """
-        Execute the DAG
+        Execute the DAG in an Lazy manner
 
         :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """

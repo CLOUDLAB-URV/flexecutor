@@ -61,7 +61,7 @@ def load_profiling_results(file: str) -> dict:
     return data
 
 
-def save_profiling_results(file, profile_data):
+def save_profiling_results(file: str, profile_data: dict):
     serial_data = {str(k): v for k, v in profile_data.items()}
     with open(file, "w") as f:
         json.dump(serial_data, f, indent=4)

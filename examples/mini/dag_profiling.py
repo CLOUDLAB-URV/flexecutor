@@ -58,7 +58,6 @@ if __name__ == "__main__":
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.profile(config_space, num_iterations=NUM_ITERATIONS)
-        # executor.execute()
         executor.shutdown()
         print("Tasks completed")
 
