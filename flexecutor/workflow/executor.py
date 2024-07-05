@@ -8,12 +8,17 @@ import pandas as pd
 from lithops import FunctionExecutor
 from matplotlib import pyplot as plt
 from pandas import DataFrame
+from copy import deepcopy
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
-from flexecutor.utils.utils import load_profiling_results, save_profiling_results, get_my_exec_path
+from flexecutor.utils.utils import (
+    load_profiling_results,
+    save_profiling_results,
+    get_my_exec_path,
+)
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
-from flexecutor.workflow.stage import Stage
+from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,7 @@ class AssetType(Enum):
     """
     Enum class for asset types
     """
+
     MODEL = ("model", ".pkl")
     PROFILE = ("profile", ".json")
     IMAGE = ("image", ".png")
@@ -58,8 +64,12 @@ class DAGExecutor:
             os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
         elif asset_type == AssetType.PROFILE:
-            os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            os.makedirs(
+                f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True
+            )
+            return (
+                f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
+            )
         elif asset_type == AssetType.IMAGE:
             os.makedirs(f"{self._base_path}/images/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
@@ -67,37 +77,87 @@ class DAGExecutor:
     def _store_profiling(
         self,
         file: str,
-        new_profile_data: List[FunctionTimes],
+        new_profile_data: List[List[FunctionTimes]],
         resource_config: StageConfig,
-    ) -> None:
+    ):
         profile_data = load_profiling_results(file)
-        config_key = resource_config.key
+        config_key = str(resource_config.key)
+
         if config_key not in profile_data:
-            profile_data[config_key] = {}
-        for key in FunctionTimes.profile_keys():
-            if key not in profile_data[config_key]:
-                profile_data[config_key][key] = []
-            profile_data[config_key][key].append([])
-        for profiling in new_profile_data:
-            for key in FunctionTimes.profile_keys():
-                profile_data[config_key][key][-1].append(getattr(profiling, key))
+            profile_data[config_key] = {key: [] for key in FunctionTimes.profile_keys()}
+
+        for batch_timings in new_profile_data:
+            batch_data = {
+                key: [getattr(timing, key) for timing in batch_timings]
+                for key in FunctionTimes.profile_keys()
+            }
+            for key in batch_data:
+                profile_data[config_key][key].append(batch_data[key])
+
         save_profiling_results(file, profile_data)
 
     def profile(
-        self,
-        config_space: Iterable[StageConfig],
-        stage: Optional[Stage] = None,
-        num_iterations: int = 1,
+        self, config_space: Iterable[StageConfig], num_iterations: int = 1
     ) -> None:
-        """Profile the DAG."""
-        stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
-            profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-            for resource_config in config_space:
-                stage.resource_config = resource_config
-                for iteration in range(num_iterations):
-                    timings = self.execute_stage(stage)
-                    self._store_profiling(profiling_file, timings, resource_config)
+        logger.info(f"Profiling DAG {self._dag.dag_id}")
+
+        for config in config_space:
+            logger.info(f"Testing configuration: {config}")
+
+            for iteration in range(num_iterations):
+                logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
+
+                # Create a fresh copy of the DAG for each iteration
+                iteration_stages = {
+                    stage.stage_id: deepcopy(stage) for stage in self._dag.stages
+                }
+
+                for stage in iteration_stages.values():
+                    stage.resource_config = config
+                    stage.state = StageState.NONE
+
+                self._futures = {}
+                self._dependence_free_stages = set(
+                    iteration_stages[stage.stage_id] for stage in self._dag.root_stages
+                )
+                self._running_stages = set()
+                self._finished_stages = set()
+
+                while self._dependence_free_stages or self._running_stages:
+                    batch = list(self._dependence_free_stages)
+                    self._running_stages.update(batch)
+                    futures = self._processor.process(batch)
+
+                    for stage in batch:
+                        future = futures[stage.stage_id]
+                        self._futures[stage.stage_id] = future
+                        if future.error():
+                            logger.error(f"Error processing stage {stage.stage_id}")
+                        else:
+                            timings = future.get_timings()
+                            profiling_file = self._get_asset_path(
+                                stage, AssetType.PROFILE
+                            )
+                            self._store_profiling(profiling_file, [timings], config)
+
+                    self._running_stages.difference_update(batch)
+                    self._dependence_free_stages.difference_update(batch)
+                    self._finished_stages.update(stage.stage_id for stage in batch)
+
+                    for stage in batch:
+                        for child in stage.children:
+                            if all(
+                                parent.stage_id in self._finished_stages
+                                for parent in child.parents
+                            ):
+                                self._dependence_free_stages.add(
+                                    iteration_stages[child.stage_id]
+                                )
+
+                logger.info(f"Iteration {iteration + 1} for config {config} completed")
+            logger.info(f"Profiling completed for config {config}")
+
+        logger.info("Profiling completed for all configurations")
 
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
@@ -116,23 +176,19 @@ class DAGExecutor:
             result.append(stage.perf_model.predict(resource_config))
         return result
 
-    def execute_stage(self, stage: Stage) -> List[FunctionTimes]:
-        """Run a stage with a given configuration space."""
-        futures = self._processor.process([stage])
-        [future] = futures.values()
-        return future.get_timings()
-
     def train(self, stage: Optional[Stage] = None) -> None:
         """Train the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            profile_data = load_profiling_results(self._get_asset_path(stage, AssetType.PROFILE))
+            profile_data = load_profiling_results(
+                self._get_asset_path(stage, AssetType.PROFILE)
+            )
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
 
     def execute(self) -> Dict[str, StageFuture]:
         """
-        Execute the DAG
+        Execute the DAG in an Lazy manner
 
         :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """

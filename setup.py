@@ -32,7 +32,7 @@ setup(
     version="0.1.0",
     author="Daniel Barcelona, Ayman Bourramouss, Enrique Molina, Stepan Klymonchuk (DAGium donation)",
     author_email="daniel.barcelona@urv.cat, ayman.bourramouss@urv.cat, enrique.molina@urv.cat, "
-                 "stepan.klymonchuk@urv.cat",
+    "stepan.klymonchuk@urv.cat",
     description="A flexible and DAG-optimized executor over Lithops",
     url="https://github.com/CLOUDLAB-URV/flexecutor",
     long_description=open("README.md").read(),

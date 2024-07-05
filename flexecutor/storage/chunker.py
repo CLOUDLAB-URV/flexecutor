@@ -11,7 +11,7 @@ class ChunkerTypeEnum(Enum):
 
 
 @dataclass
-class ChunkerInfo:
+class ChunkInfo:
     key: str
     start: int
     end: int
@@ -24,7 +24,7 @@ class Chunker(ABC):
 
     def my_byte_range(
         self, flex_input, worker_id, num_workers, *args, **kwargs
-    ) -> list[ChunkerInfo]:
+    ) -> list[ChunkInfo]:
         raise NotImplementedError
 
 
@@ -35,10 +35,11 @@ class FileChunker(Chunker):
 
     def my_byte_range(
         self, flex_input, worker_id, num_workers, *args, **kwargs
-    ) -> list[ChunkerInfo]:
+    ) -> list[ChunkInfo]:
         # TODO: support more than one file scenarios
+
         [key] = flex_input.keys
         file_size = int(Storage().head_object(flex_input.bucket, key)["content-length"])
         start = (worker_id * file_size) // num_workers
         end = ((worker_id + 1) * file_size) // num_workers
-        return [ChunkerInfo(key, start, end)]
+        return [ChunkInfo(key, start, end)]

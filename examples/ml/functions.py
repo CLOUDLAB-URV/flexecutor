@@ -6,7 +6,7 @@ from joblib import dump, load
 from numpy.linalg import eig
 from sklearn.base import BaseEstimator
 
-from flexecutor.utils.iomanager import IOManager
+from flexecutor.flexecutor.utils.storagecontext import StorageContext
 
 
 class MergedLGBMClassifier(BaseEstimator):
@@ -34,8 +34,8 @@ class MergedLGBMClassifier(BaseEstimator):
         return load(model_path)
 
 
-def pca(io: IOManager):
-    [training_data_path] = io.get_input_paths("training-data")
+def pca(st_context: StorageContext):
+    [training_data_path] = st_context.get_input_paths("training-data")
 
     train_data = np.genfromtxt(training_data_path, delimiter="\t")
     train_labels = train_data[:, 0]
@@ -46,8 +46,8 @@ def pca(io: IOManager):
     values, vectors = eig(va)
     pa = vectors.T.dot(ca.T)
 
-    vectors_pca_path = io.next_output_path("vectors-pca")
-    training_data_transform = io.next_output_path("training-data-transform")
+    vectors_pca_path = st_context.next_output_path("vectors-pca")
+    training_data_transform = st_context.next_output_path("training-data-transform")
     np.savetxt(vectors_pca_path, vectors, delimiter="\t")
     first_n_a = pa.T[:, 0:100].real
     train_labels = train_labels.reshape(train_labels.shape[0], 1)
@@ -100,7 +100,7 @@ def train(
     return gbm
 
 
-def train_with_multiprocessing(io: IOManager):
+def train_with_multiprocessing(io: StorageContext):
     # TODO: make that number of processes launched in training can be defined by user
     task_id = 0
     num_process = 12
@@ -141,9 +141,9 @@ def calc_accuracy(y_pred, y_train):
     return accuracy
 
 
-def aggregate(io: IOManager):
-    [training_data_path] = io.get_input_paths("training-data-transform")
-    model_paths = io.get_input_paths("models")
+def aggregate(st_context: StorageContext):
+    [training_data_path] = st_context.get_input_paths("training-data-transform")
+    model_paths = st_context.get_input_paths("models")
 
     test_data = np.genfromtxt(training_data_path, delimiter="\t")
     y_test = test_data[5000:, 0]
@@ -156,31 +156,31 @@ def aggregate(io: IOManager):
 
     # Merge models
     forest = MergedLGBMClassifier(model_list)
-    forest_path = io.next_output_path("forests")
+    forest_path = st_context.next_output_path("forests")
     forest.save_model(forest_path)
 
     # Predict
     y_pred = forest.predict(x_test)
     acc = calc_accuracy(y_pred, y_test)
-    prediction_path = io.next_output_path("predictions")
+    prediction_path = st_context.next_output_path("predictions")
     np.savetxt(prediction_path, y_pred, delimiter="\t")
 
     return acc
 
 
-def test(io: IOManager):
-    predictions_paths = io.get_input_paths("predictions")
+def test(st_context: StorageContext):
+    predictions_paths = st_context.get_input_paths("predictions")
     predictions = [
         np.genfromtxt(prediction_path, delimiter="\t")
         for prediction_path in predictions_paths
     ]
-    [test_path] = io.get_input_paths("training-data-transform")
+    [test_path] = st_context.get_input_paths("training-data-transform")
     test_data = np.genfromtxt(test_path, delimiter="\t")
 
     y_test = test_data[5000:, 0]
     y_pred = sum(predictions) / len(predictions)
     acc = calc_accuracy(y_pred, y_test)
 
-    accuracy_path = io.next_output_path("accuracies")
+    accuracy_path = st_context.next_output_path("accuracies")
     with open(accuracy_path, "w") as f:
         f.write("My accuracy is: " + str(acc))

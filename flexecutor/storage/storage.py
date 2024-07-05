@@ -39,31 +39,51 @@ class FlexInput:
         self.keys = []
         self.local_paths = []
 
+    def __repr__(self):
+        return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_index={self.file_index})"
+
     @property
     def id(self):
         return self._input_id
 
     def scan_objects(self, worker_id, num_workers) -> None:
-        # Update keys and local_paths
-        self.keys = [
-            obj["Key"]
-            for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
-        ]
-        self.local_paths = [
-            str(self.local_base_path / key.split("/")[-1]) for key in self.keys
-        ]
-        # Define chunk indexes
-        if self.chunker:
-            self.chunk_indexes = (0, num_workers)
-            return
-        if self.strategy == StrategyEnum.BROADCAST:
-            start = 0
-            end = len(self.local_paths)
-        else:  # SCATTER
-            num_files = len(self.local_paths)
-            start = (worker_id * num_files) // num_workers
-            end = ((worker_id + 1) * num_files) // num_workers
-        self.chunk_indexes = (start, end)
+        try:
+            self.keys = [
+                obj["Key"]
+                for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
+            ]
+            if self.keys == []:
+                raise FileNotFoundError(
+                    "No files found in the specified bucket/prefix."
+                )
+
+            self.local_paths = [
+                str(self.local_base_path / key.split("/")[-1]) for key in self.keys
+            ]
+
+            if self.chunker:
+                self.file_index = (0, num_workers)
+                return
+
+            if self.strategy == StrategyEnum.BROADCAST:
+                start = 0
+                end = len(self.local_paths)
+            else:  # SCATTER
+                num_files = len(self.local_paths)
+                start = (worker_id * num_files) // num_workers
+                end = ((worker_id + 1) * num_files) // num_workers
+            self.file_index = (start, end)
+
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            self.keys = []
+            self.local_paths = []
+            self.file_index = None
+        except Exception as e:
+            print(f"Error: {e}")
+            self.keys = []
+            self.local_paths = []
+            self.file_index = None
 
 
 class FlexOutput:
@@ -82,6 +102,9 @@ class FlexOutput:
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         self.keys = []
         self.local_paths = []
+
+    def __repr__(self):
+        return f"FlexOutput(prefix={self.prefix}, bucket={self.bucket}, suffix={self.suffix}, local_base_path={self.local_base_path})"
 
     @property
     def id(self):
