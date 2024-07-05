@@ -2,10 +2,8 @@ from lithops import FunctionExecutor
 
 from examples.radio_interferometry.functions import (
     rebinning,
-    calibration,
-    subtraction,
-    apply_calibration,
     imaging,
+    calibration,
 )
 from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
 from flexecutor.utils.utils import flexorchestrator
@@ -42,8 +40,8 @@ if __name__ == "__main__":
             ],
         )
 
-        calibration_stage = Stage(
-            stage_id="calibration",
+        full_calibration_stage = Stage(
+            stage_id="full_calibration",
             func=calibration,
             inputs=[
                 FlexInput(
@@ -61,54 +59,15 @@ if __name__ == "__main__":
                     custom_output_id="h5",
                     suffix=".h5",
                 ),
-                FlexOutput(prefix="applycal_out/cal/ms", suffix=".ms.zip"),
+                FlexOutput(prefix="applycal_out/apply/ms", suffix=".ms.zip"),
                 FlexOutput(
                     prefix="applycal_out/cal/logs",
                     suffix=".log",
                 ),
-            ],
-        )
-
-        subtraction_stage = Stage(
-            stage_id="subtraction",
-            func=subtraction,
-            inputs=[
-                FlexInput(
-                    prefix="applycal_out/cal/ms",
-                ),
-                FlexInput(
-                    prefix="parameters/calibration/step2a",
-                    custom_input_id="step2a",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
-                FlexInput(
-                    prefix="applycal_out/cal/h5",
-                    custom_input_id="h5",
-                ),
-            ],
-            outputs=[
-                FlexOutput(prefix="applycal_out/sub/ms", suffix=".ms.zip"),
                 FlexOutput(
                     prefix="applycal_out/sub/logs",
                     suffix=".log",
                 ),
-            ],
-        )
-
-        apply_calibration_stage = Stage(
-            stage_id="apply_calibration",
-            func=apply_calibration,
-            inputs=[
-                FlexInput(
-                    prefix="applycal_out/sub/ms",
-                ),
-                FlexInput(
-                    prefix="applycal_out/cal/h5",
-                    custom_input_id="h5",
-                ),
-            ],
-            outputs=[
-                FlexOutput(prefix="applycal_out/apply/ms", suffix=".ms.zip"),
                 FlexOutput(
                     prefix="applycal_out/apply/logs",
                     suffix=".log",
@@ -130,21 +89,12 @@ if __name__ == "__main__":
             ],
         )
 
-        # TODO: Merge calibration+subtraction+apply_calibration into a single stage!
-        (
-            rebinning_stage
-            >> calibration_stage
-            >> subtraction_stage
-            >> apply_calibration_stage
-            >> imaging_stage
-        )
+        rebinning_stage >> full_calibration_stage >> imaging_stage
 
         dag.add_stages(
             [
                 rebinning_stage,
-                calibration_stage,
-                subtraction_stage,
-                apply_calibration_stage,
+                full_calibration_stage,
                 imaging_stage,
             ]
         )
@@ -160,5 +110,6 @@ if __name__ == "__main__":
         for result in results.values():
             print(f"STAGE #{i}: {result.get_timings()}")
             i += 1
+
 
     main()

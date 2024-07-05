@@ -40,7 +40,7 @@ def rebinning(io: IOManager):
 
 
 def calibration(io: IOManager):
-    parameters = {
+    calibration_parameters = {
         "msin.datacolumn": "DATA",
         "steps": "[cal]",
         "cal.type": "ddecal",
@@ -53,29 +53,7 @@ def calibration(io: IOManager):
         "numthreads": 4,
     }
 
-    msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
-    parameters["msout"] = msout_path
-    ms_zip = io.get_input_paths("rebinning_out/ms")[0]
-    print(ms_zip)
-    parameters["msin"] = unzip(Path(ms_zip), logger)
-    # check if parameters["msin"] directory is created
-    print(parameters["msin"].is_dir())
-    [step2a_zip] = io.get_input_paths("step2a")
-    parameters["cal.sourcedb"] = unzip(Path(step2a_zip), logger)
-    parameters["log_output"] = io.next_output_path("applycal_out/cal/logs")
-    parameters["cal.h5parm"] = io.next_output_path("h5")
-
-    execute_dp3(parameters)
-
-    # STEP4: zip the output
-    zip_path = io.next_output_path("applycal_out/cal/ms")
-    zip_name = zip_path[:-4]
-    os.rename(msout_path, zip_name)
-    my_zip(Path(zip_name), Path(zip_path))
-
-
-def subtraction(io: IOManager):
-    parameters = {
+    subtraction_parameters = {
         "msin.datacolumn": "DATA",
         "msout.datacolumn": "SUBTRACTED_DATA",
         "steps": "[sub]",
@@ -89,24 +67,7 @@ def subtraction(io: IOManager):
         "msout": ".",
     }
 
-    ms_zip = io.get_input_paths("applycal_out/cal/ms")[0]
-    print(ms_zip)
-    parameters["msin"] = unzip(Path(ms_zip), logger)
-    [step2a_zip] = io.get_input_paths("step2a")
-    parameters["sub.sourcedb"] = unzip(Path(step2a_zip), logger)
-    [parameters["sub.applycal.parmdb"]] = io.get_input_paths("h5")
-    parameters["log_output"] = io.next_output_path("applycal_out/sub/logs")
-
-    execute_dp3(parameters)
-
-    zip_path = io.next_output_path("applycal_out/sub/ms")
-    zip_name = zip_path[:-4]
-    os.rename(parameters["msin"], zip_name)
-    my_zip(Path(zip_name), Path(zip_path))
-
-
-def apply_calibration(io: IOManager):
-    parameters = {
+    apply_calibration_parameters = {
         "msin.datacolumn": "SUBTRACTED_DATA",
         "msout.datacolumn": "CORRECTED_DATA",
         "msout": ".",
@@ -118,17 +79,37 @@ def apply_calibration(io: IOManager):
         "apply.direction": "[Main]",
     }
 
-    ms_zip = io.get_input_paths("applycal_out/sub/ms")[0]
-    print(ms_zip)
-    parameters["msin"] = unzip(Path(ms_zip), logger)
-    [parameters["apply.parmdb"]] = io.get_input_paths("h5")
-    parameters["log_output"] = io.next_output_path("applycal_out/apply/logs")
+    msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
+    calibration_parameters["msout"] = msout_path
+    ms_zip = io.get_input_paths("rebinning_out/ms")[0]
+    msin_path = unzip(Path(ms_zip), logger)
+    calibration_parameters["msin"] = msin_path
+    calibration_parameters["msout"] = msout_path
+    subtraction_parameters["msin"] = msout_path
+    apply_calibration_parameters["msin"] = msout_path
 
-    execute_dp3(parameters)
+    [step2a_zip] = io.get_input_paths("step2a")
+    step2a_path = unzip(Path(step2a_zip), logger)
+    h5_path = "/tmp/cal.h5"
+
+    calibration_parameters["cal.sourcedb"] = step2a_path
+    calibration_parameters["log_output"] = io.next_output_path("applycal_out/cal/logs")
+    calibration_parameters["cal.h5parm"] = h5_path
+
+    subtraction_parameters["sub.sourcedb"] = step2a_path
+    subtraction_parameters["sub.applycal.parmdb"] = h5_path
+    subtraction_parameters["log_output"] = io.next_output_path("applycal_out/sub/logs")
+
+    apply_calibration_parameters["apply.parmdb"] = h5_path
+    apply_calibration_parameters["log_output"] = io.next_output_path("applycal_out/apply/logs")
+
+    execute_dp3(calibration_parameters)
+    execute_dp3(subtraction_parameters)
+    execute_dp3(apply_calibration_parameters)
 
     zip_path = io.next_output_path("applycal_out/apply/ms")
     zip_name = zip_path[:-4]
-    os.rename(parameters["msin"], zip_name)
+    os.rename(msout_path, zip_name)
     my_zip(Path(zip_name), Path(zip_path))
 
 
