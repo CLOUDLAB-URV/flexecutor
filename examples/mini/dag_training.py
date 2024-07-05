@@ -52,6 +52,10 @@ if __name__ == "__main__":
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.train()
 
+        # sets the initial time weights for the stages
+        dag.set_time_weights("RCW")
+
+        print(stage1.perf_model.parameters)
         executor.shutdown()
         print("Tasks completed")
 

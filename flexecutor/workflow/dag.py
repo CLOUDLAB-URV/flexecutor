@@ -50,7 +50,9 @@ class DAG:
         stage.dag_id = self.dag_id
 
         if stage.stage_id in {t.stage_id for t in self.stages}:
-            raise ValueError(f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}")
+            raise ValueError(
+                f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}"
+            )
 
         self._stages.add(stage)
 
@@ -63,6 +65,17 @@ class DAG:
         """
         for stage in stages:
             self.add_stage(stage)
+
+    def set_time_weights(self, mode: str):
+
+        for stage in self.stages:
+            stage.time_weight = abs(stage.perf_model.predict_partial_factor(mode))
+
+    def distribute_parallelism_by_jct(self):
+        """
+        Distribute parallelism by job completion time
+        """
+        pass
 
     def draw(self):
         """
@@ -77,10 +90,18 @@ class DAG:
             graph.add_node(stage.stage_id, label=stage.stage_id)
             for parent in stage.parents:
                 graph.add_edge(parent.stage_id, stage.stage_id)
-        pos = graphviz_layout(graph, prog='dot')
-        labels = nx.get_node_attributes(graph, 'label')
-        plt.title(self.dag_id, fontsize=15, fontweight='bold')
-        nx.draw(graph, pos, labels=labels, with_labels=True, node_size=2000, node_color="skyblue", font_size=10,
-                font_weight="bold", arrows=True)
+        pos = graphviz_layout(graph, prog="dot")
+        labels = nx.get_node_attributes(graph, "label")
+        plt.title(self.dag_id, fontsize=15, fontweight="bold")
+        nx.draw(
+            graph,
+            pos,
+            labels=labels,
+            with_labels=True,
+            node_size=2000,
+            node_color="skyblue",
+            font_size=10,
+            font_weight="bold",
+            arrows=True,
+        )
         plt.show()
-        

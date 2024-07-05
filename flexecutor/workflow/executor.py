@@ -81,7 +81,7 @@ class DAGExecutor:
         resource_config: StageConfig,
     ):
         profile_data = load_profiling_results(file)
-        config_key = str(resource_config.key)
+        config_key = resource_config.key
 
         if config_key not in profile_data:
             profile_data[config_key] = {key: [] for key in FunctionTimes.profile_keys()}
@@ -177,7 +177,7 @@ class DAGExecutor:
         return result
 
     def train(self, stage: Optional[Stage] = None) -> None:
-        """Train the DAG."""
+        """Train the  stages of the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             profile_data = load_profiling_results(
