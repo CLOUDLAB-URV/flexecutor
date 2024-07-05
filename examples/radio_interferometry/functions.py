@@ -27,7 +27,7 @@ def rebinning(io: IOManager):
     msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
     parameters["msout"] = msout_path
     ms_zip = io.get_input_paths("partitions")[0]
-    parameters["msin"] = unzip(Path(ms_zip), logger)
+    parameters["msin"] = unzip(Path(ms_zip))
     [parameters["aoflag.strategy"]] = io.get_input_paths("lua")
     parameters["log_output"] = io.next_output_path("rebinning_out/logs")
 
@@ -82,14 +82,14 @@ def calibration(io: IOManager):
     msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
     calibration_parameters["msout"] = msout_path
     ms_zip = io.get_input_paths("rebinning_out/ms")[0]
-    msin_path = unzip(Path(ms_zip), logger)
+    msin_path = unzip(Path(ms_zip))
     calibration_parameters["msin"] = msin_path
     calibration_parameters["msout"] = msout_path
     subtraction_parameters["msin"] = msout_path
     apply_calibration_parameters["msin"] = msout_path
 
     [step2a_zip] = io.get_input_paths("step2a")
-    step2a_path = unzip(Path(step2a_zip), logger)
+    step2a_path = unzip(Path(step2a_zip))
     h5_path = "/tmp/cal.h5"
 
     calibration_parameters["cal.sourcedb"] = step2a_path
@@ -157,7 +157,7 @@ def imaging(io: IOManager):
 
     zip_paths = io.get_input_paths("applycal_out/apply/ms")
     for zip_path in zip_paths:
-        ms_path = unzip(Path(zip_path), logger)
+        ms_path = unzip(Path(zip_path))
         imaging_params.append(ms_path)
 
     with open(io.next_output_path("image_out/logs"), "w") as log_file:
