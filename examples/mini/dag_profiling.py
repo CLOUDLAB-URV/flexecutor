@@ -30,9 +30,10 @@ if __name__ == "__main__":
 
     @flexorchestrator()
     def main():
+        # FIXME: Look at how many cpus is the profiling setting at the runtime
         config_space = [
-            StageConfig(2, 1024, 3),
-            StageConfig(1, 1024, 3),
+            StageConfig(1, 1024, 1),
+            StageConfig(1, 1024, 2),
             # ...
         ]
 
