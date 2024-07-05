@@ -75,7 +75,18 @@ class DAG:
         """
         Distribute parallelism by job completion time
         """
-        pass
+        # https://github.com/pkusys/Ditto/blob/main/include/scheduler.hpp#L658
+        for stage in self.stages:
+            # If a stage is a leaf
+            if len(stage.children) == 0:
+                stage.ratio = stage.time_weight
+                stage.parallelism_ratio = 1
+                continue
+            # If it's "single"
+            if stage.max_concurrency == 1:
+                stage.ratio = stage.time_weight
+                stage.parallelism_ratio = 1
+                continue
 
     def draw(self):
         """
