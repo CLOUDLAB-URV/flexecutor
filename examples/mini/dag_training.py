@@ -23,7 +23,6 @@ logger = setup_logging(level=logging.INFO)
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
 NUM_ITERATIONS = 2
-NUM_ITERATIONS = 2
 
 
 if __name__ == "__main__":
@@ -33,7 +32,6 @@ if __name__ == "__main__":
         dag = DAG("mini-dag")
 
         stage1 = Stage(
-            "map",
             "map",
             func=word_count,
             inputs=[word_count_input],
@@ -45,17 +43,10 @@ if __name__ == "__main__":
             inputs=[reduce_input],
             outputs=[reduce_output],
             max_concurrency=1,
-            "reduce",
-            func=sum_counts,
-            inputs=[reduce_input],
-            outputs=[reduce_output],
-            max_concurrency=1,
         )
 
         stage1 >> stage2
-        stage1 >> stage2
 
-        dag.add_stages([stage1, stage2])
         dag.add_stages([stage1, stage2])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
@@ -66,7 +57,6 @@ if __name__ == "__main__":
 
         print(stage1.perf_model.parameters)
         executor.shutdown()
-        print("Tasks completed")
         print("Tasks completed")
 
     main()
