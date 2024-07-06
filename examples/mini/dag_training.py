@@ -54,7 +54,8 @@ if __name__ == "__main__":
 
         # sets the initial time weights for the stages
         dag.set_time_weights("RCW")
-
+        dag.distribute_parallelism_by_jct()
+        dag.draw()
         print(stage1.perf_model.parameters)
         executor.shutdown()
         print("Tasks completed")

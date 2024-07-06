@@ -53,12 +53,15 @@ class Stage:
         self._map_func = func
         self._max_concurrency = max_concurrency
         self.dag_id = None
-        self.optimal_config: Optional[StageConfig] = None
+        self.optimal_config: Optional[StageConfig] = StageConfig(
+            cpu=1, memory=1024, workers=1
+        )
         self.resource_config: Optional[StageConfig] = None
         # Ditto parameters
         self._time_weight = None
         self._ratio = None
         self._parallelism_ratio = None
+        # self.degree_alloc is our optimal_config
         ############################################
 
     @property
