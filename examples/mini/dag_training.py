@@ -17,6 +17,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor, StageConfig
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
+from flexecutor.scheduling import DittoScheduler
 
 logger = setup_logging(level=logging.INFO)
 
@@ -52,11 +53,11 @@ if __name__ == "__main__":
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.train()
 
+        scheduler = DittoScheduler(20, dag)
         # sets the initial time weights for the stages
-        dag.set_time_weights("RCW")
-        dag.distribute_parallelism_by_jct()
-        dag.draw()
-        print(stage1.perf_model.parameters)
+        scheduler.set_time_weights()
+        scheduler.distribute_parallelism_by_jct()
+        # scheduler.adjust_worker_allocation()
         executor.shutdown()
         print("Tasks completed")
 

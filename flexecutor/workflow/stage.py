@@ -57,6 +57,8 @@ class Stage:
             cpu=1, memory=1024, workers=1
         )
         self.resource_config: Optional[StageConfig] = None
+        ############################################
+        # FIXME: Encapsulate the parameters in a class, since each scheduler we implement has it's own
         # Ditto parameters
         self._time_weight = None
         self._ratio = None

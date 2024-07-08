@@ -162,6 +162,7 @@ class DAGExecutor:
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
+        """Yields the best config that was set by the scheduler"""
         if stage is not None and len(resource_config) > 1:
             raise ValueError(
                 "predict() requires single Stage when only one StageConfig is provided and vice versa."
