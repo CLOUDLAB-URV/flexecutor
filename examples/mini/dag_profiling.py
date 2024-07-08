@@ -32,13 +32,10 @@ if __name__ == "__main__":
     def main():
         # FIXME: Look at how many cpus is the profiling setting at the runtime
         # FIXME: We want a list of tuples of stageconfigs, for each stage, we want to try different configs
-        config_space = [
-            (StageConfig(1, 1024, 1)),
-            (  # Profiling configurations for stage 1 (map),
-                StageConfig(1, 1024, 2)
-            ),  # Profiling configurations for stage 2 (reduce),
-            # ...
-        ]
+        config_space = {
+            "map": (StageConfig(cpu=1, memory=2048, workers=2)),
+            "reduce": (StageConfig(cpu=1, memory=2048, workers=1)),
+        }
 
         dag = DAG("mini-dag")
 
@@ -63,6 +60,7 @@ if __name__ == "__main__":
         # FIXME: Lithop's map doesn't have a runtime_cpus to set them at runtime with optimal config,
         # Since I decided to keep the number of cpus fixed (for now), we just pass it to the function executor as an argument beforehand.
         # Related to issue: https://github.com/lithops-cloud/lithops/issues/1371
+
         executor = DAGExecutor(dag, executor=FunctionExecutor(runtime_cpus=1))
         executor.profile(config_space, num_iterations=NUM_ITERATIONS)
         executor.shutdown()

@@ -1,7 +1,7 @@
 import logging
 import os
 from enum import Enum
-from typing import Dict, Set, List, Iterable, Optional
+from typing import Dict, Set, List, Iterable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -81,7 +81,7 @@ class DAGExecutor:
         resource_config: StageConfig,
     ):
         profile_data = load_profiling_results(file)
-        config_key = resource_config.key
+        config_key = str(resource_config.key)
 
         if config_key not in profile_data:
             profile_data[config_key] = {key: [] for key in FunctionTimes.profile_keys()}
@@ -97,65 +97,59 @@ class DAGExecutor:
         save_profiling_results(file, profile_data)
 
     def profile(
-        self, config_space: Iterable[StageConfig], num_iterations: int = 1
+        self, config_space: Dict[str, StageConfig], num_iterations: int = 1
     ) -> None:
         logger.info(f"Profiling DAG {self._dag.dag_id}")
 
-        for config in config_space:
-            logger.info(f"Testing configuration: {config}")
+        for iteration in range(num_iterations):
+            logger.info(f"Profiling iteration {iteration + 1}/{num_iterations}")
 
-            for iteration in range(num_iterations):
-                logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
+            iteration_stages = {
+                stage.stage_id: deepcopy(stage) for stage in self._dag.stages
+            }
+            self._dependence_free_stages = set(
+                iteration_stages[stage.stage_id] for stage in self._dag.root_stages
+            )
+            self._running_stages = set()
+            self._finished_stages = set()
 
-                # Create a fresh copy of the DAG for each iteration
-                iteration_stages = {
-                    stage.stage_id: deepcopy(stage) for stage in self._dag.stages
-                }
+            while self._dependence_free_stages or self._running_stages:
+                batch = list(self._dependence_free_stages)
+                self._running_stages.update(batch)
 
-                for stage in iteration_stages.values():
-                    stage.resource_config = config
-                    stage.state = StageState.NONE
+                for stage in batch:
+                    stage.resource_config = config_space[stage.stage_id]
+                    logger.info(
+                        f"Profiling stage {stage.stage_id} with configuration {stage.resource_config}"
+                    )
 
-                self._futures = {}
-                self._dependence_free_stages = set(
-                    iteration_stages[stage.stage_id] for stage in self._dag.root_stages
-                )
-                self._running_stages = set()
-                self._finished_stages = set()
+                futures = self._processor.process(batch)
 
-                while self._dependence_free_stages or self._running_stages:
-                    batch = list(self._dependence_free_stages)
-                    self._running_stages.update(batch)
-                    futures = self._processor.process(batch)
+                for stage in batch:
+                    stage_future = futures[stage.stage_id]
+                    stage_future.result()
+                    self._finished_stages.add(stage)
 
-                    for stage in batch:
-                        future = futures[stage.stage_id]
-                        self._futures[stage.stage_id] = future
-                        if future.error():
-                            logger.error(f"Error processing stage {stage.stage_id}")
-                        else:
-                            timings = future.get_timings()
-                            profiling_file = self._get_asset_path(
-                                stage, AssetType.PROFILE
+                    profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                    self._store_profiling(
+                        profiling_file,
+                        [stage_future.get_timings()],
+                        stage.resource_config,
+                    )
+
+                self._running_stages.difference_update(batch)
+                self._dependence_free_stages.difference_update(batch)
+
+                for stage in batch:
+                    for child in stage.children:
+                        if all(
+                            parent in self._finished_stages for parent in child.parents
+                        ):
+                            self._dependence_free_stages.add(
+                                iteration_stages[child.stage_id]
                             )
-                            self._store_profiling(profiling_file, [timings], config)
 
-                    self._running_stages.difference_update(batch)
-                    self._dependence_free_stages.difference_update(batch)
-                    self._finished_stages.update(stage.stage_id for stage in batch)
-
-                    for stage in batch:
-                        for child in stage.children:
-                            if all(
-                                parent.stage_id in self._finished_stages
-                                for parent in child.parents
-                            ):
-                                self._dependence_free_stages.add(
-                                    iteration_stages[child.stage_id]
-                                )
-
-                logger.info(f"Iteration {iteration + 1} for config {config} completed")
-            logger.info(f"Profiling completed for config {config}")
+            logger.info(f"Iteration {iteration + 1} completed")
 
         logger.info("Profiling completed for all configurations")
 
@@ -197,15 +191,6 @@ class DAGExecutor:
 
         self._num_final_stages = len(self._dag.leaf_stages)
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
-
-        # Before the execution, get the optimal configurations for all stages in the DAG
-        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
-
-        # self.train()
-        # FIXME: the optimal config seems to be an array, why is that?
-        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
-        for stage in self._dag.stages:
-            stage.resource_config = StageConfig(cpu=5, memory=722, workers=2)
 
         self._futures = dict()
 
@@ -341,6 +326,16 @@ class DAGExecutor:
         """
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
+        # calcular camino critico
+        # minimizar el completion time del camino critico en base a las configuraciones que nos han pasado
+        # min(execuction_time(critical_path)
+        # critical_path = user defined [stage1, stage2]
+
+        # range num_workers = 1...10, range_cpu 0.5 to 4, whatever amazon gives you
+        # step 1: profile stages with tuples of stages, each stage could be trained on a different set of stageconfigs
+        # step 2: train the analytical model with those profiled configurations.
+        # step 3: once trained, the optimize function should predict the latency for each stage in a bruteforce manner for the given config_bounds
+        # step 4: once all  the predictions are done, we can calculate the critical path and minimize the completion time
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
             # Hardcoded config for now
