@@ -49,11 +49,9 @@ class AnaPerfModel(PerfModel):
 
         self._profiling_results = None
 
-    # To simplify stuff, let's just use the Degree of parallelism ()
     @classmethod
     def _config_to_xparam(cls, num_vcpu, memory, num_func):
-        return num_func
-        # return round(num_vcpu * memory * num_func, 1)
+        return round(num_vcpu * memory * num_func, 1)
 
     # TODO: review that and rethink
     def update_allow_parallel(self, allow_parallel) -> None:
@@ -100,13 +98,10 @@ class AnaPerfModel(PerfModel):
             num_vcpu, memory, num_func = config_tuple
             # adapt to parallel mode
             # if the stage does not allow more than one function, ignore num_func
-            # For now, the simplest thing to do, is to ONLY conder the number of func, this is what is done in Ditto as far as I have seen
             if self._allow_parallel:
-                # config_key = self._config_to_xparam(num_vcpu, memory, num_func)
-                # I decided that the fixed number of memory and cpus, will be 1024 and 1, respectively
-                config_key = self._config_to_xparam(1, 1024, num_func)
+                config_key = self._config_to_xparam(num_vcpu, memory, num_func)
             else:
-                config_key = self._config_to_xparam(1, 1024, 1)
+                config_key = self._config_to_xparam(num_vcpu, memory, 1)
 
             # collect data for cold_start (In ditto is called pretime: https://github.com/pkusys/Ditto/blob/2771e6c1db26f87b97982c4f7bbfa6f571d4fe4c/include/scheduler.hpp#L85)
             if config_key not in size2points_coldstart:
