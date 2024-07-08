@@ -52,12 +52,6 @@ if __name__ == "__main__":
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.train()
-
-        scheduler = DittoScheduler(20, dag)
-        # sets the initial time weights for the stages
-        scheduler.set_time_weights()
-        scheduler.distribute_parallelism_by_jct()
-        # scheduler.adjust_worker_allocation()
         executor.shutdown()
         print("Tasks completed")
 
