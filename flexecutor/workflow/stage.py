@@ -56,7 +56,9 @@ class Stage:
         self.optimal_config: Optional[StageConfig] = StageConfig(
             cpu=1, memory=1024, workers=1
         )
-        self.resource_config: Optional[StageConfig] = None
+        self.resource_config: Optional[StageConfig] = StageConfig(
+            cpu=1, memory=1024, workers=1
+        )
         ############################################
         # FIXME: Encapsulate the parameters in a class, since each scheduler we implement has it's own
         # Ditto parameters
