@@ -31,9 +31,12 @@ if __name__ == "__main__":
     @flexorchestrator()
     def main():
         # FIXME: Look at how many cpus is the profiling setting at the runtime
+        # FIXME: We want a list of tuples of stageconfigs, for each stage, we want to try different configs
         config_space = [
-            StageConfig(1, 1024, 1),
-            StageConfig(1, 1024, 2),
+            (StageConfig(1, 1024, 1)),
+            (  # Profiling configurations for stage 1 (map),
+                StageConfig(1, 1024, 2)
+            ),  # Profiling configurations for stage 2 (reduce),
             # ...
         ]
 
