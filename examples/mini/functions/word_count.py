@@ -1,30 +1,30 @@
 from flexecutor.storage.chunker import FileChunker
 from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
-from flexecutor.utils.storagecontext import StorageContext
+from flexecutor import StageContext
 
 
-def word_count(st_context: StorageContext):
-    txt_paths = st_context.get_input_paths("txt")
+def word_count(ctx: StageContext):
+    txt_paths = ctx.get_input_paths("txt")
     for txt_path in txt_paths:
         with open(txt_path, "r") as f:
             content = f.read()
 
         count = len(content.split())
 
-        count_path = st_context.next_output_path("count")
+        count_path = ctx.next_output_path("count")
         with open(count_path, "w") as f:
             f.write(str(count))
 
 
-def sum_counts(st_context: StorageContext):
-    count_paths = st_context.get_input_paths("count")
+def sum_counts(ctx: StageContext):
+    count_paths = ctx.get_input_paths("count")
     total = 0
     for count_path in count_paths:
         with open(count_path, "r") as f:
             count = int(f.read())
         total += count
 
-    total_path = st_context.next_output_path("total")
+    total_path = ctx.next_output_path("total")
     with open(total_path, "w") as f:
         f.write(str(total))
 

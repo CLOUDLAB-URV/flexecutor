@@ -10,22 +10,22 @@ from lithops import Storage
 from flexecutor.storage.chunker import ChunkInfo
 from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.dataclass import FunctionTimes
-from flexecutor.utils.storagecontext import (
-    InternalStorageContext,
-    StorageContext,
+from flexecutor.workflow.stagecontext import (
+    InternalStageContext,
+    StageContext,
 )
 
 
 def worker_wrapper(func: Callable[..., Any]):
     @wraps(func)
-    def wrapper(st_context: InternalStorageContext, *args, **kwargs):
+    def wrapper(ctx: InternalStageContext, *args, **kwargs):
         before_read = time.time()
         storage = Storage()
         # TODO: parallelize download?
-        for input_id, flex_input in st_context.inputs.items():
+        for input_id, flex_input in ctx.inputs.items():
             os.makedirs(flex_input.local_base_path, exist_ok=True)
             if (
-                len(flex_input.keys) >= st_context.num_workers
+                len(flex_input.keys) >= ctx.num_workers
                 or flex_input.strategy is StrategyEnum.BROADCAST
             ):  # More files than workers and scattering
                 start_index, end_index = flex_input.file_index
@@ -42,7 +42,7 @@ def worker_wrapper(func: Callable[..., Any]):
                     )
                 # TODO: fix, only works for one file
                 chunker: ChunkInfo = flex_input.chunker.my_byte_range(
-                    flex_input, st_context.worker_id, st_context.num_workers
+                    flex_input, ctx.worker_id, ctx.num_workers
                 )[0]
                 extra_args = {"Range": f"bytes={chunker.start}-{chunker.end}"}
                 chunk = storage.get_object(
@@ -51,19 +51,19 @@ def worker_wrapper(func: Callable[..., Any]):
                     flex_input.local_paths[0],
                     extra_get_args=extra_args,
                 )
-                flex_input.local_paths[0] += ".part" + str(st_context.worker_id)
+                flex_input.local_paths[0] += ".part" + str(ctx.worker_id)
                 with open(flex_input.local_paths[0], "wb") as f:
                     if isinstance(chunk, StreamingBody):
                         f.write(chunk.read())
 
         after_read = time.time()
 
-        func_st_context = StorageContext(st_context)
-        result = func(func_st_context, *args, **kwargs)
+        func_context = StageContext(ctx)
+        result = func(func_context, *args, **kwargs)
 
         before_write = time.time()
         # TODO: parallelize upload?
-        for output_id, flex_output in st_context.outputs.items():
+        for output_id, flex_output in ctx.outputs.items():
             for index in range(len(flex_output.local_paths)):
                 storage.upload_file(
                     flex_output.local_paths[index],

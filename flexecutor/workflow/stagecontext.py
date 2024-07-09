@@ -5,7 +5,7 @@ from typing import Optional, Any
 from flexecutor.storage.storage import FlexInput, FlexOutput
 
 
-class InternalStorageContext:
+class InternalStageContext:
     def __init__(
         self,
         worker_id,
@@ -21,7 +21,7 @@ class InternalStorageContext:
         self._params = params
 
     def __repr__(self):
-        return f"InternalStorageContext(worker_id={self.worker_id}, num_workers={self.num_workers}, inputs={self.inputs}, outputs={self.outputs}, params={self._params})"
+        return f"InternalStageContext(worker_id={self.worker_id}, num_workers={self.num_workers}, inputs={self.inputs}, outputs={self.outputs}, params={self._params})"
 
     def input_paths(self, input_id: str) -> list[str]:
         start, end = self.inputs[input_id].file_index
@@ -39,13 +39,12 @@ class InternalStorageContext:
         return local_path
 
 
-class StorageContext:
-
-    def __init__(self, context: InternalStorageContext):
+class StageContext:
+    def __init__(self, context: InternalStageContext):
         self._context = context
 
     def __repr__(self):
-        return f"StorageContext(manager={self._context})"
+        return f"StageContext({self._context})"
 
     def get_input_paths(self, input_id: str) -> list[str]:
         return self._context.input_paths(input_id)

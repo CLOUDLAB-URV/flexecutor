@@ -1,14 +1,14 @@
 import os
 import unittest
 
-from flexecutor.utils.storagecontext import StorageContext, InternalStorageContext
+from flexecutor.workflow.stagecontext import StageContext, InternalStageContext
 from flexecutor.storage.storage import FlexInput, FlexOutput
 from flexecutor.storage.storage import StrategyEnum
 
 
-class TestStorageContext(unittest.TestCase):
+class TestStageContext(unittest.TestCase):
     def setUp(self):
-        print("Setting up Test Environment for StorageContext")
+        print("Setting up Test Environment for StageContext")
 
         self.flex_input = FlexInput(
             prefix="test_prefix/",
@@ -26,18 +26,18 @@ class TestStorageContext(unittest.TestCase):
         )
         self.params = {"param1": "value1", "param2": "value2"}
 
-        self.internal_context = InternalStorageContext(
+        self.internal_context = InternalStageContext(
             worker_id=0,
             num_workers=1,
             inputs=[self.flex_input],
             outputs=[self.flex_output],
             params=self.params,
         )
-        self.storage_context = StorageContext(self.internal_context)
+        self.stage_context = StageContext(self.internal_context)
         print("Test Environment Set Up Complete")
 
     def test_initialization(self):
-        print("Testing Initialization of InternalStorageContext and StorageContext")
+        print("Testing Initialization of InternalStageContext and StageContext")
         self.assertEqual(self.internal_context.worker_id, 0)
         self.assertEqual(self.internal_context.num_workers, 1)
         self.assertEqual(self.internal_context.inputs["input123"], self.flex_input)
@@ -52,7 +52,7 @@ class TestStorageContext(unittest.TestCase):
             "/tmp/test_prefix/file2.txt",
         ]
         self.flex_input.file_index = (0, 2)
-        paths = self.storage_context.get_input_paths("input123")
+        paths = self.stage_context.get_input_paths("input123")
         expected_paths = ["/tmp/test_prefix/file1.txt", "/tmp/test_prefix/file2.txt"]
         self.assertEqual(paths, expected_paths)
         print(f"Expected paths: {expected_paths}, Actual paths: {paths}")
@@ -60,14 +60,14 @@ class TestStorageContext(unittest.TestCase):
 
     def test_get_param(self):
         print("Testing get_param method")
-        param_value = self.storage_context.get_param("param1")
+        param_value = self.stage_context.get_param("param1")
         self.assertEqual(param_value, "value1")
         print(f"Expected param value: 'value1', Actual param value: {param_value}")
         print("get_param method test passed")
 
     def test_next_output_path(self):
         print("Testing next_output_path method")
-        output_path = self.storage_context.next_output_path("output123")
+        output_path = self.stage_context.next_output_path("output123")
         self.assertTrue(output_path.startswith("/tmp/test_output/"))
         self.assertTrue(output_path.endswith(".file"))
         self.assertIn(output_path, self.flex_output.local_paths)
