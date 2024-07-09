@@ -50,7 +50,9 @@ class DAG:
         stage.dag_id = self.dag_id
 
         if stage.stage_id in {t.stage_id for t in self.stages}:
-            raise ValueError(f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}")
+            raise ValueError(
+                f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}"
+            )
 
         self._stages.add(stage)
 
@@ -77,10 +79,18 @@ class DAG:
             graph.add_node(stage.stage_id, label=stage.stage_id)
             for parent in stage.parents:
                 graph.add_edge(parent.stage_id, stage.stage_id)
-        pos = graphviz_layout(graph, prog='dot')
-        labels = nx.get_node_attributes(graph, 'label')
-        plt.title(self.dag_id, fontsize=15, fontweight='bold')
-        nx.draw(graph, pos, labels=labels, with_labels=True, node_size=2000, node_color="skyblue", font_size=10,
-                font_weight="bold", arrows=True)
+        pos = graphviz_layout(graph, prog="dot")
+        labels = nx.get_node_attributes(graph, "label")
+        plt.title(self.dag_id, fontsize=15, fontweight="bold")
+        nx.draw(
+            graph,
+            pos,
+            labels=labels,
+            with_labels=True,
+            node_size=2000,
+            node_color="skyblue",
+            font_size=10,
+            font_weight="bold",
+            arrows=True,
+        )
         plt.show()
-        

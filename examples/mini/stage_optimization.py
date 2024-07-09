@@ -58,7 +58,7 @@ if __name__ == "__main__":
         config_space_obj = config_space_obj[:num_configs]
 
         # Profile the DAG
-        executor.profile(config_space_obj, num_iterations=2)
+        executor.profile(config_space_obj, num_reps=2)
 
         # Train the stage models
         executor.train()

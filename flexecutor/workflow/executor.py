@@ -60,6 +60,7 @@ class DAGExecutor:
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
         # previous folder creation
+        # TODO: remove ifelse and use AssetType tuples (dir, extension)
         if asset_type == AssetType.MODEL:
             os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
@@ -97,15 +98,23 @@ class DAGExecutor:
         save_profiling_results(file, profile_data)
 
     def profile(
-        self, config_space: Iterable[StageConfig], num_iterations: int = 1
+        self,
+        config_space: Iterable[StageConfig],
+        stage: Optional[Stage] = None,  # TODO: remove
+        num_reps: int = 1,
     ) -> None:
+        # TODO: configuration space is a list of lists of StageConfig. The first
+        # list are the configurations for the dag. Each list (config) within
+        # contains a StageConfig for each stage in the dag. Check that each
+        # config has the same length as the number of stages in the dag,
+        # otherwise skip the config with a warning.
         logger.info(f"Profiling DAG {self._dag.dag_id}")
 
         for config in config_space:
             logger.info(f"Testing configuration: {config}")
 
-            for iteration in range(num_iterations):
-                logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
+            for iteration in range(num_reps):
+                logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
 
                 # Create a fresh copy of the DAG for each iteration
                 iteration_stages = {
@@ -162,6 +171,8 @@ class DAGExecutor:
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
+        # TODO: predict latency/cost of the full dag. Return an object with the
+        # breakdown of latencies per stage.
         if stage is not None and len(resource_config) > 1:
             raise ValueError(
                 "predict() requires single Stage when only one StageConfig is provided and vice versa."
