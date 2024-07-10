@@ -59,14 +59,6 @@ class Stage:
         self.resource_config: Optional[StageConfig] = StageConfig(
             cpu=1, memory=2048, workers=1
         )
-        ############################################
-        # FIXME: Encapsulate the parameters in a class, since each scheduler we implement has it's own
-        # Ditto parameters
-        self._time_weight = None
-        self._ratio = None
-        self._parallelism_ratio = None
-        # self.degree_alloc is our optimal_config
-        ############################################
 
     def __repr__(self) -> str:
         return f"Stage({self._stage_id}, resource_config={self.resource_config}) "
@@ -75,33 +67,6 @@ class Stage:
     def dag_id(self) -> str:
         """Return the DAG ID."""
         return self._dag_id
-
-    @property
-    def time_weight(self) -> int:
-        "return the time weight of the stage"
-        return self._time_weight
-
-    @property
-    def ratio(self) -> int:
-        "return the ratio of the stage"
-        return self._ratio
-
-    @property
-    def parallelism_ratio(self) -> int:
-        "return the parallelism ratio of the stage"
-        return self._parallelism_ratio
-
-    @ratio.setter
-    def ratio(self, value: int):
-        self._ratio = value
-
-    @parallelism_ratio.setter
-    def parallelism_ratio(self, value: int):
-        self._parallelism_ratio = value
-
-    @time_weight.setter
-    def time_weight(self, value: int):
-        self._time_weight = value
 
     @property
     def map_func(self) -> Callable[..., Any]:
