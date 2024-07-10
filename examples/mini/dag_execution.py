@@ -4,7 +4,7 @@ import logging
 
 from lithops import FunctionExecutor
 
-from examples.mini.functions.word_count import (
+from functions.word_count import (
     word_count,
     word_count_input,
     word_count_output,
