@@ -22,8 +22,7 @@ logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-NUM_ITERATIONS = 2
-BUCKET_NAME = "lithops-manri-urv"
+NUM_ITERATIONS = 1
 
 
 if __name__ == "__main__":
@@ -31,10 +30,14 @@ if __name__ == "__main__":
     @flexorchestrator()
     def main():
         # FIXME: Look at how many cpus is the profiling setting at the runtime
-        # FIXME: We want a list of tuples of stageconfigs, for each stage, we want to try different configs
+        # FIXME: We want a list of tuples of stageconfigs, for each stage,
+        # we want to try different configs
         config_space = {
-            "map": (StageConfig(cpu=1, memory=2048, workers=2)),
-            "reduce": (StageConfig(cpu=1, memory=2048, workers=1)),
+            "map": (
+                StageConfig(cpu=1, memory=2048, workers=2),
+                StageConfig(cpu=1, memory=2048, workers=3),
+            ),
+            "reduce": (StageConfig(cpu=1, memory=2048, workers=1),),
         }
 
         dag = DAG("mini-dag")

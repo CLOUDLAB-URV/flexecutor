@@ -1,7 +1,8 @@
 import logging
 import os
 from enum import Enum
-from typing import Dict, Set, List, Iterable, Optional, Tuple
+from typing import Dict, Set, List, Iterable, Optional
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -77,86 +78,70 @@ class DAGExecutor:
     def _store_profiling(
         self,
         file: str,
-        new_profile_data: List[List[FunctionTimes]],
+        new_profile_data: List[FunctionTimes],
         resource_config: StageConfig,
-    ):
+    ) -> None:
         profile_data = load_profiling_results(file)
+        print(f"Profile data: {profile_data}")
         config_key = str(resource_config.key)
-
         if config_key not in profile_data:
-            profile_data[config_key] = {key: [] for key in FunctionTimes.profile_keys()}
+            profile_data[config_key] = {}
+        for key in FunctionTimes.profile_keys():
+            if key not in profile_data[config_key]:
+                profile_data[config_key][key] = []
+            profile_data[config_key][key].append([])
+        for profiling in new_profile_data:
+            for key in FunctionTimes.profile_keys():
+                profile_data[config_key][key][-1].append(getattr(profiling, key))
 
-        for batch_timings in new_profile_data:
-            batch_data = {
-                key: [getattr(timing, key) for timing in batch_timings]
-                for key in FunctionTimes.profile_keys()
-            }
-            for key in batch_data:
-                profile_data[config_key][key].append(batch_data[key])
-
+        print(f"Profile data: {profile_data}")
         save_profiling_results(file, profile_data)
 
     def profile(
-        self, config_space: Dict[str, StageConfig], num_iterations: int = 1
+        self, config_space: dict[str, Iterable[StageConfig]], num_iterations: int = 1
     ) -> None:
         logger.info(f"Profiling DAG {self._dag.dag_id}")
 
+        all_config_combinations = list(
+            product(*(config_space[stage_id] for stage_id in config_space))
+        )
+
         for iteration in range(num_iterations):
-            logger.info(f"Profiling iteration {iteration + 1}/{num_iterations}")
+            logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
 
-            iteration_stages = {
-                stage.stage_id: deepcopy(stage) for stage in self._dag.stages
-            }
-            self._dependence_free_stages = set(
-                iteration_stages[stage.stage_id] for stage in self._dag.root_stages
-            )
-            self._running_stages = set()
-            self._finished_stages = set()
+            for config_combination in all_config_combinations:
+                config_description = ", ".join(
+                    f"{stage_id} config: {config}"
+                    for stage_id, config in zip(config_space, config_combination)
+                )
+                logger.info(f"Applying configuration combination: {config_description}")
 
-            while self._dependence_free_stages or self._running_stages:
-                batch = list(self._dependence_free_stages)
-                self._running_stages.update(batch)
+                for stage, config in zip(self._dag.stages, config_combination):
+                    stage.resource_config = config
+                    stage.state = StageState.NONE
+                    logger.info(f"Configured {stage.stage_id} with {config}")
 
-                for stage in batch:
-                    stage.resource_config = config_space[stage.stage_id]
-                    logger.info(
-                        f"Profiling stage {stage.stage_id} with configuration {stage.resource_config}"
-                    )
+                futures = self.execute()
 
-                futures = self._processor.process(batch)
-
-                for stage in batch:
-                    stage_future = futures[stage.stage_id]
-                    stage_future.result()
-                    self._finished_stages.add(stage)
-
-                    profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-                    self._store_profiling(
-                        profiling_file,
-                        [stage_future.get_timings()],
-                        stage.resource_config,
-                    )
-
-                self._running_stages.difference_update(batch)
-                self._dependence_free_stages.difference_update(batch)
-
-                for stage in batch:
-                    for child in stage.children:
-                        if all(
-                            parent in self._finished_stages for parent in child.parents
-                        ):
-                            self._dependence_free_stages.add(
-                                iteration_stages[child.stage_id]
-                            )
-
-            logger.info(f"Iteration {iteration + 1} completed")
+                for stage, config in zip(self._dag.stages, config_combination):
+                    future = futures.get(stage.stage_id)
+                    if future and not future.error():
+                        timings = future.get_timings()
+                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                        self._store_profiling(profiling_file, timings, config)
+                        logger.info(
+                            f"Profiling data for {stage.stage_id} saved in {profiling_file}"
+                        )
+                    elif future and future.error():
+                        logger.error(
+                            f"Error processing stage {stage.stage_id}: {future.error()}"
+                        )
 
         logger.info("Profiling completed for all configurations")
 
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
-        """Yields the best config that was set by the scheduler"""
         if stage is not None and len(resource_config) > 1:
             raise ValueError(
                 "predict() requires single Stage when only one StageConfig is provided and vice versa."
@@ -172,7 +157,7 @@ class DAGExecutor:
         return result
 
     def train(self, stage: Optional[Stage] = None) -> None:
-        """Train the  stages of the DAG."""
+        """Train the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             profile_data = load_profiling_results(
@@ -183,7 +168,7 @@ class DAGExecutor:
 
     def execute(self) -> Dict[str, StageFuture]:
         """
-        Execute the DAG in an Lazy manner
+        Execute the DAG
 
         :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """
@@ -191,6 +176,13 @@ class DAGExecutor:
 
         self._num_final_stages = len(self._dag.leaf_stages)
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
+
+        # Before the execution, get the optimal configurations for all stages in the DAG
+        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
+
+        # self.train()
+        # FIXME: the optimal config seems to be an array, why is that?
+        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
 
         self._futures = dict()
 
@@ -326,16 +318,6 @@ class DAGExecutor:
         """
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
-        # calcular camino critico
-        # minimizar el completion time del camino critico en base a las configuraciones que nos han pasado
-        # min(execuction_time(critical_path)
-        # critical_path = user defined [stage1, stage2]
-
-        # range num_workers = 1...10, range_cpu 0.5 to 4, whatever amazon gives you
-        # step 1: profile stages with tuples of stages, each stage could be trained on a different set of stageconfigs
-        # step 2: train the analytical model with those profiled configurations.
-        # step 3: once trained, the optimize function should predict the latency for each stage in a bruteforce manner for the given config_bounds
-        # step 4: once all  the predictions are done, we can calculate the critical path and minimize the completion time
         for stage in stages_list:
             # optimal_config = stage.perf_model.optimize(config_bounds)
             # Hardcoded config for now
