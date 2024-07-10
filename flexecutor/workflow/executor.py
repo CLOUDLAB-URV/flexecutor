@@ -9,7 +9,7 @@ import pandas as pd
 from lithops import FunctionExecutor
 from matplotlib import pyplot as plt
 from pandas import DataFrame
-from copy import deepcopy
+from lithops.utils import get_executor_id
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import (
@@ -58,6 +58,7 @@ class DAGExecutor:
         self._running_stages: List[Stage] = list()
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
+        self._executor_id = get_executor_id()
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
         # previous folder creation
@@ -183,7 +184,6 @@ class DAGExecutor:
         # self.train()
         # FIXME: the optimal config seems to be an array, why is that?
         # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
-
         self._futures = dict()
 
         # Start by executing the root stages
@@ -311,22 +311,72 @@ class DAGExecutor:
         return actual_latencies, predicted_latencies
 
     def optimize(
-        self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
+        self,
+        dag_critical_path=List[str],
+        config_bounds: ConfigBounds = None,
     ) -> List[StageConfig]:
         """
         Sets the optimal configuration for each stage.
         """
-        result = []
-        stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
-            # optimal_config = stage.perf_model.optimize(config_bounds)
-            # Hardcoded config for now
-            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
-            print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
-            stage.optimal_config = optimal_config
 
-            result.append(optimal_config)
-        return result
+        print(f"Optimizing DAG {self._dag.dag_id}")
+        # calcular camino critico
+        # minimizar el completion time del camino critico en base a las configuraciones que nos han pasado
+        # min(execuction_time(critical_path)
+        # critical_path = user defined [stage1, stage2]
+
+        # range num_workers = 1...10, range_cpu 0.5 to 4, whatever amazon gives you
+        # step 1: profile stages with tuples of stages, each stage could be trained on a different set of stageconfigs
+        # step 2: train the analytical model with those profiled configurations.
+        # step 3: once trained, the optimize function should predict the latency for each stage in a bruteforce manner for the given config_bounds
+        # step 4: once all  the predictions are done, we can calculate the critical path and minimize the completion time
+
+        def calculate_memory_for_cpus(cpus: int) -> int:
+            memory = cpus * 1769
+            return memory
+
+        # CPU bounds: 0.5 to 4 with 0.5 increments
+        # Worker bounds: 1 to 10 with 1 increments
+
+        cpu_combinations = np.arange(0.5, 4.5, 0.5)
+        worker_combinations = np.arange(1, 11, 1)
+
+        # FIXME: Currently we're not supporting the cpu bounds.
+
+        for stage in self._dag:
+            for cpu in cpu_combinations:
+                for worker in worker_combinations:
+                    memory = calculate_memory_for_cpus(cpu)
+                    predicted_time = stage.perf_model.predict_time(
+                        StageConfig(cpu=cpu, memory=memory, workers=worker)
+                    )
+                    if predicted_time < stage.perf_model.predict_time(
+                        stage.optimal_config
+                    ):
+                        stage.optimal_config = StageConfig(
+                            cpu=cpu, memory=memory, workers=worker
+                        )
+
+        for stage in self._dag:
+            print(
+                f"Optimal configuration for stage {stage.stage_id}: {stage.optimal_config}"
+            )
+
+        # for stage in self._dag.stages:
+        #     if stage.stage_id in dag_critical_path:
+        #         stage.perf_model.predict_time(config=config)
+
+        # result = []
+        # stages_list = [stage] if stage is not None else self._dag.stages
+        # for stage in stages_list:
+        #     # optimal_config = stage.perf_model.optimize(config_bounds)
+        #     # Hardcoded config for now
+        #     optimal_config = StageConfig(cpu=5, memory=722, workers=2)
+        #     print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
+        #     stage.optimal_config = optimal_config
+
+        #     result.append(optimal_config)
+        # return result
 
     def shutdown(self):
         """
