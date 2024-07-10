@@ -57,7 +57,7 @@ class Stage:
             cpu=1, memory=1024, workers=1
         )
         self.resource_config: Optional[StageConfig] = StageConfig(
-            cpu=1, memory=1024, workers=1
+            cpu=1, memory=2048, workers=1
         )
         ############################################
         # FIXME: Encapsulate the parameters in a class, since each scheduler we implement has it's own
@@ -67,6 +67,9 @@ class Stage:
         self._parallelism_ratio = None
         # self.degree_alloc is our optimal_config
         ############################################
+
+    def __repr__(self) -> str:
+        return f"Stage({self._stage_id}, resource_config={self.resource_config}) "
 
     @property
     def dag_id(self) -> str:
