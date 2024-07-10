@@ -118,36 +118,36 @@ class DAGExecutor:
             product(*(config_space[stage_id] for stage_id in config_space))
         )
 
-            for iteration in range(num_reps):
-                logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
+        for iteration in range(num_reps):
+            logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
 
-            for config_combination in all_config_combinations:
-                config_description = ", ".join(
-                    f"{stage_id} config: {config}"
-                    for stage_id, config in zip(config_space, config_combination)
-                )
-                logger.info(f"Applying configuration combination: {config_description}")
+        for config_combination in all_config_combinations:
+            config_description = ", ".join(
+                f"{stage_id} config: {config}"
+                for stage_id, config in zip(config_space, config_combination)
+            )
+            logger.info(f"Applying configuration combination: {config_description}")
 
-                for stage, config in zip(self._dag.stages, config_combination):
-                    stage.resource_config = config
-                    stage.state = StageState.NONE
-                    logger.info(f"Configured {stage.stage_id} with {config}")
+            for stage, config in zip(self._dag.stages, config_combination):
+                stage.resource_config = config
+                stage.state = StageState.NONE
+                logger.info(f"Configured {stage.stage_id} with {config}")
 
-                futures = self.execute()
+            futures = self.execute()
 
-                for stage, config in zip(self._dag.stages, config_combination):
-                    future = futures.get(stage.stage_id)
-                    if future and not future.error():
-                        timings = future.get_timings()
-                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-                        self._store_profiling(profiling_file, timings, config)
-                        logger.info(
-                            f"Profiling data for {stage.stage_id} saved in {profiling_file}"
-                        )
-                    elif future and future.error():
-                        logger.error(
-                            f"Error processing stage {stage.stage_id}: {future.error()}"
-                        )
+            for stage, config in zip(self._dag.stages, config_combination):
+                future = futures.get(stage.stage_id)
+                if future and not future.error():
+                    timings = future.get_timings()
+                    profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                    self._store_profiling(profiling_file, timings, config)
+                    logger.info(
+                        f"Profiling data for {stage.stage_id} saved in {profiling_file}"
+                    )
+                elif future and future.error():
+                    logger.error(
+                        f"Error processing stage {stage.stage_id}: {future.error()}"
+                    )
 
         logger.info("Profiling completed for all configurations")
 
