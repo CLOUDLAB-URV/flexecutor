@@ -30,7 +30,7 @@ def main():
     dag.add_stages([stage1])
 
     executor = DAGExecutor(dag, executor=FunctionExecutor())
-    executor.profile(config_space, num_iterations=1)
+    executor.profile(config_space, num_reps=1)
     executor.shutdown()
 
     print("stages completed")

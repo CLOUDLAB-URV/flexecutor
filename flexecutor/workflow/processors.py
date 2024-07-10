@@ -6,7 +6,7 @@ import logging
 from lithops import FunctionExecutor
 
 from flexecutor.storage.wrapper import worker_wrapper
-from flexecutor.utils.storagecontext import InternalStorageContext
+from flexecutor.workflow.stagecontext import InternalStageContext
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging
@@ -87,10 +87,10 @@ class ThreadPoolProcessor:
             copy_outputs = [deepcopy(item) for item in stage.outputs]
             for input_item in copy_inputs:
                 input_item.scan_objects(worker_id, num_workers)
-            io = InternalStorageContext(
+            ctx = InternalStageContext(
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
             )
-            map_iterdata.append(io)
+            map_iterdata.append(ctx)
 
         future = self._executor.map(
             map_function=worker_wrapper(stage.map_func),

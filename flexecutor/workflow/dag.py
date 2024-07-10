@@ -93,11 +93,8 @@ class DAG:
             graph.add_node(stage.stage_id, label=stage.stage_id)
             for parent in stage.parents:
                 graph.add_edge(parent.stage_id, stage.stage_id)
-
         pos = graphviz_layout(graph, prog="dot")
         labels = nx.get_node_attributes(graph, "label")
-
-        plt.figure(figsize=(8, 6))
         plt.title(self.dag_id, fontsize=15, fontweight="bold")
         nx.draw(
             graph,
@@ -110,5 +107,4 @@ class DAG:
             font_weight="bold",
             arrows=True,
         )
-        plt.savefig(filename)
-        plt.close()
+        plt.show()

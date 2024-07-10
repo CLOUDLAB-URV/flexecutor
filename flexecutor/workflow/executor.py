@@ -62,6 +62,7 @@ class DAGExecutor:
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
         # previous folder creation
+        # TODO: remove ifelse and use AssetType tuples (dir, extension)
         if asset_type == AssetType.MODEL:
             os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
             return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
@@ -99,16 +100,26 @@ class DAGExecutor:
         save_profiling_results(file, profile_data)
 
     def profile(
-        self, config_space: dict[str, Iterable[StageConfig]], num_iterations: int = 1
+        self,
+        # TODO: add a profile id (also on training) to allow having different
+        # trained models, mostly for different backends (k8s, lambda, etc.)
+        config_space: Iterable[StageConfig],
+        num_reps: int = 1,
     ) -> None:
+        # TODO: configuration space is a list of lists of StageConfig. The first
+        # list are the configurations for the dag. Each list (config) within
+        # contains a StageConfig for each stage in the dag. Check that each
+        # config has the same length as the number of stages in the dag,
+        # otherwise skip the config with a warning.
+
         logger.info(f"Profiling DAG {self._dag.dag_id}")
 
         all_config_combinations = list(
             product(*(config_space[stage_id] for stage_id in config_space))
         )
 
-        for iteration in range(num_iterations):
-            logger.info(f"Starting iteration {iteration + 1} of {num_iterations}")
+            for iteration in range(num_reps):
+                logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
 
             for config_combination in all_config_combinations:
                 config_description = ", ".join(
@@ -143,6 +154,16 @@ class DAGExecutor:
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
+        # TODO: predict latency/cost of the full dag. Return an object with the
+        # breakdown of latencies per stage.
+
+        # FIXME: (?) predict makes sense to move as method of DAG/Stage since models
+        # are stored there. Train too?
+        # Keep this method as a convenient wrapper for self._dag.predict()
+
+        # FIXME: (?) resource_config as a list or as a dict by stage_id?
+        # assert it contains config for all stages
+
         if stage is not None and len(resource_config) > 1:
             raise ValueError(
                 "predict() requires single Stage when only one StageConfig is provided and vice versa."
@@ -179,10 +200,7 @@ class DAGExecutor:
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
 
         # Before the execution, get the optimal configurations for all stages in the DAG
-        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
-
-        # self.train()
-        # FIXME: the optimal config seems to be an array, why is that?
+        # FIXME: actually optimize, hardcoded for now
         # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
         self._futures = dict()
 
@@ -318,6 +336,19 @@ class DAGExecutor:
         """
         Sets the optimal configuration for each stage.
         """
+        result = []
+        stages_list = [stage] if stage is not None else self._dag.stages
+        # TODO: Optimization happens globally for the dag, not per stage. Use
+        # the Solver implementations in the optimization module.
+        for stage in stages_list:
+            # optimal_config = stage.perf_model.optimize(config_bounds)
+            # FIXME: Hardcoded config for now
+            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
+            print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
+            stage.optimal_config = optimal_config
+
+            result.append(optimal_config)
+        return result
 
         print(f"Optimizing DAG {self._dag.dag_id}")
 
