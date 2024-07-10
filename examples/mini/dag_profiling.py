@@ -22,7 +22,7 @@ logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-NUM_ITERATIONS = 1
+NUM_ITERATIONS = 2
 
 
 if __name__ == "__main__":
@@ -37,7 +37,10 @@ if __name__ == "__main__":
                 StageConfig(cpu=1, memory=2048, workers=2),
                 StageConfig(cpu=1, memory=2048, workers=3),
             ),
-            "reduce": (StageConfig(cpu=1, memory=2048, workers=1),),
+            "reduce": (
+                StageConfig(cpu=1, memory=2048, workers=1),
+                StageConfig(cpu=1, memory=1024, workers=1),
+            ),
         }
 
         dag = DAG("mini-dag")

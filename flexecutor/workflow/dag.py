@@ -18,6 +18,11 @@ class DAG:
     def __iter__(self):
         return iter(self.stages)
 
+    def get_stage_by_id(self, stage_id: str) -> Stage:
+        for stage in self.stages:
+            if stage.stage_id == stage_id:
+                return stage
+
     @property
     def dag_id(self):
         """Return the DAG ID"""
