@@ -17,7 +17,6 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor, StageConfig
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
-from flexecutor.scheduling import DittoScheduler
 
 logger = setup_logging(level=logging.INFO)
 
