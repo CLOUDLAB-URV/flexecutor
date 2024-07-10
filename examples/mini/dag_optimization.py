@@ -14,7 +14,7 @@ from functions.word_count import (
 )
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.executor import DAGExecutor, StageConfig
+from flexecutor.workflow.executor import DAGExecutor, ConfigBounds
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
 
@@ -59,10 +59,11 @@ if __name__ == "__main__":
         # Related to issue: https://github.com/lithops-cloud/lithops/issues/1371
 
         executor = DAGExecutor(dag, executor=FunctionExecutor(runtime_cpus=1))
-        executor.train()
-        executor.optimize(
-            dag_critical_path,
+        config_bounds = ConfigBounds(
+            cpu=(0.5, 4.5), memory=(1024, 4096), workers=(1, 10)
         )
+        executor.train()
+        executor.optimize(dag_critical_path, config_bounds)
         executor.shutdown()
         print("Tasks completed")
 
