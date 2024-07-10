@@ -138,9 +138,7 @@ class GAPerfModel(PerfModel):
 
                 config_key = (num_vcpu, memory, num_func)
 
-                cold_starts.extend(
-                    [np.mean(times) for times in data["cold_start"]]
-                )
+                cold_starts.extend([np.mean(times) for times in data["cold_start"]])
 
                 read_times = [np.mean(times) for times in data["read"]]
                 compute_times = [np.mean(times) for times in data["compute"]]
@@ -157,7 +155,7 @@ class GAPerfModel(PerfModel):
                     )
 
             return processed_data
-        
+
         self._data = preprocess_profiling_data(stage_profile_data)
         print(self._data)
         pop = self._toolbox.population(n=self._population_size)
@@ -201,11 +199,10 @@ class GAPerfModel(PerfModel):
     def parameters(self):
         return "Yet to be implemented"
 
-    def predict(self, config) -> FunctionTimes:
+    def predict_time(self, config) -> FunctionTimes:
         func = self._toolbox.compile(expr=self._best_individual)
         try:
             return FunctionTimes(total=func(config.cpu, config.memory, config.workers))
         except Exception as e:
             logger.error(f"Error predicting: {e}")
             return FunctionTimes()
-

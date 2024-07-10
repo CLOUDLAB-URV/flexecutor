@@ -70,7 +70,7 @@ class AnaPerfModel(PerfModel):
     def train(self, stage_profile_data: Dict) -> None:
         if len(stage_profile_data) < 2:
             raise ValueError(
-                "At least two profiled configurations are required to train the step model."
+                "At least two profiled configurations for each stage are required to train the step model."
             )
         self._profiling_results = stage_profile_data
 
