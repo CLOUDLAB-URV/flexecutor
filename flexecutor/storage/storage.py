@@ -22,7 +22,6 @@ class FlexInput:
         strategy: StrategyEnum = StrategyEnum.SCATTER,
         chunker: Optional[Chunker] = None,
         local_base_path: str = "/tmp",
-        storage=None,
     ):
         """
         A class to define inputs in flex stages.
