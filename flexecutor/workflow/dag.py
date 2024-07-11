@@ -1,7 +1,6 @@
 import math
-from collections import deque
+from typing import Optional
 from flexecutor.workflow.stage import Stage
-from flexecutor.utils.dataclass import StageConfig
 
 
 class DAG:
@@ -77,7 +76,7 @@ class DAG:
         for stage in stages:
             self.add_stage(stage)
 
-    def draw(self, filename="dag.png"):
+    def draw(self, filename: Optional[str] = None):
         """
         Draw the DAG for user visualization and save it to a file.
 
@@ -107,4 +106,7 @@ class DAG:
             font_weight="bold",
             arrows=True,
         )
-        plt.show()
+        if filename:
+            plt.savefig(filename)
+        else:
+            plt.show()
