@@ -131,3 +131,6 @@ examples/*/images/
 
 examples/*/profiling/
 !examples/*/profiling/mocks
+.vscode/settings.json
+.gitignore
+.flake8

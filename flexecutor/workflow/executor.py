@@ -332,7 +332,7 @@ class DAGExecutor:
         self,
         dag_critical_path=List[str],
         config_bounds: ConfigBounds = None,
-    ) -> List[StageConfig]:
+    ):
         """
         Sets the optimal configuration for each stage.
         """
@@ -356,21 +356,23 @@ class DAGExecutor:
             if stage.stage_id in dag_critical_path:
                 for cpu in cpu_combinations:
                     for worker in worker_combinations:
+                        if stage.max_concurrency == 1:
+                            worker = 1
                         memory = calculate_memory_for_cpus(cpu)
                         if memory <= config_bounds.memory[1]:
                             predicted_time = stage.perf_model.predict_time(
                                 StageConfig(cpu=cpu, memory=memory, workers=worker)
                             )
                             if predicted_time < stage.perf_model.predict_time(
-                                stage.optimal_config
+                                stage.resource_config
                             ):
-                                stage.optimal_config = StageConfig(
+                                stage.resource_config = StageConfig(
                                     cpu=cpu, memory=memory, workers=worker
                                 )
 
         for stage in self._dag:
             print(
-                f"Optimal configuration for stage {stage.stage_id}: {stage.optimal_config}"
+                f"Optimal configuration for stage {stage.stage_id}: {stage.resource_config}"
             )
 
     def shutdown(self):

@@ -53,10 +53,7 @@ class Stage:
         self._map_func = func
         self._max_concurrency = max_concurrency
         self.dag_id = None
-        self.optimal_config: Optional[StageConfig] = StageConfig(
-            cpu=1, memory=1024, workers=1
-        )
-        self.resource_config: Optional[StageConfig] = StageConfig(
+        self._resource_config: Optional[StageConfig] = StageConfig(
             cpu=1, memory=2048, workers=1
         )
 
@@ -67,6 +64,16 @@ class Stage:
     def dag_id(self) -> str:
         """Return the DAG ID."""
         return self._dag_id
+
+    @property
+    def resource_config(self):
+        return self._resource_config
+
+
+    @resource_config.setter
+    def resource_config(self, value: StageConfig):
+        self._resource_config = value
+
 
     @property
     def map_func(self) -> Callable[..., Any]:
