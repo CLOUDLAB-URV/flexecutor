@@ -94,13 +94,20 @@ class DAGExecutor:
         config_space: Iterable[StageConfig],
         num_reps: int = 1,
     ) -> None:
-        # TODO: configuration space is a list of lists of StageConfig. The first
-        # list are the configurations for the dag. Each list (config) within
-        # contains a StageConfig for each stage in the dag. Check that each
-        # config has the same length as the number of stages in the dag,
-        # otherwise skip the config with a warning.
 
         logger.info(f"Profiling DAG {self._dag.dag_id}")
+
+        # Check that the config_space has the same length as the number of stages in the DAG and they have the same name
+        if len(config_space) != len(self._dag.stages):
+            raise ValueError(
+                "The configuration space must have the same length as the number of stages in the DAG"
+            )
+
+        for stage_id, config in zip(self._dag.stages, config_space):
+            if stage_id != config.stage_id:
+                raise ValueError(
+                    "The stage IDs in the configuration space must match the stage ID in the DAG"
+                )
 
         all_config_combinations = list(
             product(*(config_space[stage_id] for stage_id in config_space))
