@@ -19,9 +19,7 @@ class ThreadPoolProcessor:
     Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self, executor: FunctionExecutor, max_threadpool_concurrency=256):
-        super().__init__()
-        self._executor = executor
+    def __init__(self, max_threadpool_concurrency=256):
         self._max_concurrency = max_threadpool_concurrency
         self._pool = ThreadPoolExecutor(max_workers=max_threadpool_concurrency)
 
@@ -54,7 +52,7 @@ class ThreadPoolProcessor:
 
             stage.state = StageState.RUNNING
             ex_futures[stage.stage_id] = self._pool.submit(
-                lambda s=stage: self._process_stage(s, on_future_done)
+                lambda s=stage: s.execute(on_future_done)
             )
         wait(ex_futures.values())
 
@@ -64,48 +62,3 @@ class ThreadPoolProcessor:
 
     def shutdown(self):
         self._pool.shutdown()
-
-    def _process_stage(
-        self, stage: Stage, on_future_done: Callable[[Stage, StageFuture], None] = None
-    ) -> StageFuture:
-        """
-        Process a stage
-
-        :param stage: stage to process
-        :param on_future_done: Callback to execute every time a future is done
-        """
-
-        # STATIC PARTITIONING ???
-        # for input_path in stage.input_file:
-        #     if input_path.partitioner:
-        #         input_path.partitioner.partitionize()
-
-        map_iterdata = []
-        num_workers = min(stage.resource_config.workers, stage.max_concurrency)
-        for worker_id in range(num_workers):
-            copy_inputs = [deepcopy(item) for item in stage.inputs]
-            copy_outputs = [deepcopy(item) for item in stage.outputs]
-            for input_item in copy_inputs:
-                input_item.scan_objects(worker_id, num_workers)
-            ctx = InternalStageContext(
-                worker_id, num_workers, copy_inputs, copy_outputs, stage.params
-            )
-            map_iterdata.append(ctx)
-
-        future = self._executor.map(
-            map_function=worker_wrapper(stage.map_func),
-            map_iterdata=map_iterdata,
-            runtime_memory=int(stage.resource_config.memory),
-        )
-
-        self._executor.wait(future)
-        future = StageFuture(stage.stage_id, future)
-
-        # Update the state of the stage based on the future result
-        stage.state = StageState.FAILED if future.error() else StageState.SUCCESS
-
-        # Call the callback function if provided
-        if on_future_done:
-            on_future_done(stage, future)
-
-        return future

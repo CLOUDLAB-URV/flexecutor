@@ -46,11 +46,10 @@ class DAGExecutor:
     def __init__(
         self,
         dag: DAG,
-        executor: FunctionExecutor | None = None,
+        executor: FunctionExecutor,
     ):
         self._dag = dag
-        self._processor = ThreadPoolProcessor(executor)
-
+        self._processor = ThreadPoolProcessor()
         self._futures: Dict[str, StageFuture] = dict()
         self._num_final_stages = 0
         self._base_path = get_my_exec_path()
@@ -59,6 +58,12 @@ class DAGExecutor:
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
         self._executor_id = get_executor_id()
+        # Initialize executor settings for all stages
+        self._assign_executor_to_stages()
+
+    def _assign_executor_to_stages(self):
+        for stage in self._dag:
+            stage.executor = self._executor
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
         dir_name, file_extension = asset_type.value
@@ -226,6 +231,7 @@ class DAGExecutor:
             self._running_stages |= set_batch
 
             # Call the processor to execute the batch
+            print(f"Processing batch: {batch}")
             futures = self._processor.process(batch)
 
             self._running_stages -= set_batch
