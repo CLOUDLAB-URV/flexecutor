@@ -149,6 +149,21 @@ class DAGExecutor:
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
+        """Predicts the latency of the entire dag for a given dictionary of resource configurations.
+        If a stage is provided, it will predict the latency of that stage only.
+
+
+        Args:
+            resource_config (List[StageConfig]): Dictionary with the resource configuration for each stage.
+            stage (Optional[Stage], optional): Stage to profile. Defaults to None.
+
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+
+        Returns:
+            List[FunctionTimes]: _description_
+        """
         # TODO: predict latency/cost of the full dag. Return an object with the
         # breakdown of latencies per stage.
 
@@ -194,9 +209,6 @@ class DAGExecutor:
         self._num_final_stages = len(self._dag.leaf_stages)
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
 
-        # Before the execution, get the optimal configurations for all stages in the DAG
-        # FIXME: actually optimize, hardcoded for now
-        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
         self._futures = dict()
 
         # Start by executing the root stages
@@ -227,101 +239,6 @@ class DAGExecutor:
                         self._dependence_free_stages.add(child)
 
         return self._futures
-
-    def model_perf_metrics(
-        self, stage: Stage, config_space: List[StageConfig]
-    ) -> DataFrame:
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(
-            stage, config_space
-        )
-
-        actual_latencies = np.array(actual_latencies)
-        predicted_latencies = np.array(predicted_latencies)
-
-        data = np.array(
-            [
-                [
-                    config.workers,
-                    config.cpu,
-                    config.memory,
-                    actual,
-                    predicted,
-                    abs(actual - predicted),
-                    (actual - predicted) ** 2,
-                ]
-                for config, actual, predicted in zip(
-                    config_space, actual_latencies, predicted_latencies
-                )
-            ]
-        )
-
-        df = pd.DataFrame(
-            data,
-            columns=[
-                "Workers",
-                "CPU",
-                "Memory",
-                "Actual latency",
-                "Predicted latency",
-                "MAE",
-                "MSE",
-            ],
-        )
-
-        return df
-
-    def plot_model_performance(self, stage: Stage, config_space: List[StageConfig]):
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(
-            stage, config_space
-        )
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(config_space))
-
-        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
-
-        if any(actual_latencies):
-            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
-
-        ax.set_xlabel("Configurations")
-        ax.set_ylabel("Latency")
-        ax.set_title("Model Performance Comparison")
-        ax.set_xticks(x)
-        ax.set_xticklabels([str(i.key) for i in config_space], rotation=45, ha="right")
-        ax.legend()
-
-        plt.tight_layout()
-
-        plt.savefig(self._get_asset_path(stage, AssetType.IMAGE))
-
-    def _prediction_vs_actual(self, stage: Stage, config_space: List[StageConfig]):
-        actual_latencies = []
-        predicted_latencies = []
-        profiling_data = load_profiling_results(
-            f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
-        )
-        stage.perf_model.train(profiling_data)
-        for config in config_space:
-            if config.key in profiling_data:
-                executions = profiling_data[config.key]
-                total_latencies = [
-                    sum(lats)
-                    for breaks in zip(
-                        executions["read"],
-                        executions["compute"],
-                        executions["write"],
-                        executions["cold_start"],
-                    )
-                    for lats in zip(*breaks)
-                ]
-                avg_actual_latency = np.mean(total_latencies)
-                actual_latencies.append(avg_actual_latency)
-            else:
-                actual_latencies.append(None)
-
-            predicted_latency = stage.perf_model.predict(config).total
-            predicted_latencies.append(predicted_latency)
-        return actual_latencies, predicted_latencies
 
     def optimize(
         self,
@@ -366,7 +283,7 @@ class DAGExecutor:
                                 )
 
         for stage in self._dag:
-            print(
+            logger.info(
                 f"Optimal configuration for stage {stage.stage_id}: {stage.resource_config}"
             )
 
