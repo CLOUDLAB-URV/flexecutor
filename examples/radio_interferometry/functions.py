@@ -35,7 +35,7 @@ def imaging(io: IOManager):
     dst = dst.removesuffix("-image.fits")
     imaging_params.append(dst)
 
-    zip_paths = io.get_input_paths("applycal_out/apply/ms")
+    zip_paths = io.get_input_paths("applycal_ms")
     for zip_path in zip_paths:
         ms_path = unzip(Path(zip_path))
         imaging_params.append(ms_path)

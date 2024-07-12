@@ -188,7 +188,7 @@ if __name__ == "__main__":
             stage_id="imaging",
             func=imaging,
             max_concurrency=1,
-            inputs=[FlexInput(prefix="applycal_out/apply/ms")],
+            inputs=[FlexInput(prefix="applycal_ms")],
             outputs=[
                 FlexOutput(prefix="image_out", suffix="-image.fits"),
                 FlexOutput(prefix="image_out/logs", suffix=".log"),
