@@ -18,8 +18,6 @@ if __name__ == "__main__":
     def main():
         dag = DAG("video-analytics")
 
-        # TODO: avoid repeating the same bucket name in every input/output
-
         stage0 = Stage(
             stage_id="stage0",
             func=split_videos,
