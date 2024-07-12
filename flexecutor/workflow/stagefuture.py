@@ -15,7 +15,7 @@ class StageFuture:
     def result(self) -> Any:
         return [i[0] for i in self.__future.get_result()]
 
-    def _timings_list(self) -> list[FunctionTimes]:
+    def _timings_list(self) -> List[FunctionTimes]:
         return [i[1] for i in self.__future.get_result()]
 
     @property
