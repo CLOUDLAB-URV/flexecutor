@@ -61,21 +61,9 @@ class DAGExecutor:
         self._executor_id = get_executor_id()
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
-        # previous folder creation
-        # TODO: remove ifelse and use AssetType tuples (dir, extension)
-        if asset_type == AssetType.MODEL:
-            os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
-        elif asset_type == AssetType.PROFILE:
-            os.makedirs(
-                f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True
-            )
-            return (
-                f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
-            )
-        elif asset_type == AssetType.IMAGE:
-            os.makedirs(f"{self._base_path}/images/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
+        dir_name, file_extension = asset_type.value
+        os.makedirs(f"{self._base_path}/{dir_name}/{self._dag.dag_id}", exist_ok=True)
+        return f"{self._base_path}/{dir_name}/{self._dag.dag_id}/{stage.stage_id}{file_extension}"
 
     def _store_profiling(
         self,
