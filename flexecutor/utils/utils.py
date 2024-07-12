@@ -5,6 +5,9 @@ import os
 import time
 from contextlib import contextmanager
 
+from typing import List
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig
+
 
 def initialize_timings():
     return {"read": 0, "compute": 0, "write": 0}
@@ -46,6 +49,28 @@ def setup_logging(level):
     logger.addHandler(handler)
 
     return logger
+
+
+def store_profiling(
+    file: str,
+    new_profile_data: List[FunctionTimes],
+    resource_config: StageConfig,
+) -> None:
+    profile_data = load_profiling_results(file)
+    print(f"Profile data: {profile_data}")
+    config_key = str(resource_config.key)
+    if config_key not in profile_data:
+        profile_data[config_key] = {}
+    for key in FunctionTimes.profile_keys():
+        if key not in profile_data[config_key]:
+            profile_data[config_key][key] = []
+        profile_data[config_key][key].append([])
+    for profiling in new_profile_data:
+        for key in FunctionTimes.profile_keys():
+            profile_data[config_key][key][-1].append(getattr(profiling, key))
+
+    print(f"Profile data: {profile_data}")
+    save_profiling_results(file, profile_data)
 
 
 def load_profiling_results(file: str) -> dict:

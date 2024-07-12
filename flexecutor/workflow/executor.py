@@ -1,20 +1,17 @@
 import logging
 import os
 from enum import Enum
-from typing import Dict, Set, List, Iterable, Optional
+from typing import Dict, Set, List, Iterable, Optional, Callable
 from itertools import product
 
 import numpy as np
-import pandas as pd
 from lithops import FunctionExecutor
-from matplotlib import pyplot as plt
-from pandas import DataFrame
 from lithops.utils import get_executor_id
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import (
     load_profiling_results,
-    save_profiling_results,
+    store_profiling,
     get_my_exec_path,
 )
 from flexecutor.workflow.dag import DAG
@@ -70,27 +67,49 @@ class DAGExecutor:
         os.makedirs(f"{self._base_path}/{dir_name}/{self._dag.dag_id}", exist_ok=True)
         return f"{self._base_path}/{dir_name}/{self._dag.dag_id}/{stage.stage_id}{file_extension}"
 
-    def _store_profiling(
-        self,
-        file: str,
-        new_profile_data: List[FunctionTimes],
-        resource_config: StageConfig,
-    ) -> None:
-        profile_data = load_profiling_results(file)
-        print(f"Profile data: {profile_data}")
-        config_key = str(resource_config.key)
-        if config_key not in profile_data:
-            profile_data[config_key] = {}
-        for key in FunctionTimes.profile_keys():
-            if key not in profile_data[config_key]:
-                profile_data[config_key][key] = []
-            profile_data[config_key][key].append([])
-        for profiling in new_profile_data:
-            for key in FunctionTimes.profile_keys():
-                profile_data[config_key][key][-1].append(getattr(profiling, key))
+    def execute(
+        self, on_future_done: Callable[[Stage, StageFuture], None] = None
+    ) -> Dict[str, StageFuture]:
+        """
+        Execute the DAG
 
-        print(f"Profile data: {profile_data}")
-        save_profiling_results(file, profile_data)
+        :return: A dictionary with the output data of the DAG stages with the stage ID as key
+        """
+        logger.info(f"Executing DAG {self._dag.dag_id}")
+        self._num_final_stages = len(self._dag.leaf_stages)
+        logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
+
+        self._futures = dict()
+
+        # Start by executing the root stages
+        self._dependence_free_stages = set(self._dag.root_stages)
+        self._running_stages = set()
+        self._finished_stages = set()
+
+        # Execute stages until all stages have been executed
+        while self._dependence_free_stages or self._running_stages:
+            # Select the stages to execute
+            batch = list(self._dependence_free_stages)
+
+            # Add the batch to the running stages
+            set_batch = set(batch)
+            self._running_stages |= set_batch
+
+            # Call the processor to execute the batch
+            print(f"Processing batch: {batch}")
+            futures = self._processor.process(batch, on_future_done)
+
+            self._running_stages -= set_batch
+            self._dependence_free_stages -= set_batch
+            self._finished_stages |= set_batch
+
+            for stage in batch:
+                self._futures[stage.stage_id] = futures[stage.stage_id]
+                for child in stage.children:
+                    if child.parents.issubset(self._finished_stages):
+                        self._dependence_free_stages.add(child)
+
+        return self._futures
 
     def profile(
         self,
@@ -140,7 +159,7 @@ class DAGExecutor:
                 if future and not future.error():
                     timings = future.get_timings()
                     profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-                    self._store_profiling(profiling_file, timings, config)
+                    store_profiling(profiling_file, timings, config)
                     logger.info(
                         f"Profiling data for {stage.stage_id} saved in {profiling_file}"
                     )
@@ -202,49 +221,6 @@ class DAGExecutor:
             )
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
-
-    def execute(self) -> Dict[str, StageFuture]:
-        """
-        Execute the DAG
-
-        :return: A dictionary with the output data of the DAG stages with the stage ID as key
-        """
-        logger.info(f"Executing DAG {self._dag.dag_id}")
-
-        self._num_final_stages = len(self._dag.leaf_stages)
-        logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
-
-        self._futures = dict()
-
-        # Start by executing the root stages
-        self._dependence_free_stages = set(self._dag.root_stages)
-        self._running_stages = set()
-        self._finished_stages = set()
-
-        # Execute stages until all stages have been executed
-        while self._dependence_free_stages or self._running_stages:
-            # Select the stages to execute
-            batch = list(self._dependence_free_stages)
-
-            # Add the batch to the running stages
-            set_batch = set(batch)
-            self._running_stages |= set_batch
-
-            # Call the processor to execute the batch
-            print(f"Processing batch: {batch}")
-            futures = self._processor.process(batch)
-
-            self._running_stages -= set_batch
-            self._dependence_free_stages -= set_batch
-            self._finished_stages |= set_batch
-
-            for stage in batch:
-                self._futures[stage.stage_id] = futures[stage.stage_id]
-                for child in stage.children:
-                    if child.parents.issubset(self._finished_stages):
-                        self._dependence_free_stages.add(child)
-
-        return self._futures
 
     def optimize(
         self,
