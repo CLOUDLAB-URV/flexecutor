@@ -170,6 +170,9 @@ class Stage:
         #     if input_path.partitioner:
         #         input_path.partitioner.partitionize()
 
+        if self._executor is None:
+            raise ValueError("No executor provided for the stage.")
+
         map_iterdata = []
         num_workers = min(self.resource_config.workers, self.max_concurrency)
         for worker_id in range(num_workers):
@@ -200,8 +203,11 @@ class Stage:
 
         return future
 
-    def profile(self, stage_configs: List[StageConfig], num_reps: int):
-        pass
+    def profile(self, stage_config: StageConfig):
+        self.resource_config = stage_config
+        future = self.execute()
+        print(future.get_timings())
+        # save the results here
 
     def train(self, profiling_data):
         pass
