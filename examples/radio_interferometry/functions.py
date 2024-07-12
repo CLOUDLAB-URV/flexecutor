@@ -14,145 +14,25 @@ from flexecutor.utils.iomanager import IOManager
 logger = logging.getLogger(__name__)
 
 
-def rebinning(io: IOManager):
-    parameters = {
-        "steps": "[aoflag, avg, count]",
-        "aoflag.type": "aoflagger",
-        "avg.type": "averager",
-        "avg.freqstep": 4,
-        "avg.timestep": 8,
-        "numthreads": 4,
-    }
-
+def dp3(io: IOManager):
+    parameters = io.get_param("parameters")
+    if type(parameters) is not list:
+        parameters = [parameters]
+    dp3_types = io.get_param("dp3_types")
+    if type(dp3_types) is not list:
+        dp3_types = [dp3_types]
     msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
-    parameters["msout"] = msout_path
-    ms_zip = io.get_input_paths("partitions")[0]
-    parameters["msin"] = unzip(Path(ms_zip))
-    [parameters["aoflag.strategy"]] = io.get_input_paths("lua")
-    parameters["log_output"] = io.next_output_path("rebinning_out/logs")
 
-    execute_dp3(parameters)
-
-    zip_path = io.next_output_path("rebinning_out/ms")
-    zip_name = zip_path[:-4]
-    os.rename(msout_path, zip_name)
-    my_zip(Path(zip_name), Path(zip_path))
-
-
-def calibration(io: IOManager):
-    calibration_parameters = {
-        "msin.datacolumn": "DATA",
-        "steps": "[cal]",
-        "cal.type": "ddecal",
-        "cal.mode": "diagonal",
-        "cal.solint": 4,
-        "cal.nchan": 4,
-        "cal.maxiter": 50,
-        "cal.uvlambdamin": 5,
-        "cal.smoothnessconstraint": 2e6,
-        "numthreads": 4,
-    }
-
-    subtraction_parameters = {
-        "msin.datacolumn": "DATA",
-        "msout.datacolumn": "SUBTRACTED_DATA",
-        "steps": "[sub]",
-        "sub.type": "h5parmpredict",
-        "sub.directions": "[[CygA],[CasA]]",
-        "sub.operation": "subtract",
-        "sub.applycal.steps": "[sub_apply_amp,sub_apply_phase]",
-        "sub.applycal.correction": "fulljones",
-        "sub.applycal.sub_apply_amp.correction": "amplitude000",
-        "sub.applycal.sub_apply_phase.correction": "phase000",
-        "msout": ".",
-    }
-
-    apply_calibration_parameters = {
-        "msin.datacolumn": "SUBTRACTED_DATA",
-        "msout.datacolumn": "CORRECTED_DATA",
-        "msout": ".",
-        "steps": "[apply]",
-        "apply.type": "applycal",
-        "apply.steps": "[apply_amp,apply_phase]",
-        "apply.apply_amp.correction": "amplitude000",
-        "apply.apply_phase.correction": "phase000",
-        "apply.direction": "[Main]",
-    }
-
-    msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
-    calibration_parameters["msout"] = msout_path
-    ms_zip = io.get_input_paths("rebinning_out/ms")[0]
-    msin_path = unzip(Path(ms_zip))
-    calibration_parameters["msin"] = msin_path
-    calibration_parameters["msout"] = msout_path
-    subtraction_parameters["msin"] = msout_path
-    apply_calibration_parameters["msin"] = msout_path
-
-    [step2a_zip] = io.get_input_paths("step2a")
-    step2a_path = unzip(Path(step2a_zip))
-    h5_path = "/tmp/cal.h5"
-
-    calibration_parameters["cal.sourcedb"] = step2a_path
-    calibration_parameters["log_output"] = io.next_output_path("applycal_out/cal/logs")
-    calibration_parameters["cal.h5parm"] = h5_path
-
-    subtraction_parameters["sub.sourcedb"] = step2a_path
-    subtraction_parameters["sub.applycal.parmdb"] = h5_path
-    subtraction_parameters["log_output"] = io.next_output_path("applycal_out/sub/logs")
-
-    apply_calibration_parameters["apply.parmdb"] = h5_path
-    apply_calibration_parameters["log_output"] = io.next_output_path("applycal_out/apply/logs")
-
-    execute_dp3(calibration_parameters)
-    execute_dp3(subtraction_parameters)
-    execute_dp3(apply_calibration_parameters)
-
-    zip_path = io.next_output_path("applycal_out/apply/ms")
-    zip_name = zip_path[:-4]
-    os.rename(msout_path, zip_name)
-    my_zip(Path(zip_name), Path(zip_path))
+    for params, dp3_type in zip(parameters, dp3_types):
+        before_exec_dp3(params, msout_path, dp3_type, io)
+        exec_dp3(params)
+        after_exec_dp3(params, msout_path, dp3_type, io)
 
 
 def imaging(io: IOManager):
-    cpus = 5
-    imaging_params = [
-        "-size",
-        "1024",
-        "1024",
-        "-pol",
-        "I",
-        "-scale",
-        "2arcmin",
-        "-niter",
-        "100000",
-        "-gain",
-        "0.1",
-        "-mgain",
-        "0.6",
-        "-auto-mask",
-        "5",
-        "-local-rms",
-        "-multiscale",
-        "-no-update-model-required",
-        "-make-psf",
-        "-auto-threshold",
-        "3",
-        "-parallel-deconvolution",
-        "4096",
-        "-weight",
-        "briggs",
-        "0",
-        "-data-column",
-        "CORRECTED_DATA",
-        "-nmiter",
-        "0",
-        "-j",
-        str(cpus),
-        "-name",
-    ]
-
+    imaging_params = io.get_param("parameters")
     dst = io.next_output_path("image_out")
-    dst = dst[: -len("-image.fits")]
+    dst = dst.removesuffix("-image.fits")
     imaging_params.append(dst)
 
     zip_paths = io.get_input_paths("applycal_out/apply/ms")
@@ -168,7 +48,58 @@ def imaging(io: IOManager):
         log_file.write(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
 
 
-def execute_dp3(parameters):
+def before_exec_dp3(parameters, msout_path: Path, dp3_type: str, io: IOManager):
+    """
+    This function prepares the parameters for the DP3 execution.
+    Depending on the DP3 type, it will unzip the input files and set the parameters accordingly.
+    @param parameters: The parameters for the DP3 execution.
+    @param msout_path: The path to the output MS file.
+    @param dp3_type: rebinning | calibration | subtraction | apply_calibration
+    @param io: the IOManager instance
+    """
+    if dp3_type == "rebinning":
+        msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
+        parameters["msout"] = msout_path
+        ms_zip = io.get_input_paths("partitions")[0]
+        parameters["msin"] = unzip(Path(ms_zip))
+        [parameters["aoflag.strategy"]] = io.get_input_paths("lua")
+        parameters["log_output"] = io.next_output_path("rebinning_out/logs")
+
+    elif dp3_type == "calibration":
+        ms_zip = io.get_input_paths("rebinning_out/ms")[0]
+        msin_path = unzip(Path(ms_zip))
+        [step2a_zip] = io.get_input_paths("step2a")
+        step2a_path = unzip(Path(step2a_zip))
+        h5_path = "/tmp/cal.h5"
+        parameters["msin"] = msin_path
+        parameters["msout"] = msout_path
+        parameters["cal.sourcedb"] = step2a_path
+        parameters["log_output"] = io.next_output_path("applycal_out/cal/logs")
+        parameters["cal.h5parm"] = h5_path
+
+    elif dp3_type == "subtraction":
+        [step2a_zip] = io.get_input_paths("step2a")
+        step2a_path = step2a_zip.removesuffix(".zip")
+        h5_path = "/tmp/cal.h5"
+        parameters["msin"] = msout_path
+        parameters["msout"] = "."
+        parameters["sub.sourcedb"] = step2a_path
+        parameters["sub.applycal.parmdb"] = h5_path
+        parameters["log_output"] = io.next_output_path("applycal_out/sub/logs")
+
+    elif dp3_type == "apply_calibration":
+        h5_path = "/tmp/cal.h5"
+        parameters["msin"] = msout_path
+        parameters["msout"] = "."
+        parameters["apply.parmdb"] = h5_path
+        parameters["log_output"] = io.next_output_path("applycal_out/apply/logs")
+
+
+def exec_dp3(parameters):
+    """
+    This function executes the DP3 command with the given parameters.
+    @param parameters: The parameters for the DP3 execution.
+    """
     params_path = dict_to_parset(parameters)
     cmd = ["DP3", str(params_path)]
     print("Executing command: ", cmd)
@@ -177,3 +108,27 @@ def execute_dp3(parameters):
         proc = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, text=True)
         stdout, stderr = proc.communicate()
         log_file.write(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
+
+
+def after_exec_dp3(params, msout_path: Path, dp3_type: str, io: IOManager):
+    """
+    This function prepares the output files after the DP3 execution.
+    @param params: The parameters of the DP3 execution.
+    @param msout_path: The path to the output MS file.
+    @param dp3_type: rebinning | calibration | subtraction | apply_calibration
+    @param io: the IOManager instance
+    """
+    if dp3_type == "rebinning":
+        zip_path = io.next_output_path("rebinning_out/ms")
+        zip_name = zip_path.removesuffix(".zip")
+        os.rename(params["msout"], zip_name)
+        my_zip(Path(zip_name), Path(zip_path))
+
+    elif dp3_type == "calibration" or dp3_type == "subtraction":
+        pass
+
+    elif dp3_type == "apply_calibration":
+        zip_path = io.next_output_path("applycal_out/apply/ms")
+        zip_name = zip_path.removesuffix(".zip")
+        os.rename(msout_path, zip_name)
+        my_zip(Path(zip_name), Path(zip_path))

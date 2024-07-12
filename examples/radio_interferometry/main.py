@@ -1,9 +1,8 @@
 from lithops import FunctionExecutor
 
 from examples.radio_interferometry.functions import (
-    rebinning,
     imaging,
-    calibration,
+    dp3,
 )
 from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
 from flexecutor.utils.utils import flexorchestrator
@@ -15,11 +14,95 @@ if __name__ == "__main__":
 
     @flexorchestrator(bucket="test-bucket")
     def main():
+        rebinning_parameters = {
+            "steps": "[aoflag, avg, count]",
+            "aoflag.type": "aoflagger",
+            "avg.type": "averager",
+            "avg.freqstep": 4,
+            "avg.timestep": 8,
+            "numthreads": 4,
+        }
+
+        calibration_parameters = {
+            "msin.datacolumn": "DATA",
+            "steps": "[cal]",
+            "cal.type": "ddecal",
+            "cal.mode": "diagonal",
+            "cal.solint": 4,
+            "cal.nchan": 4,
+            "cal.maxiter": 50,
+            "cal.uvlambdamin": 5,
+            "cal.smoothnessconstraint": 2e6,
+            "numthreads": 4,
+        }
+
+        subtraction_parameters = {
+            "msin.datacolumn": "DATA",
+            "msout.datacolumn": "SUBTRACTED_DATA",
+            "steps": "[sub]",
+            "sub.type": "h5parmpredict",
+            "sub.directions": "[[CygA],[CasA]]",
+            "sub.operation": "subtract",
+            "sub.applycal.steps": "[sub_apply_amp,sub_apply_phase]",
+            "sub.applycal.correction": "fulljones",
+            "sub.applycal.sub_apply_amp.correction": "amplitude000",
+            "sub.applycal.sub_apply_phase.correction": "phase000",
+            "msout": ".",
+        }
+
+        apply_calibration_parameters = {
+            "msin.datacolumn": "SUBTRACTED_DATA",
+            "msout.datacolumn": "CORRECTED_DATA",
+            "msout": ".",
+            "steps": "[apply]",
+            "apply.type": "applycal",
+            "apply.steps": "[apply_amp,apply_phase]",
+            "apply.apply_amp.correction": "amplitude000",
+            "apply.apply_phase.correction": "phase000",
+            "apply.direction": "[Main]",
+        }
+
+        imaging_parameters = [
+            "-size",
+            "1024",
+            "1024",
+            "-pol",
+            "I",
+            "-scale",
+            "2arcmin",
+            "-niter",
+            "100000",
+            "-gain",
+            "0.1",
+            "-mgain",
+            "0.6",
+            "-auto-mask",
+            "5",
+            "-local-rms",
+            "-multiscale",
+            "-no-update-model-required",
+            "-make-psf",
+            "-auto-threshold",
+            "3",
+            "-parallel-deconvolution",
+            "4096",
+            "-weight",
+            "briggs",
+            "0",
+            "-data-column",
+            "CORRECTED_DATA",
+            "-nmiter",
+            "0",
+            "-j",
+            str(5),
+            "-name",
+        ]
+
         dag = DAG("radio-interferometry")
 
         rebinning_stage = Stage(
             stage_id="rebinning",
-            func=rebinning,
+            func=dp3,
             inputs=[
                 FlexInput(prefix="partitions"),
                 FlexInput(
@@ -38,11 +121,12 @@ if __name__ == "__main__":
                     suffix=".log",
                 ),
             ],
+            params={"parameters": rebinning_parameters, "dp3_types": "rebinning"},
         )
 
         full_calibration_stage = Stage(
             stage_id="full_calibration",
-            func=calibration,
+            func=dp3,
             inputs=[
                 FlexInput(
                     prefix="rebinning_out/ms",
@@ -73,6 +157,14 @@ if __name__ == "__main__":
                     suffix=".log",
                 ),
             ],
+            params={
+                "parameters": [
+                    calibration_parameters,
+                    subtraction_parameters,
+                    apply_calibration_parameters,
+                ],
+                "dp3_types": ["calibration", "subtraction", "apply_calibration"],
+            },
         )
 
         imaging_stage = Stage(
@@ -82,11 +174,11 @@ if __name__ == "__main__":
             inputs=[FlexInput(prefix="applycal_out/apply/ms")],
             outputs=[
                 FlexOutput(prefix="image_out", suffix="-image.fits"),
-                FlexOutput(
-                    prefix="image_out/logs",
-                    suffix=".log",
-                ),
+                FlexOutput(prefix="image_out/logs", suffix=".log"),
             ],
+            params={
+                "parameters": imaging_parameters,
+            },
         )
 
         rebinning_stage >> full_calibration_stage >> imaging_stage
@@ -110,6 +202,5 @@ if __name__ == "__main__":
         for result in results.values():
             print(f"STAGE #{i}: {result.get_timings()}")
             i += 1
-
 
     main()
