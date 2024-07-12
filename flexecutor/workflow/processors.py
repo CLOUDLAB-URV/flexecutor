@@ -26,17 +26,19 @@ class ThreadPoolProcessor:
     def process(
         self,
         stages: Sequence[Stage],
+        execute_function: Callable[[Stage, Callable[[Stage, StageFuture], None]], None],
         on_future_done: Callable[[Stage, StageFuture], None] = None,
     ) -> dict[str, StageFuture]:
         """
-        Process a list of stages
+        Process a list of stages using a specific function for execution.
         :param stages: List of stages to process
+        :param execute_function: The function to be executed for each stage
         :param on_future_done: Callback to execute every time a future is done
         :return: Futures of the stages
         :raises ValueError: If there are no stages to process or if there are
         more stages than the maximum parallelism
         """
-        if len(stages) == 0:
+        if not stages:
             raise ValueError("No stages to process")
 
         if len(stages) > self._max_concurrency:
@@ -45,20 +47,21 @@ class ThreadPoolProcessor:
                 f"Too many stages to process. Max concurrency is {self._max_concurrency}"
             )
 
-        ex_futures = {}
+        futures = {}
 
         for stage in stages:
             logger.info(f"Submitting stage {stage.stage_id}")
-
             stage.state = StageState.RUNNING
-            ex_futures[stage.stage_id] = self._pool.submit(
-                lambda s=stage: s.execute(on_future_done)
+            futures[stage.stage_id] = self._pool.submit(
+                lambda s=stage: execute_function(s, on_future_done)
             )
-        wait(ex_futures.values())
 
-        return {
-            stage_id: ex_future.result() for stage_id, ex_future in ex_futures.items()
-        }
+        wait(futures.values())
+
+        return {stage_id: future.result() for stage_id, future in futures.items()}
 
     def shutdown(self):
+        """
+        Shuts down the thread pool executor.
+        """
         self._pool.shutdown()
