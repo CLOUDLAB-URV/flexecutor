@@ -66,7 +66,7 @@ def before_exec_dp3(parameters, msout_path: Path, dp3_type: str, io: IOManager):
         parameters["log_output"] = io.next_output_path("rebinning_out/logs")
 
     elif dp3_type == "calibration":
-        ms_zip = io.get_input_paths("rebinning_out/ms")[0]
+        ms_zip = io.get_input_paths("rebinning_ms")[0]
         msin_path = unzip(Path(ms_zip))
         [step2a_zip] = io.get_input_paths("step2a")
         step2a_path = unzip(Path(step2a_zip))
@@ -119,7 +119,7 @@ def after_exec_dp3(params, msout_path: Path, dp3_type: str, io: IOManager):
     @param io: the IOManager instance
     """
     if dp3_type == "rebinning":
-        zip_path = io.next_output_path("rebinning_out/ms")
+        zip_path = io.next_output_path("rebinning_ms")
         zip_name = zip_path.removesuffix(".zip")
         os.rename(params["msout"], zip_name)
         my_zip(Path(zip_name), Path(zip_path))
@@ -128,7 +128,7 @@ def after_exec_dp3(params, msout_path: Path, dp3_type: str, io: IOManager):
         pass
 
     elif dp3_type == "apply_calibration":
-        zip_path = io.next_output_path("applycal_out/apply/ms")
+        zip_path = io.next_output_path("applycal_ms")
         zip_name = zip_path.removesuffix(".zip")
         os.rename(msout_path, zip_name)
         my_zip(Path(zip_name), Path(zip_path))

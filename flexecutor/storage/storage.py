@@ -65,6 +65,9 @@ class FlexInput:
             end = ((worker_id + 1) * num_files) // num_workers
         self.chunk_indexes = (start, end)
 
+    def __hash__(self):
+        return hash(self.prefix)
+
 
 class FlexOutput:
     def __init__(
@@ -86,3 +89,6 @@ class FlexOutput:
     @property
     def id(self):
         return self._output_id
+
+    def __hash__(self):
+        return hash(self.prefix)

@@ -1,3 +1,5 @@
+from typing import List, Dict, Union, Type
+
 from lithops import FunctionExecutor
 
 from examples.radio_interferometry.functions import (
@@ -10,20 +12,50 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 
+
+def filter_io_params(
+    parameters: Union[List[Dict] | Dict],
+    flex_type: Type[Union["FlexInput", "FlexOutput"]],
+):
+    if type(parameters) is not list:
+        parameters = [parameters]
+    all_values = [value for parameter in parameters for value in parameter.values()]
+    flex_values = [value for value in all_values if type(value) is flex_type]
+    return list(set(flex_values))
+
+
 if __name__ == "__main__":
 
     @flexorchestrator(bucket="test-bucket")
     def main():
         rebinning_parameters = {
+            "msin": FlexInput(prefix="partitions", custom_input_id="partitions"),
             "steps": "[aoflag, avg, count]",
             "aoflag.type": "aoflagger",
+            "aoflag.strategy": FlexInput(
+                prefix="parameters/rebinning",
+                custom_input_id="lua",
+                strategy=StrategyEnum.BROADCAST,
+            ),
             "avg.type": "averager",
             "avg.freqstep": 4,
             "avg.timestep": 8,
             "numthreads": 4,
+            "msout": FlexOutput(
+                prefix="rebinning_out/ms",
+                custom_output_id="rebinning_ms",
+                suffix=".ms.zip",
+            ),
+            "log_output": FlexOutput(
+                prefix="rebinning_out/logs",
+                suffix=".log",
+            ),
         }
 
         calibration_parameters = {
+            "msin": FlexInput(
+                prefix="rebinning_out/ms", custom_input_id="rebinning_ms"
+            ),
             "msin.datacolumn": "DATA",
             "steps": "[cal]",
             "cal.type": "ddecal",
@@ -34,9 +66,19 @@ if __name__ == "__main__":
             "cal.uvlambdamin": 5,
             "cal.smoothnessconstraint": 2e6,
             "numthreads": 4,
+            "cal.sourcedb": FlexInput(
+                prefix="parameters/calibration/step2a",
+                custom_input_id="step2a",
+                strategy=StrategyEnum.BROADCAST,
+            ),
+            "log_output": FlexOutput(
+                prefix="applycal_out/cal/logs",
+                suffix=".log",
+            ),
         }
 
         subtraction_parameters = {
+            # "msin" is the output of the calibration stage
             "msin.datacolumn": "DATA",
             "msout.datacolumn": "SUBTRACTED_DATA",
             "steps": "[sub]",
@@ -48,18 +90,36 @@ if __name__ == "__main__":
             "sub.applycal.sub_apply_amp.correction": "amplitude000",
             "sub.applycal.sub_apply_phase.correction": "phase000",
             "msout": ".",
+            "sub.sourcedb": FlexInput(
+                prefix="parameters/calibration/step2a",
+                custom_input_id="step2a",
+                strategy=StrategyEnum.BROADCAST,
+            ),
+            "log_output": FlexOutput(
+                prefix="applycal_out/sub/logs",
+                suffix=".log",
+            ),
         }
 
         apply_calibration_parameters = {
+            # "msin" is the output of the subtraction stage
             "msin.datacolumn": "SUBTRACTED_DATA",
             "msout.datacolumn": "CORRECTED_DATA",
-            "msout": ".",
             "steps": "[apply]",
             "apply.type": "applycal",
             "apply.steps": "[apply_amp,apply_phase]",
             "apply.apply_amp.correction": "amplitude000",
             "apply.apply_phase.correction": "phase000",
             "apply.direction": "[Main]",
+            "msout": FlexOutput(
+                prefix="applycal_out/apply/ms",
+                custom_output_id="applycal_ms",
+                suffix=".ms.zip",
+            ),
+            "log_output": FlexOutput(
+                prefix="applycal_out/apply/logs",
+                suffix=".log",
+            ),
         }
 
         imaging_parameters = [
@@ -103,66 +163,23 @@ if __name__ == "__main__":
         rebinning_stage = Stage(
             stage_id="rebinning",
             func=dp3,
-            inputs=[
-                FlexInput(prefix="partitions"),
-                FlexInput(
-                    prefix="parameters/rebinning",
-                    custom_input_id="lua",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
-            ],
-            outputs=[
-                FlexOutput(
-                    prefix="rebinning_out/ms",
-                    suffix=".ms.zip",
-                ),
-                FlexOutput(
-                    prefix="rebinning_out/logs",
-                    suffix=".log",
-                ),
-            ],
+            inputs=filter_io_params(rebinning_parameters, FlexInput),
+            outputs=filter_io_params(rebinning_parameters, FlexOutput),
             params={"parameters": rebinning_parameters, "dp3_types": "rebinning"},
         )
 
+        full_calibration_parameters = [
+            calibration_parameters,
+            subtraction_parameters,
+            apply_calibration_parameters,
+        ]
         full_calibration_stage = Stage(
             stage_id="full_calibration",
             func=dp3,
-            inputs=[
-                FlexInput(
-                    prefix="rebinning_out/ms",
-                ),
-                FlexInput(
-                    prefix="parameters/calibration/step2a",
-                    custom_input_id="step2a",
-                    strategy=StrategyEnum.BROADCAST,
-                ),
-            ],
-            outputs=[
-                FlexOutput(
-                    prefix="applycal_out/cal/h5",
-                    custom_output_id="h5",
-                    suffix=".h5",
-                ),
-                FlexOutput(prefix="applycal_out/apply/ms", suffix=".ms.zip"),
-                FlexOutput(
-                    prefix="applycal_out/cal/logs",
-                    suffix=".log",
-                ),
-                FlexOutput(
-                    prefix="applycal_out/sub/logs",
-                    suffix=".log",
-                ),
-                FlexOutput(
-                    prefix="applycal_out/apply/logs",
-                    suffix=".log",
-                ),
-            ],
+            inputs=filter_io_params(full_calibration_parameters, FlexInput),
+            outputs=filter_io_params(full_calibration_parameters, FlexOutput),
             params={
-                "parameters": [
-                    calibration_parameters,
-                    subtraction_parameters,
-                    apply_calibration_parameters,
-                ],
+                "parameters": full_calibration_parameters,
                 "dp3_types": ["calibration", "subtraction", "apply_calibration"],
             },
         )
