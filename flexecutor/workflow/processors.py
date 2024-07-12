@@ -26,7 +26,9 @@ class ThreadPoolProcessor:
     def process(
         self,
         stages: Sequence[Stage],
-        execute_function: Callable[[Stage, Callable[[Stage, StageFuture], None]], None],
+        stage_execute_function: Callable[
+            [Stage, Callable[[Stage, StageFuture], None]], None
+        ],
         on_future_done: Callable[[Stage, StageFuture], None] = None,
     ) -> dict[str, StageFuture]:
         """
@@ -53,7 +55,7 @@ class ThreadPoolProcessor:
             logger.info(f"Submitting stage {stage.stage_id}")
             stage.state = StageState.RUNNING
             futures[stage.stage_id] = self._pool.submit(
-                lambda s=stage: execute_function(s, on_future_done)
+                lambda s=stage: stage_execute_function(s, on_future_done)
             )
 
         wait(futures.values())

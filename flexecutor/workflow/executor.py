@@ -67,11 +67,15 @@ class DAGExecutor:
         os.makedirs(f"{self._base_path}/{dir_name}/{self._dag.dag_id}", exist_ok=True)
         return f"{self._base_path}/{dir_name}/{self._dag.dag_id}/{stage.stage_id}{file_extension}"
 
-    def execute(
-        self, on_future_done: Callable[[Stage, StageFuture], None] = None
+    def _schedule(
+        self,
+        stage_execute_function: Callable[
+            [Stage, Callable[[Stage, StageFuture], None]], None
+        ],
+        on_future_done: Callable[[Stage, StageFuture], None] = None,
     ) -> Dict[str, StageFuture]:
         """
-        Execute the DAG
+        Schedule the DAG
 
         :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """
@@ -97,7 +101,11 @@ class DAGExecutor:
 
             # Call the processor to execute the batch
             print(f"Processing batch: {batch}")
-            futures = self._processor.process(batch, on_future_done)
+            futures = self._processor.process(
+                stages=batch,
+                stage_execute_function=stage_execute_function,
+                on_future_done=on_future_done,
+            )
 
             self._running_stages -= set_batch
             self._dependence_free_stages -= set_batch
@@ -110,6 +118,9 @@ class DAGExecutor:
                         self._dependence_free_stages.add(child)
 
         return self._futures
+
+    def execute(self):
+        self._schedule(Stage.execute)
 
     def profile(
         self,
