@@ -230,12 +230,6 @@ class AnaPerfModel(PerfModel):
             cold_start=predicted_cold_time,
         )
 
-    def predict_partial_factor(self, mode: str) -> int:
-        # for now just support the read,compute and write mode.
-        if mode == "RCW":
-            # https://github.com/pkusys/Ditto/blob/main/include/scheduler.hpp#L173
-            return self._read_params[0] + self._comp_params[0] + self._write_params[0]
-
     def optimize(self, config: ConfigBounds) -> StageConfig:
         # TODO: implement this
         """Dummy response in AnaPerfModel"""
