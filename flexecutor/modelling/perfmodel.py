@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Dict
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
-from flexecutor.utils.utils import get_my_exec_path
+from flexecutor.utils.file_paths import get_my_exec_path
 
 
 class PerfModelEnum(Enum):
