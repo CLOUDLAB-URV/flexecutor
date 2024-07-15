@@ -131,3 +131,7 @@ examples/*/images/
 
 examples/*/profiling/
 !examples/*/profiling/mocks
+
+# vscode, formatting...
+.vscode/
+.flake8
