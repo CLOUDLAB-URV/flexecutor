@@ -134,4 +134,12 @@ examples/*/profiling/
 
 # vscode, formatting...
 .vscode/
+<<<<<<< HEAD
+.flake8
+=======
+.flake8
+>>>>>>> d3b541d (feat: bruteforce "optimizer")
+
+# vscode, formatting...
+.vscode/
 .flake8
