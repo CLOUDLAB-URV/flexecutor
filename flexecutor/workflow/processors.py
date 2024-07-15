@@ -1,14 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor, wait
-from copy import deepcopy
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Optional, Dict
 import logging
 
-from lithops import FunctionExecutor
-
-from flexecutor.storage.wrapper import worker_wrapper
-from flexecutor.workflow.stagecontext import InternalStageContext
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.workflow.executor import StageConfig
 from flexecutor.utils import setup_logging
 
 logger = setup_logging(level=logging.INFO)
@@ -30,6 +26,9 @@ class ThreadPoolProcessor:
             [Stage, Callable[[Stage, StageFuture], None]], None
         ],
         on_future_done: Callable[[Stage, StageFuture], None] = None,
+        stage_configs: Optional[Dict[str, StageConfig]] = None,
+        *args,
+        **kwargs,
     ) -> dict[str, StageFuture]:
         """
         Process a list of stages using a specific function for execution.
@@ -54,8 +53,11 @@ class ThreadPoolProcessor:
         for stage in stages:
             logger.info(f"Submitting stage {stage.stage_id}")
             stage.state = StageState.RUNNING
+            stage_config = stage_configs.get(stage.stage_id) if stage_configs else None
             futures[stage.stage_id] = self._pool.submit(
-                lambda s=stage: stage_execute_function(s, on_future_done)
+                lambda s=stage, sc=stage_config: stage_execute_function(
+                    s, on_future_done, sc, *args, **kwargs
+                )
             )
 
         wait(futures.values())

@@ -1,6 +1,4 @@
 import logging
-import os
-from enum import Enum
 from typing import Dict, Set, List, Iterable, Optional, Callable
 from itertools import product
 
@@ -9,10 +7,9 @@ from lithops import FunctionExecutor
 from lithops.utils import get_executor_id
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
-from flexecutor.utils.utils import (
+from flexecutor.utils.file_paths import (
     load_profiling_results,
-    store_profiling,
-    get_my_exec_path,
+    AssetType,
 )
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
@@ -20,16 +17,6 @@ from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 
 logger = logging.getLogger(__name__)
-
-
-class AssetType(Enum):
-    """
-    Enum class for asset types
-    """
-
-    MODEL = ("model", ".pkl")
-    PROFILE = ("profile", ".json")
-    IMAGE = ("image", ".png")
 
 
 class DAGExecutor:
@@ -49,33 +36,27 @@ class DAGExecutor:
         self._processor = ThreadPoolProcessor()
         self._futures: Dict[str, StageFuture] = dict()
         self._num_final_stages = 0
-        self._base_path = get_my_exec_path()
         self._dependence_free_stages: List[Stage] = list()
         self._running_stages: List[Stage] = list()
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
         self._executor_id = get_executor_id()
         # Initialize executor settings for all stages
-        self._assign_executor_to_stages()
-
-    def _assign_executor_to_stages(self):
         for stage in self._dag:
             stage.executor = self._executor
 
-    def _get_asset_path(self, stage: Stage, asset_type: AssetType):
-        dir_name, file_extension = asset_type.value
-        os.makedirs(f"{self._base_path}/{dir_name}/{self._dag.dag_id}", exist_ok=True)
-        return f"{self._base_path}/{dir_name}/{self._dag.dag_id}/{stage.stage_id}{file_extension}"
-
-    def _schedule(
+    def _execute_dag_stages(
         self,
         stage_execute_function: Callable[
             [Stage, Callable[[Stage, StageFuture], None]], None
         ],
         on_future_done: Callable[[Stage, StageFuture], None] = None,
+        stage_configs: Optional[Dict[str, StageConfig]] = None,
+        *args,
+        **kwargs,
     ) -> Dict[str, StageFuture]:
         """
-        Schedule the DAG
+        Schedule the DAG stages for execution
 
         :return: A dictionary with the output data of the DAG stages with the stage ID as key
         """
@@ -105,6 +86,9 @@ class DAGExecutor:
                 stages=batch,
                 stage_execute_function=stage_execute_function,
                 on_future_done=on_future_done,
+                stage_configs=stage_configs,
+                *args,
+                **kwargs,
             )
 
             self._running_stages -= set_batch
@@ -120,66 +104,61 @@ class DAGExecutor:
         return self._futures
 
     def execute(self):
-        self._schedule(Stage.execute)
+        futures = self._execute_dag_stages(Stage.execute, stage_configs=None)
+        return futures
 
+    # TODO: add a profile id (also on training) to allow having different
+    # trained models, mostly for different backends (k8s, lambda, etc.)
     def profile(
-        self,
-        # TODO: add a profile id (also on training) to allow having different
-        # trained models, mostly for different backends (k8s, lambda, etc.)
-        config_space: Iterable[StageConfig],
-        num_reps: int = 1,
-    ) -> None:
-
-        logger.info(f"Profiling DAG {self._dag.dag_id}")
-
-        # Check that the config_space has the same length as the number of stages in the DAG and they have the same name
-        if len(config_space) != len(self._dag.stages):
-            raise ValueError(
-                "The configuration space must have the same length as the number of stages in the DAG"
-            )
-
-        for stage_id, config in zip(self._dag.stages, config_space):
-            if stage_id != config.stage_id:
-                raise ValueError(
-                    "The stage IDs in the configuration space must match the stage ID in the DAG"
-                )
-
-        all_config_combinations = list(
-            product(*(config_space[stage_id] for stage_id in config_space))
-        )
+        self, config_space: Dict[str, Iterable[StageConfig]], num_reps: int = 1
+    ):
+        stage_ids = list(config_space.keys())
+        all_config_combinations = list(product(*config_space.values()))
 
         for iteration in range(num_reps):
             logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
 
-        for config_combination in all_config_combinations:
-            config_description = ", ".join(
-                f"{stage_id} config: {config}"
-                for stage_id, config in zip(config_space, config_combination)
-            )
-            logger.info(f"Applying configuration combination: {config_description}")
+            for config_combination in all_config_combinations:
+                config_dict = dict(zip(stage_ids, config_combination))
+                config_description = ", ".join(
+                    f"{stage_id} config: {config}"
+                    for stage_id, config in config_dict.items()
+                )
+                logger.info(f"Applying configuration combination: {config_description}")
 
-            for stage, config in zip(self._dag.stages, config_combination):
-                stage.resource_config = config
-                stage.state = StageState.NONE
-                logger.info(f"Configured {stage.stage_id} with {config}")
+                def on_future_done(stage: Stage, future: StageFuture):
+                    logger.info(f"Profiling completed for stage {stage.stage_id}")
+                    logger.info(f"Execution time: {future.get_timings()}")
 
-            futures = self.execute()
+                futures = self._execute_dag_stages(
+                    stage_execute_function=Stage.profile,
+                    on_future_done=on_future_done,
+                    stage_configs=config_dict,
+                )
 
-            for stage, config in zip(self._dag.stages, config_combination):
-                future = futures.get(stage.stage_id)
-                if future and not future.error():
-                    timings = future.get_timings()
-                    profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-                    store_profiling(profiling_file, timings, config)
-                    logger.info(
-                        f"Profiling data for {stage.stage_id} saved in {profiling_file}"
-                    )
-                elif future and future.error():
-                    logger.error(
-                        f"Error processing stage {stage.stage_id}: {future.error()}"
-                    )
+                for stage_id, future in futures.items():
+                    if stage_id in config_dict:
+                        stage_config = config_dict[stage_id]
+                        logger.info(
+                            f"Profiling results for stage {stage_id} with config: {stage_config}"
+                        )
+                    else:
+                        logger.info(
+                            f"No profiling data for stage {stage_id} (no config provided)"
+                        )
 
-        logger.info("Profiling completed for all configurations")
+        logger.info("Profiling completed for all configurations and repetitions")
+
+    def train(self, stage: Optional[Stage] = None) -> None:
+        """Train the DAG."""
+        from flexecutor.utils.file_paths import get_asset_path, load_profiling_results
+
+        stages_list = [stage] if stage is not None else self._dag.stages
+
+        for stage in stages_list:
+            profiling_file = get_asset_path(stage, AssetType.PROFILE)
+            profiling_data = load_profiling_results(profiling_file)
+            stage.train(profiling_data)
 
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
@@ -220,18 +199,8 @@ class DAGExecutor:
         result = []
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage, resource_config in zip(stages_list, resource_config):
-            result.append(stage.perf_model.predict(resource_config))
+            result.append(stage.predict(resource_config))
         return result
-
-    def train(self, stage: Optional[Stage] = None) -> None:
-        """Train the DAG."""
-        stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
-            profile_data = load_profiling_results(
-                self._get_asset_path(stage, AssetType.PROFILE)
-            )
-            stage.perf_model.train(profile_data)
-            stage.perf_model.save_model()
 
     def optimize(
         self,

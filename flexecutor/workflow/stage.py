@@ -6,8 +6,7 @@ from copy import deepcopy
 from lithops import FunctionExecutor
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.storage.storage import FlexInput
-from flexecutor.storage.storage import FlexOutput
+from flexecutor.storage.storage import FlexInput, FlexOutput
 from flexecutor.utils.dataclass import StageConfig
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.storage.wrapper import worker_wrapper
@@ -157,63 +156,91 @@ class Stage:
         self._state = value
 
     def execute(
-        self, on_future_done: Callable[[Stage, StageFuture], None] = None
+        self,
+        on_future_done: Callable[[Stage, StageFuture], None] = None,
+        stage_config: Optional[StageConfig] = None,
     ) -> StageFuture:
         """
         Process a stage
 
         :param on_future_done: Callback to execute every time a future is done
+        :param stage_config: Optional stage configuration to use for this execution
         """
+        original_config = self.resource_config
 
-        # STATIC PARTITIONING ???
-        # for input_path in stage.input_file:
-        #     if input_path.partitioner:
-        #         input_path.partitioner.partitionize()
+        try:
+            if stage_config:
+                self.resource_config = stage_config
 
-        if self._executor is None:
-            raise ValueError("No executor provided for the stage.")
+            if self._executor is None:
+                raise ValueError("No executor provided for the stage.")
 
-        map_iterdata = []
-        num_workers = min(self.resource_config.workers, self.max_concurrency)
-        for worker_id in range(num_workers):
-            copy_inputs = [deepcopy(item) for item in self.inputs]
-            copy_outputs = [deepcopy(item) for item in self.outputs]
-            for input_item in copy_inputs:
-                input_item.scan_objects(worker_id, num_workers)
-            ctx = InternalStageContext(
-                worker_id, num_workers, copy_inputs, copy_outputs, self.params
+            map_iterdata = []
+            num_workers = min(self.resource_config.workers, self.max_concurrency)
+            for worker_id in range(num_workers):
+                copy_inputs = [deepcopy(item) for item in self.inputs]
+                copy_outputs = [deepcopy(item) for item in self.outputs]
+                for input_item in copy_inputs:
+                    input_item.scan_objects(worker_id, num_workers)
+                ctx = InternalStageContext(
+                    worker_id, num_workers, copy_inputs, copy_outputs, self.params
+                )
+                map_iterdata.append(ctx)
+
+            future = self._executor.map(
+                map_function=worker_wrapper(self.map_func),
+                map_iterdata=map_iterdata,
+                runtime_memory=int(self.resource_config.memory),
             )
-            map_iterdata.append(ctx)
 
-        future = self._executor.map(
-            map_function=worker_wrapper(self.map_func),
-            map_iterdata=map_iterdata,
-            runtime_memory=int(self.resource_config.memory),
+            self._executor.wait(future)
+            future = StageFuture(self.stage_id, future)
+
+            # Update the state of the stage based on the future result
+            self.state = StageState.FAILED if future.error() else StageState.SUCCESS
+
+            # Call the callback function if provided
+            if on_future_done:
+                on_future_done(self, future)
+
+            return future
+        finally:
+            # Restore the original resource_config
+            self.resource_config = original_config
+
+    def profile(
+        self,
+        on_future_done: Callable[[Stage, StageFuture], None] = None,
+        stage_config: Optional[StageConfig] = None,
+    ):
+        from flexecutor.utils.file_paths import (
+            store_profiling,
+            AssetType,
+            get_asset_path,
         )
 
-        self._executor.wait(future)
-        future = StageFuture(self.stage_id, future)
+        original_config = self.resource_config
+        print(f"Profiling stage {self.stage_id}")
+        try:
+            if stage_config:
+                self.resource_config = stage_config
 
-        # Update the state of the stage based on the future result
-        self.state = StageState.FAILED if future.error() else StageState.SUCCESS
+            future = self.execute(on_future_done)
+            print(f"Stage {self.stage_id} timings: {future.get_timings()}")
 
-        # Call the callback function if provided
-        if on_future_done:
-            on_future_done(self, future)
+            profiling_file = get_asset_path(self, AssetType.PROFILE)
+            store_profiling(profiling_file, future.get_timings(), self.resource_config)
 
-        return future
+            return future
+        finally:
+            self.resource_config = original_config
 
-    def profile(self, stage_config: StageConfig):
-        self.resource_config = stage_config
-        future = self.execute()
-        print(future.get_timings())
-        # save the results here
+    def train(self, profiling_file):
+        self.perf_model.train(profiling_file)
+        self.perf_model.save_model()
 
-    def train(self, profiling_data):
-        pass
-
-    def predict(self):
-        pass
+    def predict(self, resource_config: StageConfig):
+        return self.perf_model.predict(resource_config)
 
     def _set_relation(
         self, operator_or_operators: Stage | List[Stage], upstream: bool = False
