@@ -29,19 +29,12 @@ if __name__ == "__main__":
 
     @flexorchestrator()
     def main():
-        # FIXME: Look at how many cpus is the profiling setting at the runtime
-        # FIXME: We want a list of tuples of stageconfigs, for each stage,
-        # we want to try different configs
-        config_space = {
-            "map": (
-                StageConfig(cpu=1, memory=2048, workers=2),
-                StageConfig(cpu=1, memory=2048, workers=3),
-            ),
-            "reduce": (
-                StageConfig(cpu=1, memory=2048, workers=1),
-                StageConfig(cpu=1, memory=1024, workers=1),
-            ),
-        }
+        config_space = [
+            {
+                "map": StageConfig(cpu=1, memory=2048, workers=2),
+                "reduce": StageConfig(cpu=1, memory=2048, workers=1),
+            },
+        ]
 
         dag = DAG("mini-dag")
 

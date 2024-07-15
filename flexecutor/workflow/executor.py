@@ -91,58 +91,57 @@ class DAGExecutor:
         self,
         # TODO: add a profile id (also on training) to allow having different
         # trained models, mostly for different backends (k8s, lambda, etc.)
-        config_space: Iterable[StageConfig],
+        config_space: List[Dict[str, StageConfig]],
         num_reps: int = 1,
     ) -> None:
 
         logger.info(f"Profiling DAG {self._dag.dag_id}")
-
-        # Check that the config_space has the same length as the number of stages in the DAG and they have the same name
-        if len(config_space) != len(self._dag.stages):
-            raise ValueError(
-                "The configuration space must have the same length as the number of stages in the DAG"
-            )
-
-        for stage_id, config in zip(self._dag.stages, config_space):
-            if stage_id != config.stage_id:
+        print(config_space)
+        for config in config_space:
+            if len(config) != len(self._dag.stages):
                 raise ValueError(
-                    "The stage IDs in the configuration space must match the stage ID in the DAG"
+                    "Each configuration dictionary must have the same length as the number of stages in the DAG"
                 )
-
-        all_config_combinations = list(
-            product(*(config_space[stage_id] for stage_id in config_space))
-        )
+            for stage_id in self._dag.stages:
+                if stage_id._stage_id not in config:
+                    raise ValueError(
+                        f"Configuration for stage {stage_id._stage_id} is missing"
+                    )
 
         for iteration in range(num_reps):
             logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
 
-        for config_combination in all_config_combinations:
-            config_description = ", ".join(
-                f"{stage_id} config: {config}"
-                for stage_id, config in zip(config_space, config_combination)
-            )
-            logger.info(f"Applying configuration combination: {config_description}")
+            for config_combination in config_space:
+                config_description = ", ".join(
+                    f"{stage_id} config: {config}"
+                    for stage_id, config in config_combination.items()
+                )
+                logger.info(f"Applying configuration combination: {config_description}")
 
-            for stage, config in zip(self._dag.stages, config_combination):
-                stage.resource_config = config
-                stage.state = StageState.NONE
-                logger.info(f"Configured {stage.stage_id} with {config}")
-
-            futures = self.execute()
-
-            for stage, config in zip(self._dag.stages, config_combination):
-                future = futures.get(stage.stage_id)
-                if future and not future.error():
-                    timings = future.get_timings()
-                    profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-                    self._store_profiling(profiling_file, timings, config)
+                for stage in self._dag.stages:
+                    stage.resource_config = config_combination[stage._stage_id]
+                    stage.state = StageState.NONE
                     logger.info(
-                        f"Profiling data for {stage.stage_id} saved in {profiling_file}"
+                        f"Configured {stage.stage_id} with {config_combination[stage._stage_id]}"
                     )
-                elif future and future.error():
-                    logger.error(
-                        f"Error processing stage {stage.stage_id}: {future.error()}"
-                    )
+
+                futures = self.execute()
+
+                for stage in self._dag.stages:
+                    future = futures.get(stage.stage_id)
+                    if future and not future.error():
+                        timings = future.get_timings()
+                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                        self._store_profiling(
+                            profiling_file, timings, config_combination[stage._stage_id]
+                        )
+                        logger.info(
+                            f"Profiling data for {stage.stage_id} saved in {profiling_file}"
+                        )
+                    elif future and future.error():
+                        logger.error(
+                            f"Error processing stage {stage.stage_id}: {future.error()}"
+                        )
 
         logger.info("Profiling completed for all configurations")
 
