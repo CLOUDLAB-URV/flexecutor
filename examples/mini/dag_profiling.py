@@ -12,7 +12,7 @@ from functions.word_count import (
     reduce_input,
     reduce_output,
 )
-from flexecutor.utils.utils import flexorchestrator
+from flexecutor.utils.file_paths import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor, StageConfig
 from flexecutor.workflow.stage import Stage
@@ -22,7 +22,7 @@ logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-NUM_ITERATIONS = 2
+NUM_REPETITIONS = 2
 
 
 if __name__ == "__main__":
@@ -62,9 +62,8 @@ if __name__ == "__main__":
         stage1 >> stage2
 
         dag.add_stages([stage1, stage2])
-
         executor = DAGExecutor(dag, executor=FunctionExecutor())
-        executor.profile(config_space, num_reps=NUM_ITERATIONS)
+        executor.profile(config_space, num_reps=NUM_REPETITIONS)
         executor.shutdown()
         print("Tasks completed")
 

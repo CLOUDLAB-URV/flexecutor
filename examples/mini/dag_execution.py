@@ -12,11 +12,10 @@ from functions.word_count import (
     reduce_input,
     reduce_output,
 )
-from flexecutor.utils.utils import flexorchestrator
+from flexecutor.utils.utils import flexorchestrator, setup_logging
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.executor import DAGExecutor, StageConfig
+from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-from flexecutor.utils import setup_logging
 
 logger = setup_logging(level=logging.INFO)
 
@@ -50,6 +49,7 @@ if __name__ == "__main__":
 
         dag.add_stages([stage1, stage2])
 
+        stage1.executor = FunctionExecutor()
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.execute()
         executor.shutdown()

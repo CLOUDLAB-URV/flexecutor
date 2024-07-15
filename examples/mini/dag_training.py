@@ -12,7 +12,7 @@ from functions.word_count import (
     reduce_input,
     reduce_output,
 )
-from flexecutor.utils.utils import flexorchestrator
+from flexecutor.utils.file_paths import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
