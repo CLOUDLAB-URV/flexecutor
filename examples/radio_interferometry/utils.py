@@ -1,7 +1,9 @@
-import logging
 import os
 import zipfile
 from pathlib import Path, PosixPath
+from typing import Union, List, Dict, Type
+
+from flexecutor.storage.storage import FlexInput, FlexOutput
 
 
 def unzip(ms: Path) -> Path:
@@ -90,3 +92,13 @@ def dict_to_parset(
 
     return output_path
 
+
+def filter_io_params(
+    parameters: Union[List[Dict] | Dict],
+    flex_type: Type[Union["FlexInput", "FlexOutput"]],
+):
+    if type(parameters) is not list:
+        parameters = [parameters]
+    all_values = [value for parameter in parameters for value in parameter.values()]
+    flex_values = [value for value in all_values if type(value) is flex_type]
+    return list(set(flex_values))

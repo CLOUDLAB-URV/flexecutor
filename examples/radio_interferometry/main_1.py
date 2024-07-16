@@ -1,28 +1,15 @@
-from typing import List, Dict, Union, Type
-
 from lithops import FunctionExecutor
 
 from examples.radio_interferometry.functions import (
     imaging,
     dp3,
 )
+from examples.radio_interferometry.utils import filter_io_params
 from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
-
-
-def filter_io_params(
-    parameters: Union[List[Dict] | Dict],
-    flex_type: Type[Union["FlexInput", "FlexOutput"]],
-):
-    if type(parameters) is not list:
-        parameters = [parameters]
-    all_values = [value for parameter in parameters for value in parameter.values()]
-    flex_values = [value for value in all_values if type(value) is flex_type]
-    return list(set(flex_values))
-
 
 if __name__ == "__main__":
 
@@ -113,7 +100,6 @@ if __name__ == "__main__":
             "apply.direction": "[Main]",
             "msout": FlexOutput(
                 prefix="applycal_out/apply/ms",
-                custom_output_id="applycal_ms",
                 suffix=".ms.zip",
             ),
             "log_output": FlexOutput(
@@ -188,7 +174,11 @@ if __name__ == "__main__":
             stage_id="imaging",
             func=imaging,
             max_concurrency=1,
-            inputs=[FlexInput(prefix="applycal_ms")],
+            inputs=[
+                FlexInput(
+                    prefix="applycal_out/apply/ms", custom_input_id="imaging_input"
+                )
+            ],
             outputs=[
                 FlexOutput(prefix="image_out", suffix="-image.fits"),
                 FlexOutput(prefix="image_out/logs", suffix=".log"),

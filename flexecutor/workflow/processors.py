@@ -1,16 +1,15 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor, wait
 from copy import deepcopy
-from typing import Callable, Sequence, List, Tuple
-import os
-import logging
+from typing import Callable, Sequence
 
 from lithops import FunctionExecutor
 
 from flexecutor.storage.wrapper import worker_wrapper
+from flexecutor.utils import setup_logging
 from flexecutor.utils.iomanager import InternalIOManager
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
-from flexecutor.utils import setup_logging
 
 logger = setup_logging(level=logging.INFO)
 

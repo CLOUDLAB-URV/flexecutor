@@ -24,9 +24,10 @@ def dp3(io: IOManager):
     msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
 
     for params, dp3_type in zip(parameters, dp3_types):
-        before_exec_dp3(params, msout_path, dp3_type, io)
+        original_params = params.copy()
+        msout_path = before_exec_dp3(params, msout_path, dp3_type, io)
         exec_dp3(params)
-        after_exec_dp3(params, msout_path, dp3_type, io)
+        after_exec_dp3(original_params, msout_path, dp3_type, io)
 
 
 def imaging(io: IOManager):
@@ -35,7 +36,7 @@ def imaging(io: IOManager):
     dst = dst.removesuffix("-image.fits")
     imaging_params.append(dst)
 
-    zip_paths = io.get_input_paths("applycal_ms")
+    zip_paths = io.get_input_paths("imaging_input")
     for zip_path in zip_paths:
         ms_path = unzip(Path(zip_path))
         imaging_params.append(ms_path)
@@ -48,7 +49,7 @@ def imaging(io: IOManager):
         log_file.write(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
 
 
-def before_exec_dp3(parameters, msout_path: Path, dp3_type: str, io: IOManager):
+def before_exec_dp3(parameters, msout_path: Path, dp3_type: str, io: IOManager) -> Path:
     """
     This function prepares the parameters for the DP3 execution.
     Depending on the DP3 type, it will unzip the input files and set the parameters accordingly.
@@ -56,43 +57,59 @@ def before_exec_dp3(parameters, msout_path: Path, dp3_type: str, io: IOManager):
     @param msout_path: The path to the output MS file.
     @param dp3_type: rebinning | calibration | subtraction | apply_calibration
     @param io: the IOManager instance
+    @return: The path to the output MS file.
     """
+    parameters["log_output"] = io.next_output_path(parameters["log_output"].id)
+
     if dp3_type == "rebinning":
-        msout_path = Path(f"/tmp/{str(uuid.uuid4())[0:8]}-msout.ms")
         parameters["msout"] = msout_path
-        ms_zip = io.get_input_paths("partitions")[0]
+        ms_zip = io.get_input_paths(parameters["msin"].id)[0]
         parameters["msin"] = unzip(Path(ms_zip))
-        [parameters["aoflag.strategy"]] = io.get_input_paths("lua")
-        parameters["log_output"] = io.next_output_path("rebinning_out/logs")
+        [parameters["aoflag.strategy"]] = io.get_input_paths(
+            parameters["aoflag.strategy"].id
+        )
 
     elif dp3_type == "calibration":
-        ms_zip = io.get_input_paths("rebinning_ms")[0]
+        ms_zip = io.get_input_paths(parameters["msin"].id)[0]
         msin_path = unzip(Path(ms_zip))
-        [step2a_zip] = io.get_input_paths("step2a")
+        [step2a_zip] = io.get_input_paths(parameters["cal.sourcedb"].id)
         step2a_path = unzip(Path(step2a_zip))
         h5_path = "/tmp/cal.h5"
         parameters["msin"] = msin_path
         parameters["msout"] = msout_path
         parameters["cal.sourcedb"] = step2a_path
-        parameters["log_output"] = io.next_output_path("applycal_out/cal/logs")
-        parameters["cal.h5parm"] = h5_path
+        if "cal.parmdb" in parameters:
+            parameters["cal.parmdb"] = io.next_output_path(parameters["cal.parmdb"].id)
+        else:
+            parameters["cal.h5parm"] = h5_path
 
     elif dp3_type == "subtraction":
-        [step2a_zip] = io.get_input_paths("step2a")
+        [step2a_zip] = io.get_input_paths(parameters["sub.sourcedb"].id)
         step2a_path = step2a_zip.removesuffix(".zip")
         h5_path = "/tmp/cal.h5"
         parameters["msin"] = msout_path
         parameters["msout"] = "."
         parameters["sub.sourcedb"] = step2a_path
         parameters["sub.applycal.parmdb"] = h5_path
-        parameters["log_output"] = io.next_output_path("applycal_out/sub/logs")
 
     elif dp3_type == "apply_calibration":
         h5_path = "/tmp/cal.h5"
-        parameters["msin"] = msout_path
+        if "msin" in parameters:
+            ms_zip = io.get_input_paths(parameters["msin"].id)[0]
+            msin_path = unzip(Path(ms_zip))
+            parameters["msin"] = msin_path
+            msout_path = Path(msin_path)
+        else:
+            parameters["msin"] = msout_path
         parameters["msout"] = "."
-        parameters["apply.parmdb"] = h5_path
-        parameters["log_output"] = io.next_output_path("applycal_out/apply/logs")
+        if "apply.parmdb" in parameters:
+            parameters["apply.parmdb"] = io.get_input_paths(
+                parameters["apply.parmdb"].id
+            )[0]
+        else:
+            parameters["apply.parmdb"] = h5_path
+
+    return msout_path
 
 
 def exec_dp3(parameters):
@@ -118,17 +135,12 @@ def after_exec_dp3(params, msout_path: Path, dp3_type: str, io: IOManager):
     @param dp3_type: rebinning | calibration | subtraction | apply_calibration
     @param io: the IOManager instance
     """
-    if dp3_type == "rebinning":
-        zip_path = io.next_output_path("rebinning_ms")
+
+    if dp3_type in ["rebinning", "apply_calibration"]:
+        zip_path = io.next_output_path(params["msout"].id)
         zip_name = zip_path.removesuffix(".zip")
-        os.rename(params["msout"], zip_name)
+        os.rename(msout_path, zip_name)
         my_zip(Path(zip_name), Path(zip_path))
 
     elif dp3_type == "calibration" or dp3_type == "subtraction":
         pass
-
-    elif dp3_type == "apply_calibration":
-        zip_path = io.next_output_path("applycal_ms")
-        zip_name = zip_path.removesuffix(".zip")
-        os.rename(msout_path, zip_name)
-        my_zip(Path(zip_name), Path(zip_path))
