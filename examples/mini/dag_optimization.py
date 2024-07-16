@@ -21,8 +21,6 @@ logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-NUM_ITERATIONS = 2
-
 
 if __name__ == "__main__":
 

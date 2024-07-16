@@ -21,10 +21,13 @@ class BruteforceSolver(OptimizationSolver):
             memory = cpus * 1769
             return memory
 
-        cpu_combinations = np.arange(config_bounds.cpu[0], config_bounds.cpu[1], 0.5)
-        worker_combinations = np.arange(
-            config_bounds.workers[0], config_bounds.workers[1], 1
+        cpu_combinations = np.arange(
+            config_bounds.cpu[0], config_bounds.cpu[1] + 0.5, 0.5
         )
+        worker_combinations = np.arange(
+            config_bounds.workers[0], config_bounds.workers[1] + 1, 1
+        )
+
         for stage in dag:
             if stage.stage_id in dag_critical_path:
                 for cpu in cpu_combinations:
