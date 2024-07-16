@@ -17,6 +17,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.optimization import BruteforceSolver
 
 logger = logging.getLogger(__name__)
 
@@ -249,24 +250,18 @@ class DAGExecutor:
         return self._futures
 
     def optimize(
-        self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
-    ) -> List[StageConfig]:
+        self,
+        dag_critical_path=List[str],
+        config_bounds: ConfigBounds = None,
+    ):
         """
         Sets the optimal configuration for each stage.
         """
-        result = []
-        stages_list = [stage] if stage is not None else self._dag.stages
-        # TODO: Optimization happens globally for the dag, not per stage. Use
-        # the Solver implementations in the optimization module.
-        for stage in stages_list:
-            # optimal_config = stage.perf_model.optimize(config_bounds)
-            # FIXME: Hardcoded config for now
-            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
-            print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
-            stage.optimal_config = optimal_config
 
-            result.append(optimal_config)
-        return result
+        print(f"Optimizing DAG {self._dag.dag_id}")
+
+        solver = BruteforceSolver("bruteforce")
+        solver.solve(self._dag, dag_critical_path, config_bounds)
 
     def shutdown(self):
         """
