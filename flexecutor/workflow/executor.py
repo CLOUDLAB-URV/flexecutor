@@ -27,7 +27,7 @@ class AssetType(Enum):
     """
 
     MODEL = ("model", ".pkl")
-    PROFILE = ("profile", ".json")
+    PROFILE = ("profiling", ".json")
     IMAGE = ("image", ".png")
 
 
@@ -63,12 +63,10 @@ class DAGExecutor:
 
     def _store_profiling(
         self,
-        file: str,
+        profile_data: dict,
         new_profile_data: List[FunctionTimes],
         resource_config: StageConfig,
     ) -> None:
-        profile_data = load_profiling_results(file)
-        print(f"Profile data: {profile_data}")
         config_key = str(resource_config.key)
         if config_key not in profile_data:
             profile_data[config_key] = {}
@@ -79,9 +77,7 @@ class DAGExecutor:
         for profiling in new_profile_data:
             for key in FunctionTimes.profile_keys():
                 profile_data[config_key][key][-1].append(getattr(profiling, key))
-
         print(f"Profile data: {profile_data}")
-        save_profiling_results(file, profile_data)
 
     def profile(
         self,
@@ -93,6 +89,7 @@ class DAGExecutor:
 
         logger.info(f"Profiling DAG {self._dag.dag_id}")
         print(config_space)
+
         for config in config_space:
             if len(config) != len(self._dag.stages):
                 raise ValueError(
@@ -103,6 +100,10 @@ class DAGExecutor:
                     raise ValueError(
                         f"Configuration for stage {stage_id._stage_id} is missing"
                     )
+        profile_data = {}
+        for stage in self._dag.stages:
+            profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+            profile_data[stage.stage_id] = load_profiling_results(profiling_file)
 
         for iteration in range(num_reps):
             logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
@@ -127,9 +128,17 @@ class DAGExecutor:
                     future = futures.get(stage.stage_id)
                     if future and not future.error():
                         timings = future.get_timings()
-                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
                         self._store_profiling(
-                            profiling_file, timings, config_combination[stage._stage_id]
+                            profile_data[stage.stage_id],
+                            timings,
+                            config_combination[stage._stage_id],
+                        )
+                        logger.info(
+                            f"Profiling data for {stage.stage_id} updated in memory"
+                        )
+                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                        save_profiling_results(
+                            profiling_file, profile_data[stage.stage_id]
                         )
                         logger.info(
                             f"Profiling data for {stage.stage_id} saved in {profiling_file}"
