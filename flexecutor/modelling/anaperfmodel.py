@@ -8,6 +8,10 @@ from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 
 
+def coldstart_func(x, a, b):
+    return a / x + b
+
+
 def io_func(x, a, b):
     return a / x + b
 
@@ -63,33 +67,41 @@ class AnaPerfModel(PerfModel):
 
     @overrides
     def train(self, stage_profile_data: Dict) -> None:
+        if len(stage_profile_data) < 2:
+            raise ValueError(
+                "At least two profiled configurations for each stage are required to train the step model."
+            )
         self._profiling_results = stage_profile_data
 
         for config_data in stage_profile_data.values():
-            assert (
-                all(key in config_data for key in FunctionTimes.profile_keys())
+            assert all(
+                key in config_data for key in FunctionTimes.profile_keys()
             ), f"Each configuration's data must contain {FunctionTimes.profile_keys()} keys."
 
-        print("Training Analytical performance model for %s" % self._stage_name)
+        print(f"Training Analytical performance model for {self._stage_name}")
+        # cold_arr = np.array(
+        #     [data["cold_start"] for _, data in stage_profile_data.items()]
+        # )
+        # self._cold_params = np.mean(cold_arr)
 
-        cold_arr = np.array(
-            [data["cold_start"] for _, data in stage_profile_data.items()]
-        )
-        self._cold_params = np.mean(cold_arr)
-
+        size2points_coldstart = {}
         size2points_read = {}
         size2points_comp = {}
         size2points_write = {}
 
-        for config, data in stage_profile_data.items():
-            num_vcpu, memory, num_func = config
-
+        for config_tuple, data in stage_profile_data.items():
+            num_vcpu, memory, num_func = config_tuple
             # adapt to parallel mode
             # if the stage does not allow more than one function, ignore num_func
             if self._allow_parallel:
                 config_key = self._config_to_xparam(num_vcpu, memory, num_func)
             else:
                 config_key = self._config_to_xparam(num_vcpu, memory, 1)
+
+            # collect data for cold_start
+            if config_key not in size2points_coldstart:
+                size2points_coldstart[config_key] = []
+            size2points_coldstart[config_key].extend(data["cold_start"])
 
             # collect data for read step
             if config_key not in size2points_read:
@@ -107,6 +119,8 @@ class AnaPerfModel(PerfModel):
             size2points_write[config_key].extend(data["write"])
 
         # average the data
+        for config in size2points_coldstart:
+            size2points_coldstart[config] = np.mean(size2points_coldstart[config])
         for config in size2points_read:
             size2points_read[config] = np.mean(size2points_read[config])
         for config in size2points_comp:
@@ -114,6 +128,7 @@ class AnaPerfModel(PerfModel):
         for config in size2points_write:
             size2points_write[config] = np.mean(size2points_write[config])
 
+        print(size2points_coldstart)
         print(size2points_read)
         print(size2points_comp)
         print(size2points_write)
@@ -129,47 +144,84 @@ class AnaPerfModel(PerfModel):
             initial_guess = [1, 1]
 
             def residuals(para, x, y):
-                return func(x, *para) - y
+                predicted = func(x, *para)
+                residuals = predicted - y
+                return residuals
 
             params, _ = scipy_opt.leastsq(residuals, initial_guess, args=(arr_x, arr_y))
 
             return params.tolist()
 
         # Fit the parameters
+        print("Fitting parameters...")
+        self._cold_params = fit_params(size2points_coldstart, coldstart_func)
         self._read_params = fit_params(size2points_read, io_func)
         self._comp_params = fit_params(size2points_comp, comp_func)
         self._write_params = fit_params(size2points_write, io_func)
 
-        print(self._read_params)
-        print(self._comp_params)
-        print(self._write_params)
+        print(
+            f"COLD START: alpha parameter = {self._cold_params[0]}, beta parameter = {self._cold_params[1]}"
+        )
+        print(
+            f"READ STEP: alpha parameter = {self._read_params[0]}, beta parameter = {self._read_params[1]}"
+        )
+        print(
+            f"COMPUTE STEP: alpha parameter = {self._comp_params[0]}, beta parameter = {self._comp_params[1]}"
+        )
+        print(
+            f"WRITE_STEP: alpha parameter = {self._write_params[0]}, beta parameter = {self._write_params[1]}"
+        )
 
     @property
     @overrides
     def parameters(self):
-        a = sum([self._read_params[0], self._comp_params[0], self._write_params[0]])
-        b = sum([self._read_params[1], self._comp_params[1], self._write_params[1]])
+        # parameter a (alpha), represents the paralelizable part, while beta is some non-paralellizable constant
+        a = sum(
+            [
+                self._cold_params[0],
+                self._read_params[0],
+                self._comp_params[0],
+                self._write_params[0],
+            ]
+        )
+        b = sum(
+            [
+                self._cold_params[1],
+                self._read_params[1],
+                self._comp_params[1],
+                self._write_params[1],
+            ]
+        )
         return a, b
 
-    def predict(self, config: StageConfig) -> FunctionTimes:
+    def predict_time(self, config: StageConfig) -> FunctionTimes:
         assert config.workers > 0
+
+        # FIXME: Use the parameter function to predict the time
         # key = num_vcpu + runtime_memory + num_workers
         key = self._config_to_xparam(config.cpu, config.memory, config.workers)
         predicted_read_time = io_func(key, *self._read_params)
         predicted_comp_time = comp_func(key, *self._comp_params)
         predicted_write_time = io_func(key, *self._write_params)
+        predicted_cold_time = coldstart_func(key, *self._cold_params)
         total_predicted_time = (
             predicted_read_time
             + predicted_comp_time
             + predicted_write_time
-            + self._cold_params
+            + predicted_cold_time
         )
+
+        a, b = self.parameters
+        print(
+            f"Predicted time: {a} / {key} + {b} = {total_predicted_time} = {(a / key) + b}"
+        )
+
         return FunctionTimes(
             total=total_predicted_time,
             read=predicted_read_time,
             compute=predicted_comp_time,
             write=predicted_write_time,
-            cold_start=self._cold_params,
+            cold_start=predicted_cold_time,
         )
 
     def optimize(self, config: ConfigBounds) -> StageConfig:

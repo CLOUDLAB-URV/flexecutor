@@ -35,7 +35,8 @@ class ThreadPoolProcessor:
         :param stages: List of stages to process
         :param on_future_done: Callback to execute every time a future is done
         :return: Futures of the stages
-        :raises ValueError: If there are no stages to process or if there are more stages than the maximum parallelism
+        :raises ValueError: If there are no stages to process or if there are
+        more stages than the maximum parallelism
         """
         if len(stages) == 0:
             raise ValueError("No stages to process")

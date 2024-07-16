@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+import ast
 from contextlib import contextmanager
 
 
@@ -55,7 +56,9 @@ def load_profiling_results(file: str) -> dict:
     with open(file, "r") as f:
         try:
             data = json.load(f)
-        except json.JSONDecodeError:
+            # Convert string keys back to tuples
+            data = {ast.literal_eval(k): v for k, v in data.items()}
+        except (json.JSONDecodeError, ValueError, SyntaxError):
             return {}
     return data
 

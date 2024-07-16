@@ -23,7 +23,7 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def predict(self, config: StageConfig) -> FunctionTimes:
+    def predict_time(self, config: StageConfig) -> FunctionTimes:
         raise NotImplementedError
 
     @abstractmethod
@@ -55,6 +55,7 @@ class PerfModel(ABC):
         model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
+
             return AnaPerfModel(
                 stage_id=0,
                 stage_name="stage",
