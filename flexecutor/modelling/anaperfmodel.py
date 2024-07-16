@@ -164,7 +164,6 @@ class AnaPerfModel(PerfModel):
         self._comp_params = fit_params(size2points_comp, comp_func)
         self._write_params = fit_params(size2points_write, io_func)
 
-        # FIXME: Parameters in Ditto can only be positive, take the modulo of the parameters
         print(
             f"COLD START: alpha parameter = {self._cold_params[0]}, beta parameter = {self._cold_params[1]}"
         )
