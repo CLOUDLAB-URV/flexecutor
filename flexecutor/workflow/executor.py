@@ -213,6 +213,7 @@ class DAGExecutor:
         self._num_final_stages = len(self._dag.leaf_stages)
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
 
+        # Before the execution, get the optimal configurations for all stages in the DAG
         # FIXME: actually optimize, hardcoded for now
         # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
 
