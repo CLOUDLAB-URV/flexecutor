@@ -1,17 +1,13 @@
 import logging
 import os
 from enum import Enum
-from typing import Dict, Set, List, Iterable, Optional
-from itertools import product
+from typing import Dict, Set, List, Optional
 
-import numpy as np
-import pandas as pd
+
 from lithops import FunctionExecutor
-from matplotlib import pyplot as plt
-from pandas import DataFrame
 from lithops.utils import get_executor_id
 
-from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig
 from flexecutor.utils.utils import (
     load_profiling_results,
     save_profiling_results,
