@@ -1,3 +1,4 @@
+from typing import Optional
 from flexecutor.workflow.stage import Stage
 
 
@@ -11,6 +12,14 @@ class DAG:
     def __init__(self, dag_id):
         self._dag_id = dag_id
         self._stages = set()
+
+    def __iter__(self):
+        return iter(self.stages)
+
+    def get_stage_by_id(self, stage_id: str) -> Stage:
+        for stage in self.stages:
+            if stage.stage_id == stage_id:
+                return stage
 
     @property
     def dag_id(self):
@@ -66,9 +75,12 @@ class DAG:
         for stage in stages:
             self.add_stage(stage)
 
-    def draw(self):
+    def draw(self, filename: Optional[str] = None):
         """
-        Draw the DAG for user visualization
+        Draw the DAG for user visualization and save it to a file.
+
+        Parameters:
+            filename (str): The name of the file to save the image to.
         """
         import networkx as nx
         from matplotlib import pyplot as plt
@@ -93,4 +105,7 @@ class DAG:
             font_weight="bold",
             arrows=True,
         )
-        plt.show()
+        if filename:
+            plt.savefig(filename)
+        else:
+            plt.show()

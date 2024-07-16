@@ -36,7 +36,6 @@ word_count_output = FlexOutput(prefix="count", bucket="test-bucket", suffix=".co
 
 reduce_input = FlexInput(
     prefix="count",
-    custom_input_id="count",
     bucket="test-bucket",
     strategy=StrategyEnum.BROADCAST,
 )

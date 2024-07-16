@@ -22,8 +22,7 @@ logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-NUM_ITERATIONS = 2
-BUCKET_NAME = "lithops-manri-urv"
+NUM_ITERATIONS = 1
 
 
 if __name__ == "__main__":
@@ -31,9 +30,14 @@ if __name__ == "__main__":
     @flexorchestrator()
     def main():
         config_space = [
-            StageConfig(2, 1024, 3),
-            StageConfig(1, 1024, 3),
-            # ...
+            {
+                "map": StageConfig(cpu=1, memory=2048, workers=2),
+                "reduce": StageConfig(cpu=1, memory=2048, workers=1),
+            },
+            {
+                "map": StageConfig(cpu=1, memory=2048, workers=3),
+                "reduce": StageConfig(cpu=1, memory=1024, workers=1),
+            },
         ]
 
         dag = DAG("mini-dag")

@@ -7,6 +7,7 @@ class StageConfig:
     """
     Resource configuration for one stage.
     """
+
     cpu: float
     memory: float
     workers: int
@@ -21,6 +22,7 @@ class ConfigBounds:
     """
     Configuration bounds for the stage
     """
+
     cpu: tuple[float, float]
     memory: tuple[float, float]
     workers: tuple[int, int]
@@ -40,3 +42,6 @@ class FunctionTimes:
     @classmethod
     def profile_keys(cls) -> list[str]:
         return ["read", "compute", "write", "cold_start"]
+
+    def __lt__(self, other):
+        return self.total < other.total
