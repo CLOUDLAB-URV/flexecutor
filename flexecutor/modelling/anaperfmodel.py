@@ -1,6 +1,5 @@
 from typing import Dict
 
-import ast
 import numpy as np
 import scipy.optimize as scipy_opt
 from overrides import overrides
@@ -80,7 +79,6 @@ class AnaPerfModel(PerfModel):
             ), f"Each configuration's data must contain {FunctionTimes.profile_keys()} keys."
 
         print(f"Training Analytical performance model for {self._stage_name}")
-
         # cold_arr = np.array(
         #     [data["cold_start"] for _, data in stage_profile_data.items()]
         # )
@@ -91,10 +89,7 @@ class AnaPerfModel(PerfModel):
         size2points_comp = {}
         size2points_write = {}
 
-        print(stage_profile_data)
-        for config_string, data in stage_profile_data.items():
-            config_tuple = ast.literal_eval(config_string)
-
+        for config_tuple, data in stage_profile_data.items():
             num_vcpu, memory, num_func = config_tuple
             # adapt to parallel mode
             # if the stage does not allow more than one function, ignore num_func
@@ -103,7 +98,7 @@ class AnaPerfModel(PerfModel):
             else:
                 config_key = self._config_to_xparam(num_vcpu, memory, 1)
 
-            # collect data for cold_start (In ditto is called pretime: https://github.com/pkusys/Ditto/blob/2771e6c1db26f87b97982c4f7bbfa6f571d4fe4c/include/scheduler.hpp#L85)
+            # collect data for cold_start
             if config_key not in size2points_coldstart:
                 size2points_coldstart[config_key] = []
             size2points_coldstart[config_key].extend(data["cold_start"])
