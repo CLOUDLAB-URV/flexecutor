@@ -7,7 +7,7 @@ from typing import Dict, Set, List, Optional
 from lithops import FunctionExecutor
 from lithops.utils import get_executor_id
 
-from flexecutor.utils.dataclass import FunctionTimes, StageConfig
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import (
     load_profiling_results,
     save_profiling_results,
@@ -246,6 +246,26 @@ class DAGExecutor:
                         self._dependence_free_stages.add(child)
 
         return self._futures
+
+    def optimize(
+        self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
+    ) -> List[StageConfig]:
+        """
+        Sets the optimal configuration for each stage.
+        """
+        result = []
+        stages_list = [stage] if stage is not None else self._dag.stages
+        # TODO: Optimization happens globally for the dag, not per stage. Use
+        # the Solver implementations in the optimization module.
+        for stage in stages_list:
+            # optimal_config = stage.perf_model.optimize(config_bounds)
+            # FIXME: Hardcoded config for now
+            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
+            print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
+            stage.optimal_config = optimal_config
+
+            result.append(optimal_config)
+        return result
 
     def shutdown(self):
         """
