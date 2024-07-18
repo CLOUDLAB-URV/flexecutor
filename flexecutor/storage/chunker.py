@@ -3,6 +3,7 @@ from typing import Callable, List
 
 from dataplug import CloudObject
 from dataplug.entities import CloudObjectSlice
+from lithops import Storage
 
 
 class ChunkerTypeEnum(Enum):
@@ -45,15 +46,17 @@ class Chunker:
         else:  # DYNAMIC
             # TODO: un-hardcode this
             file = f"s3://{flex_input.bucket}/titanic/titanic.csv"
+            storage = Storage()
+            storage_dict = storage.config[storage.config["backend"]]
             cloud_object = CloudObject.from_s3(
                 self.cloud_object_format,
                 file,
                 s3_config={
                     "region_name": "us-east-1",
-                    "endpoint_url": "http://172.17.0.1:9000",
+                    "endpoint_url": storage_dict["endpoint"],
                     "credentials": {
-                        "AccessKeyId": "admin",
-                        "SecretAccessKey": "password"
+                        "AccessKeyId": storage_dict["access_key_id"],
+                        "SecretAccessKey": storage_dict["secret_access_key"]
                     }
                 },
             )
