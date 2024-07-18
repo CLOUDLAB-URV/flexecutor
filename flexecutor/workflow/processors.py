@@ -81,8 +81,8 @@ class ThreadPoolProcessor:
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
 
         for flex_input in stage.inputs:
-            if flex_input.has_chunker_type(ChunkerTypeEnum.STATIC):
-                flex_input.chunker.preprocess(flex_input, None, num_workers)
+            # if flex_input.has_chunker_type(ChunkerTypeEnum.STATIC):
+            flex_input.chunker.preprocess(flex_input, num_workers)
 
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]

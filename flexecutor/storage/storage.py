@@ -54,7 +54,8 @@ class FlexInput:
         ]
         # Define chunk indexes
         if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
-            self.chunk_indexes = (0, num_workers)
+            # TODO: fix that shit
+            self.chunk_indexes = (1, 2)
             return
         if self.has_chunker_type(ChunkerTypeEnum.STATIC):
             self.chunk_indexes = (worker_id, worker_id + 1)

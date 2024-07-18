@@ -1,4 +1,5 @@
-from flexecutor.storage.chunker import CarelessFileChunker, WordCounterChunker
+from flexecutor.storage.chunker import Chunker, ChunkerTypeEnum
+from flexecutor.storage.chunking_strategies import preprocess_static_txt
 from flexecutor.storage.storage import FlexInput, FlexOutput
 from flexecutor.utils.iomanager import IOManager
 
@@ -20,7 +21,7 @@ word_count_input = FlexInput(
     prefix="dir-chunks",
     custom_input_id="txt",
     bucket="test-bucket",
-    chunker=WordCounterChunker("dir"),
+    chunker=Chunker(prefix="dir", chunker_type=ChunkerTypeEnum.STATIC, strategy=preprocess_static_txt),
 )
 
 # word_count_input = FlexInput(

@@ -1,13 +1,12 @@
-import time
 import os
+import time
 from functools import wraps
 from typing import Callable, Any
 
 import numpy as np
-from botocore.response import StreamingBody
 from lithops import Storage
 
-from flexecutor.storage.chunker import ChunkerInfo, ChunkerTypeEnum
+from flexecutor.storage.chunker import ChunkerTypeEnum
 from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.dataclass import FunctionTimes
 from flexecutor.utils.iomanager import InternalIOManager, IOManager
@@ -34,25 +33,12 @@ def worker_wrapper(func: Callable[[...], Any]):
                         flex_input.local_paths[index],
                     )
             else:  # Dynamic partitioning
-                if flex_input.chunker is None:
-                    raise Exception(
-                        "Chunker is required for scatter strategy with more workers than files."
-                    )
-                # TODO: fix, only works for one file
-                chunker: ChunkerInfo = flex_input.chunker.get_my_chunk(
-                    flex_input, io.worker_id, io.num_workers
-                )[0]
-                extra_args = {"Range": f"bytes={chunker.start}-{chunker.end}"}
-                chunk = storage.get_object(
-                    flex_input.bucket,
-                    flex_input.keys[0],
-                    flex_input.local_paths[0],
-                    extra_get_args=extra_args,
-                )
-                flex_input.local_paths[0] += ".part" + str(io.worker_id)
-                with open(flex_input.local_paths[0], "wb") as f:
-                    if isinstance(chunk, StreamingBody):
-                        f.write(chunk.read())
+                chunker = flex_input.chunker
+                output = chunker.data_slices[io.worker_id].get()
+                filename = f"{flex_input.local_base_path}_worker_{io.worker_id}"
+                with open(filename, "wb") as f:
+                    f.write(output.encode("utf-8"))
+                flex_input.local_paths.append(filename)
 
         after_read = time.time()
 

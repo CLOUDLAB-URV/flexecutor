@@ -29,6 +29,7 @@ setup(
     ],
     python_requires=">=3.6",
     install_requires=[
+        "git+https://github.com/CLOUDLAB-URV/dataplug"
         "lithops",
         "cloudpickle",
         "deap",

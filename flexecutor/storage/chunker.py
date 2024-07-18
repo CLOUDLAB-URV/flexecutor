@@ -1,11 +1,8 @@
-import io
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Callable, List
 
-import pandas as pd
-from lithops import Storage
+from dataplug import CloudObject
+from dataplug.entities import CloudObjectSlice
 
 
 class ChunkerTypeEnum(Enum):
@@ -13,112 +10,54 @@ class ChunkerTypeEnum(Enum):
     DYNAMIC = 2
 
 
-@dataclass
-class ChunkerInfo:
-    key: str
-    start: Optional[int]
-    end: Optional[int]
-
-
-class Chunker(ABC):
-    def __init__(self, prefix, chunker_type: ChunkerTypeEnum):
+class Chunker:
+    def __init__(
+        self,
+        prefix,
+        chunker_type: ChunkerTypeEnum,
+        strategy: Callable,
+        cloud_object_format=None,
+    ):
+        """
+        The Chunker class is responsible for chunking the data before processing it in the workers.
+        @param prefix: the object storage prefix in which the data is stored
+        @param chunker_type: STATIC or DYNAMIC.
+         Static chunking is used when the data is downloaded, chunked, and then uploaded into smaller parts.
+         Dynamic chunking is used when the data is chunked using on-the-fly partitioning via Dataplug.
+        @param strategy: the function that will be used to chunk the data.
+         If chunker_type is STATIC, the strategy will implement downloading, chunking, and uploading of the data.
+         If chunker_type is DYNAMIC, the strategy will be a partitioning function already implemented by Dataplug.
+        @param cloud_object_format: the format of the Dataplug cloud object
+         Only used when chunker_type is DYNAMIC (default: None)
+        """
         if prefix and prefix[-1] != "/":
             prefix += "/"
         self.prefix = prefix
-        self.chunker_type = chunker_type
+        self.chunker_type: ChunkerTypeEnum = chunker_type
+        self.strategy: Callable = strategy
+        self.data_slices: List[CloudObjectSlice] = []
+        self.cloud_object_format = cloud_object_format
 
-    @abstractmethod
-    def preprocess(self, flex_input, worker_id, num_workers) -> None:
-        pass
-
-    @abstractmethod
-    def get_my_chunk(self, flex_input, worker_id, num_workers) -> ChunkerInfo:
-        pass
-
-
-class CarelessFileChunker(Chunker):
-    def __init__(self, ):
-        super().__init__("", ChunkerTypeEnum.DYNAMIC)
-
-    def preprocess(self, flex_input, worker_id, num_workers) -> None:
-        """
-        CarelessFileChunker does not require any preprocessing,
-        because it does not care about the file structure.
-        """
-        pass
-
-    def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
-        # TODO: support more than one file scenarios
-        [key] = flex_input.keys
-        file_size = int(Storage().head_object(flex_input.bucket, key)["content-length"])
-        start = (worker_id * file_size) // num_workers
-        end = ((worker_id + 1) * file_size) // num_workers
-        return [ChunkerInfo(key, start, end)]
-
-
-class WordCounterChunker(Chunker):
-    def __init__(self, prefix):
-        super().__init__(prefix, ChunkerTypeEnum.STATIC)
-
-    def preprocess(self, flex_input, worker_id, num_workers) -> None:
-        storage = Storage()
-        filename = "tiny-shakespeare.txt"
-        key = f"{self.prefix}{filename}"
-        file_size = int(storage.head_object(flex_input.bucket, key)["content-length"])
-        file = storage.get_object(flex_input.bucket, key)
-        text = file.decode("utf-8")
-        start = 0
-        for worker_id in range(num_workers):
-            end = ((worker_id + 1) * file_size) // num_workers
-            end = min(text.rfind(" ", start, end), end)
-            storage.put_object(
-                flex_input.bucket,
-                f"{flex_input.prefix}{filename}.part{worker_id}",
-                text[start:end].encode("utf-8"),
+    def preprocess(self, flex_input, num_workers):
+        if self.chunker_type == ChunkerTypeEnum.STATIC:
+            self.strategy(self.prefix, flex_input, num_workers)
+            return None
+        else:  # DYNAMIC
+            # TODO: un-hardcode this
+            file = f"s3://{flex_input.bucket}/titanic/titanic.csv"
+            cloud_object = CloudObject.from_s3(
+                self.cloud_object_format,
+                file,
+                s3_config={
+                    "region_name": "us-east-1",
+                    "endpoint_url": "http://172.17.0.1:9000",
+                    "credentials": {
+                        "AccessKeyId": "admin",
+                        "SecretAccessKey": "password"
+                    }
+                },
             )
-            start = end + 1
-        return
-
-    def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
-        pass
-
-
-class CsvStaticChunker(Chunker):
-    def __init__(self, prefix):
-        super().__init__(prefix, ChunkerTypeEnum.STATIC)
-
-    def preprocess(self, flex_input, worker_id, num_workers) -> None:
-        storage = Storage()
-        filename = "titanic.csv"
-        key = f"{self.prefix}{filename}"
-        df = pd.read_csv(io.BytesIO(storage.get_object(flex_input.bucket, key)))
-        chunk_size = len(df) // num_workers
-        chunks = [df[i : i + chunk_size] for i in range(0, len(df), chunk_size)]
-        for worker_id, chunk in enumerate(chunks):
-            storage.put_object(
-                flex_input.bucket,
-                f"{flex_input.prefix}{filename}.part{worker_id}",
-                chunk.to_csv(index=False).encode("utf-8"),
+            cloud_object.preprocess()
+            self.data_slices = cloud_object.partition(
+                self.strategy, num_chunks=num_workers
             )
-        return
-
-    def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
-        pass
-
-
-class CsvDynamicChunker(Chunker):
-    def __init__(self, prefix):
-        super().__init__(prefix, ChunkerTypeEnum.DYNAMIC)
-
-    def preprocess(self, flex_input, worker_id, num_workers) -> None:
-        pass
-
-    def get_my_chunk(self, flex_input, worker_id, num_workers) -> list[ChunkerInfo]:
-        pass
-
-
-class ChunkerManager:
-    def __init__(self, chunker: Chunker, flex_input, dst):
-        self.input = flex_input
-        self.chunker = chunker
-        self.dst = dst
