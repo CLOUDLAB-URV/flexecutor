@@ -44,23 +44,27 @@ class Chunker:
             self.strategy(self.prefix, flex_input, num_workers)
             return None
         else:  # DYNAMIC
-            # TODO: un-hardcode this
-            file = f"s3://{flex_input.bucket}/titanic/titanic.csv"
+            files = [f"s3://{flex_input.bucket}/{file}" for file in flex_input.keys]
             storage = Storage()
             storage_dict = storage.config[storage.config["backend"]]
-            cloud_object = CloudObject.from_s3(
-                self.cloud_object_format,
-                file,
-                s3_config={
-                    "region_name": "us-east-1",
-                    "endpoint_url": storage_dict["endpoint"],
-                    "credentials": {
-                        "AccessKeyId": storage_dict["access_key_id"],
-                        "SecretAccessKey": storage_dict["secret_access_key"]
-                    }
-                },
-            )
-            cloud_object.preprocess()
-            self.data_slices = cloud_object.partition(
-                self.strategy, num_chunks=num_workers
-            )
+            num_chunks = int(num_workers / len(files))
+            chunk_list = [num_chunks] * len(files)
+            for i in range(num_workers % len(files)):
+                chunk_list[i] += 1
+            for file, num_chunks_file in zip(files, chunk_list):
+                cloud_object = CloudObject.from_s3(
+                    self.cloud_object_format,
+                    file,
+                    s3_config={
+                        "region_name": "us-east-1",
+                        "endpoint_url": storage_dict["endpoint"],
+                        "credentials": {
+                            "AccessKeyId": storage_dict["access_key_id"],
+                            "SecretAccessKey": storage_dict["secret_access_key"]
+                        }
+                    },
+                )
+                cloud_object.preprocess()
+                self.data_slices.extend(cloud_object.partition(
+                    self.strategy, num_chunks=num_chunks_file
+                ))

@@ -81,14 +81,17 @@ class ThreadPoolProcessor:
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
 
         for flex_input in stage.inputs:
-            # if flex_input.has_chunker_type(ChunkerTypeEnum.STATIC):
-            flex_input.chunker.preprocess(flex_input, num_workers)
+            if flex_input.chunker:
+                flex_input.scan_keys()
+                flex_input.chunker.preprocess(flex_input, num_workers)
 
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
             copy_outputs = [deepcopy(item) for item in stage.outputs]
             for input_item in copy_inputs:
-                input_item.scan_objects(worker_id, num_workers)
+                input_item.scan_keys()
+                input_item.set_local_paths()
+                input_item.set_chunk_indexes(worker_id, num_workers)
             io = InternalIOManager(
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
             )

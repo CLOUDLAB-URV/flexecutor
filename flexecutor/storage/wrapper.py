@@ -38,7 +38,7 @@ def worker_wrapper(func: Callable[[...], Any]):
                 filename = f"{flex_input.local_base_path}_worker_{io.worker_id}"
                 with open(filename, "wb") as f:
                     f.write(output.encode("utf-8"))
-                flex_input.local_paths.append(filename)
+                flex_input.set_local_paths([filename])
 
         after_read = time.time()
 

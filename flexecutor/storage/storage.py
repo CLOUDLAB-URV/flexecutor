@@ -43,19 +43,28 @@ class FlexInput:
     def id(self):
         return self._input_id
 
-    def scan_objects(self, worker_id, num_workers) -> None:
-        # Update keys and local_paths
+    def has_chunker_type(self, chunking_type: ChunkerTypeEnum):
+        return self.chunker is not None and self.chunker.chunker_type is chunking_type
+
+    def scan_keys(self):
         self.keys = [
             obj["Key"]
             for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
         ]
+
+    def set_local_paths(self, override_local_paths: Optional[list[str]] = None):
+        if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC) and override_local_paths is None:
+            return
+        if override_local_paths:
+            self.local_paths = override_local_paths
+            return
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
-        # Define chunk indexes
+
+    def set_chunk_indexes(self, worker_id, num_workers):
         if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
-            # TODO: fix that shit
-            self.chunk_indexes = (1, 2)
+            self.chunk_indexes = (0, 1)
             return
         if self.has_chunker_type(ChunkerTypeEnum.STATIC):
             self.chunk_indexes = (worker_id, worker_id + 1)
@@ -68,12 +77,6 @@ class FlexInput:
             start = (worker_id * num_files) // num_workers
             end = ((worker_id + 1) * num_files) // num_workers
         self.chunk_indexes = (start, end)
-
-    def has_chunker_type(self, chunking_type: ChunkerTypeEnum):
-        return (
-                self.chunker is not None
-                and self.chunker.chunker_type is chunking_type
-        )
 
 
 class FlexOutput:
