@@ -1,27 +1,24 @@
-from enum import Enum
-from typing import Callable, List
+from typing import List, Optional
 
 from dataplug import CloudObject
 from dataplug.entities import CloudObjectSlice
 from lithops import Storage
 
-
-class ChunkerTypeEnum(Enum):
-    STATIC = 1
-    DYNAMIC = 2
+from flexecutor.storage.wrapper import chunker_wrapper
+from flexecutor.utils.chunker_context import ChunkerContext
+from flexecutor.utils.enums import ChunkerTypeEnum
 
 
 class Chunker:
     def __init__(
         self,
-        prefix,
         chunker_type: ChunkerTypeEnum,
-        strategy: Callable,
+        strategy,
         cloud_object_format=None,
+        prefix_output: Optional[str] = None,
     ):
         """
         The Chunker class is responsible for chunking the data before processing it in the workers.
-        @param prefix: the object storage prefix in which the data is stored
         @param chunker_type: STATIC or DYNAMIC.
          Static chunking is used when the data is downloaded, chunked, and then uploaded into smaller parts.
          Dynamic chunking is used when the data is chunked using on-the-fly partitioning via Dataplug.
@@ -30,18 +27,24 @@ class Chunker:
          If chunker_type is DYNAMIC, the strategy will be a partitioning function already implemented by Dataplug.
         @param cloud_object_format: the format of the Dataplug cloud object
          Only used when chunker_type is DYNAMIC (default: None)
+        @param prefix_output: the object storage prefix in which the chunked data will be stored.
+         Only used when chunker_type is STATIC (default: None)
         """
-        if prefix and prefix[-1] != "/":
-            prefix += "/"
-        self.prefix = prefix
+        # if prefix and prefix[-1] != "/":
+        #     prefix += "/"
+        # self.prefix = prefix
         self.chunker_type: ChunkerTypeEnum = chunker_type
-        self.strategy: Callable = strategy
+        self.strategy = strategy
         self.data_slices: List[CloudObjectSlice] = []
         self.cloud_object_format = cloud_object_format
+        self.prefix_output = prefix_output
 
     def preprocess(self, flex_input, num_workers):
         if self.chunker_type == ChunkerTypeEnum.STATIC:
-            self.strategy(self.prefix, flex_input, num_workers)
+            chunker_ctx = ChunkerContext(
+                flex_input, self.prefix_output, num_workers
+            )
+            chunker_wrapper(self.strategy, chunker_ctx)
             return None
         else:  # DYNAMIC
             files = [f"s3://{flex_input.bucket}/{file}" for file in flex_input.keys]
@@ -60,11 +63,11 @@ class Chunker:
                         "endpoint_url": storage_dict["endpoint"],
                         "credentials": {
                             "AccessKeyId": storage_dict["access_key_id"],
-                            "SecretAccessKey": storage_dict["secret_access_key"]
-                        }
+                            "SecretAccessKey": storage_dict["secret_access_key"],
+                        },
                     },
                 )
                 cloud_object.preprocess()
-                self.data_slices.extend(cloud_object.partition(
-                    self.strategy, num_chunks=num_chunks_file
-                ))
+                self.data_slices.extend(
+                    cloud_object.partition(self.strategy, num_chunks=num_chunks_file)
+                )

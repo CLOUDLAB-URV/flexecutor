@@ -83,6 +83,7 @@ class ThreadPoolProcessor:
         for flex_input in stage.inputs:
             if flex_input.chunker:
                 flex_input.scan_keys()
+                flex_input.set_local_paths()
                 flex_input.chunker.preprocess(flex_input, num_workers)
 
         for worker_id in range(num_workers):

@@ -6,9 +6,9 @@ from typing import Callable, Any
 import numpy as np
 from lithops import Storage
 
-from flexecutor.storage.chunker import ChunkerTypeEnum
-from flexecutor.storage.storage import StrategyEnum
+from flexecutor.utils.chunker_context import ChunkerContext
 from flexecutor.utils.dataclass import FunctionTimes
+from flexecutor.utils.enums import ChunkerTypeEnum, StrategyEnum
 from flexecutor.utils.iomanager import InternalIOManager, IOManager
 
 
@@ -67,3 +67,31 @@ def worker_wrapper(func: Callable[[...], Any]):
         return result, func_times
 
     return wrapper
+
+
+def chunker_wrapper(func: Callable[[...], Any], ctx: ChunkerContext, *args, **kwargs):
+    # Download the files to the local storage
+    storage = Storage()
+    flex_input = ctx.flex_input
+    os.makedirs(flex_input.local_base_path, exist_ok=True)
+    for index in range(len(flex_input.keys)):
+        storage.download_file(
+            flex_input.bucket, flex_input.keys[index], flex_input.local_paths[index]
+        )
+
+    # Execute the chunker function
+    result = func(ctx, *args, **kwargs)
+
+    # Upload the chunked files to the object storage
+    for index in range(len(ctx.output_paths)):
+        storage.upload_file(
+            ctx.output_paths[index], flex_input.bucket, ctx.output_keys[index]
+        )
+
+    # Adapt the flex_input object to the new state
+    flex_input.custom_output_id = flex_input.prefix
+    flex_input.prefix = ctx.prefix_output
+    flex_input.chunker = None
+    flex_input.flush()
+
+    return

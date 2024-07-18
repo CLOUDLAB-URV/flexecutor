@@ -7,7 +7,7 @@ from flexecutor.utils.iomanager import IOManager
 
 
 def train_model(io: IOManager) -> None:
-    [chunk_path] = io.get_input_paths("titanic")
+    chunk_path = io.get_input_paths("titanic")[0]
     chunk = pd.read_csv(chunk_path)
     features = ["Pclass", "Sex", "Age", "SibSp", "Parch", "Fare"]
     chunk = chunk.dropna(subset=features + ["Survived"])

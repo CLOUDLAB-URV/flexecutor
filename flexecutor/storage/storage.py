@@ -1,16 +1,10 @@
 import os
-from enum import Enum
 from pathlib import Path
 from typing import Optional
 
 from lithops import Storage
 
-from flexecutor.storage.chunker import Chunker, ChunkerTypeEnum
-
-
-class StrategyEnum(Enum):
-    SCATTER = 1
-    BROADCAST = 2
+from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
 class FlexInput:
@@ -20,7 +14,7 @@ class FlexInput:
         bucket=None,
         custom_input_id=None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
-        chunker: Optional[Chunker] = None,
+        chunker=None,
         local_base_path: str = "/tmp",
     ):
         """
@@ -53,7 +47,10 @@ class FlexInput:
         ]
 
     def set_local_paths(self, override_local_paths: Optional[list[str]] = None):
-        if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC) and override_local_paths is None:
+        if (
+            self.has_chunker_type(ChunkerTypeEnum.DYNAMIC)
+            and override_local_paths is None
+        ):
             return
         if override_local_paths:
             self.local_paths = override_local_paths
@@ -77,6 +74,11 @@ class FlexInput:
             start = (worker_id * num_files) // num_workers
             end = ((worker_id + 1) * num_files) // num_workers
         self.chunk_indexes = (start, end)
+
+    def flush(self):
+        self.keys = []
+        self.local_paths = []
+        self.chunk_indexes = None
 
 
 class FlexOutput:

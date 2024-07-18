@@ -18,10 +18,10 @@ def word_count(io: IOManager):
 
 
 word_count_input = FlexInput(
-    prefix="dir-chunks",
+    prefix="dir",
     custom_input_id="txt",
     bucket="test-bucket",
-    chunker=Chunker(prefix="dir", chunker_type=ChunkerTypeEnum.STATIC, strategy=preprocess_static_txt),
+    chunker=Chunker(chunker_type=ChunkerTypeEnum.STATIC, strategy=preprocess_static_txt, prefix_output="dir-chunks"),
 )
 
 # word_count_input = FlexInput(
