@@ -19,7 +19,6 @@ if __name__ == "__main__":
 
     if CHUNKER_TYPE == "STATIC":
         chunker = Chunker(
-            prefix_output="titanic-chunks",
             chunker_type=ChunkerTypeEnum.STATIC,
             strategy=preprocess_static_csv,
         )

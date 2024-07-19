@@ -5,10 +5,9 @@ from flexecutor.storage.storage import FlexInput
 
 
 class ChunkerContext:
-    def __init__(self, flex_input: FlexInput, prefix_output: str, num_workers: int):
-        self.chunk_dir = None
+    def __init__(self, flex_input: FlexInput, num_workers: int):
         self.flex_input = flex_input
-        self.prefix_output = prefix_output
+        self.prefix_output = flex_input.prefix.removesuffix("/") + "chunks"
         self.num_workers = num_workers
         self.output_paths = []
         self.output_keys = []
@@ -24,8 +23,7 @@ class ChunkerContext:
                 self.flex_input.prefix.removesuffix("/"), self.prefix_output
             )
         )
-        self.chunk_dir = new_local_base_path
-        os.makedirs(self.chunk_dir, exist_ok=True)
+        os.makedirs(new_local_base_path, exist_ok=True)
         local_path = (
             f"{new_local_base_path}/part{self.counter}.csv"
         )

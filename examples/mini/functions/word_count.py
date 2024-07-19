@@ -21,7 +21,7 @@ word_count_input = FlexInput(
     prefix="dir",
     custom_input_id="txt",
     bucket="test-bucket",
-    chunker=Chunker(chunker_type=ChunkerTypeEnum.STATIC, strategy=preprocess_static_txt, prefix_output="dir-chunks"),
+    chunker=Chunker(chunker_type=ChunkerTypeEnum.STATIC, strategy=preprocess_static_txt),
 )
 
 # word_count_input = FlexInput(

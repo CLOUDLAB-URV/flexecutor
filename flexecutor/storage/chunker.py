@@ -14,8 +14,7 @@ class Chunker:
         self,
         chunker_type: ChunkerTypeEnum,
         strategy,
-        cloud_object_format=None,
-        prefix_output: Optional[str] = None,
+        cloud_object_format=None
     ):
         """
         The Chunker class is responsible for chunking the data before processing it in the workers.
@@ -27,8 +26,6 @@ class Chunker:
          If chunker_type is DYNAMIC, the strategy will be a partitioning function already implemented by Dataplug.
         @param cloud_object_format: the format of the Dataplug cloud object
          Only used when chunker_type is DYNAMIC (default: None)
-        @param prefix_output: the object storage prefix in which the chunked data will be stored.
-         Only used when chunker_type is STATIC (default: None)
         """
         # if prefix and prefix[-1] != "/":
         #     prefix += "/"
@@ -37,12 +34,11 @@ class Chunker:
         self.strategy = strategy
         self.data_slices: List[CloudObjectSlice] = []
         self.cloud_object_format = cloud_object_format
-        self.prefix_output = prefix_output
 
     def preprocess(self, flex_input, num_workers):
         if self.chunker_type == ChunkerTypeEnum.STATIC:
             chunker_ctx = ChunkerContext(
-                flex_input, self.prefix_output, num_workers
+                flex_input, num_workers
             )
             chunker_wrapper(self.strategy, chunker_ctx)
             return None
