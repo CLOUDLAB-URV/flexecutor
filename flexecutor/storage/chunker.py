@@ -1,20 +1,18 @@
-from typing import List, Optional
+import os
+from pathlib import Path
+from typing import List
 
 from dataplug import CloudObject
 from dataplug.entities import CloudObjectSlice
 from lithops import Storage
 
-from flexecutor.storage.wrapper import chunker_wrapper
-from flexecutor.utils.chunker_context import ChunkerContext
+from flexecutor.storage.storage import FlexInput
 from flexecutor.utils.enums import ChunkerTypeEnum
 
 
 class Chunker:
     def __init__(
-        self,
-        chunker_type: ChunkerTypeEnum,
-        strategy,
-        cloud_object_format=None
+        self, chunker_type: ChunkerTypeEnum, strategy, cloud_object_format=None
     ):
         """
         The Chunker class is responsible for chunking the data before processing it in the workers.
@@ -37,33 +35,112 @@ class Chunker:
 
     def preprocess(self, flex_input, num_workers):
         if self.chunker_type == ChunkerTypeEnum.STATIC:
-            chunker_ctx = ChunkerContext(
-                flex_input, num_workers
+            self._static_preprocess(flex_input, num_workers)
+        elif self.chunker_type == ChunkerTypeEnum.DYNAMIC:
+            self._dynamic_preprocess(flex_input, num_workers)
+        else:
+            raise ValueError("Invalid chunker type")
+
+    def _static_preprocess(self, flex_input, num_workers):
+        chunker_ctx = InternalChunkerContext(flex_input, num_workers)
+        # Download the files to the local storage
+        storage = Storage()
+        flex_input = chunker_ctx.flex_input
+        os.makedirs(flex_input.local_base_path, exist_ok=True)
+        for index in range(len(flex_input.keys)):
+            storage.download_file(
+                flex_input.bucket,
+                flex_input.keys[index],
+                flex_input.local_paths[index],
             )
-            chunker_wrapper(self.strategy, chunker_ctx)
-            return None
-        else:  # DYNAMIC
-            files = [f"s3://{flex_input.bucket}/{file}" for file in flex_input.keys]
-            storage = Storage()
-            storage_dict = storage.config[storage.config["backend"]]
-            num_chunks = int(num_workers / len(files))
-            chunk_list = [num_chunks] * len(files)
-            for i in range(num_workers % len(files)):
-                chunk_list[i] += 1
-            for file, num_chunks_file in zip(files, chunk_list):
-                cloud_object = CloudObject.from_s3(
-                    self.cloud_object_format,
-                    file,
-                    s3_config={
-                        "region_name": "us-east-1",
-                        "endpoint_url": storage_dict["endpoint"],
-                        "credentials": {
-                            "AccessKeyId": storage_dict["access_key_id"],
-                            "SecretAccessKey": storage_dict["secret_access_key"],
-                        },
+
+        # Execute the chunker function
+        self.strategy(chunker_ctx)
+
+        # Upload the chunked files to the object storage
+        for index in range(len(chunker_ctx.output_paths)):
+            storage.upload_file(
+                chunker_ctx.output_paths[index],
+                flex_input.bucket,
+                chunker_ctx.output_keys[index],
+            )
+
+        # Adapt the flex_input object to the new state
+        flex_input.flush()
+        flex_input.id = flex_input.prefix
+        flex_input.prefix = chunker_ctx.prefix_output
+
+    def _dynamic_preprocess(self, flex_input, num_workers):
+        files = [f"s3://{flex_input.bucket}/{file}" for file in flex_input.keys]
+        storage = Storage()
+        storage_dict = storage.config[storage.config["backend"]]
+
+        # Calculate the number of chunks per file
+        num_chunks = int(num_workers / len(files))
+        chunk_list = [num_chunks] * len(files)
+        for i in range(num_workers % len(files)):
+            chunk_list[i] += 1
+
+        # Create the cloud objects and partition them
+        for file, num_chunks_file in zip(files, chunk_list):
+            cloud_object = CloudObject.from_s3(
+                self.cloud_object_format,
+                file,
+                s3_config={
+                    "region_name": "us-east-1",
+                    "endpoint_url": storage_dict["endpoint"],
+                    "credentials": {
+                        "AccessKeyId": storage_dict["access_key_id"],
+                        "SecretAccessKey": storage_dict["secret_access_key"],
                     },
-                )
-                cloud_object.preprocess()
-                self.data_slices.extend(
-                    cloud_object.partition(self.strategy, num_chunks=num_chunks_file)
-                )
+                },
+            )
+            cloud_object.preprocess()
+            self.data_slices.extend(
+                cloud_object.partition(self.strategy, num_chunks=num_chunks_file)
+            )
+
+
+class InternalChunkerContext:
+    def __init__(self, flex_input: FlexInput, num_workers: int):
+        self.flex_input = flex_input
+        self.prefix_output = flex_input.prefix.removesuffix("/") + "chunks"
+        self.num_workers = num_workers
+        self.output_paths = []
+        self.output_keys = []
+        self.counter = 0
+
+    def get_input_paths(self):
+        return self.flex_input.local_paths
+
+    def next_chunk_path(self):
+        new_local_base_path = Path(
+            str(self.flex_input.local_base_path).replace(
+                self.flex_input.prefix.removesuffix("/"), self.prefix_output
+            )
+        )
+        os.makedirs(new_local_base_path, exist_ok=True)
+        local_path = f"{new_local_base_path}/part{self.counter}.{self._get_suffix()}"
+        self.output_paths.append(local_path)
+        key = f"{self.prefix_output}/part{self.counter}.{self._get_suffix()}"
+        self.output_keys.append(key)
+        self.counter += 1
+        return local_path
+
+    def _get_suffix(self):
+        return self.flex_input.keys[0].split(".")[-1]
+
+
+# ChunkerContext is a facade for InternalChunkerContext
+class ChunkerContext:
+    def __init__(self, ctx: InternalChunkerContext):
+        self._ctx = ctx
+
+    def get_input_paths(self):
+        return self._ctx.get_input_paths()
+
+    def next_chunk_path(self):
+        return self._ctx.next_chunk_path()
+
+    def get_num_workers(self):
+        return self._ctx.num_workers

@@ -37,6 +37,10 @@ class FlexInput:
     def id(self):
         return self._input_id
 
+    @id.setter
+    def id(self, value):
+        self._input_id = value
+
     def has_chunker_type(self, chunking_type: ChunkerTypeEnum):
         return self.chunker is not None and self.chunker.chunker_type is chunking_type
 
@@ -76,9 +80,12 @@ class FlexInput:
         self.chunk_indexes = (start, end)
 
     def flush(self):
+        self.prefix = None
+        self._input_id = None
         self.keys = []
         self.local_paths = []
         self.chunk_indexes = None
+        self.chunker = None
 
 
 class FlexOutput:
