@@ -81,7 +81,6 @@ class FlexInput:
 
     def flush(self):
         self.prefix = None
-        self._input_id = None
         self.keys = []
         self.local_paths = []
         self.chunk_indexes = None

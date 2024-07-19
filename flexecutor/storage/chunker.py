@@ -55,7 +55,7 @@ class Chunker:
             )
 
         # Execute the chunker function
-        self.strategy(chunker_ctx)
+        self.strategy(ChunkerContext(chunker_ctx))
 
         # Upload the chunked files to the object storage
         for index in range(len(chunker_ctx.output_paths)):
@@ -67,7 +67,6 @@ class Chunker:
 
         # Adapt the flex_input object to the new state
         flex_input.flush()
-        flex_input.id = flex_input.prefix
         flex_input.prefix = chunker_ctx.prefix_output
 
     def _dynamic_preprocess(self, flex_input, num_workers):
@@ -104,7 +103,7 @@ class Chunker:
 class InternalChunkerContext:
     def __init__(self, flex_input: FlexInput, num_workers: int):
         self.flex_input = flex_input
-        self.prefix_output = flex_input.prefix.removesuffix("/") + "chunks"
+        self.prefix_output = flex_input.prefix.removesuffix("/") + "-chunks"
         self.num_workers = num_workers
         self.output_paths = []
         self.output_keys = []
