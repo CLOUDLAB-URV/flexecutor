@@ -5,6 +5,7 @@ import logging
 
 from lithops import FunctionExecutor
 
+from flexecutor.storage.chunker import ChunkerTypeEnum
 from flexecutor.storage.wrapper import worker_wrapper
 from flexecutor.workflow.stagecontext import InternalStageContext
 from flexecutor.workflow.stage import Stage, StageState
@@ -75,18 +76,22 @@ class ThreadPoolProcessor:
         :param on_future_done: Callback to execute every time a future is done
         """
 
-        # STATIC PARTITIONING ???
-        # for input_path in stage.input_file:
-        #     if input_path.partitioner:
-        #         input_path.partitioner.partitionize()
-
         map_iterdata = []
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
+
+        for flex_input in stage.inputs:
+            if flex_input.chunker:
+                flex_input.scan_keys()
+                flex_input.set_local_paths()
+                flex_input.chunker.chunk(flex_input, num_workers)
+
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
             copy_outputs = [deepcopy(item) for item in stage.outputs]
             for input_item in copy_inputs:
-                input_item.scan_objects(worker_id, num_workers)
+                input_item.scan_keys()
+                input_item.set_local_paths()
+                input_item.set_file_indexes(worker_id, num_workers)
             ctx = InternalStageContext(
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
             )

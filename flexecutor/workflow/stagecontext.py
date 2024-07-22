@@ -2,7 +2,10 @@ import os
 import uuid
 from typing import Optional, Any
 
+from lithops import Storage
+
 from flexecutor.storage.storage import FlexInput, FlexOutput
+from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
 class InternalStageContext:
@@ -24,7 +27,7 @@ class InternalStageContext:
         return f"InternalStageContext(worker_id={self.worker_id}, num_workers={self.num_workers}, inputs={self.inputs}, outputs={self.outputs}, params={self._params})"
 
     def input_paths(self, input_id: str) -> list[str]:
-        start, end = self.inputs[input_id].file_index
+        start, end = self.inputs[input_id].file_indexes
         return self.inputs[input_id].local_paths[start:end]
 
     def get_param(self, key: str) -> Any:
@@ -38,7 +41,41 @@ class InternalStageContext:
         self.outputs[param].keys.append(f"{self.outputs[param].prefix}/{serial}")
         return local_path
 
+    def download_files(self):
+        storage = Storage()
+        # TODO: parallelize download?
+        for input_id, flex_input in self.inputs.items():
+            os.makedirs(flex_input.local_base_path, exist_ok=True)
+            if (
+                len(flex_input.keys) >= self.num_workers
+                or flex_input.strategy is StrategyEnum.BROADCAST
+                or flex_input.has_chunker_type(ChunkerTypeEnum.STATIC)
+            ):  # More files than workers and scattering
+                start_index, end_index = flex_input.file_indexes
+                for index in range(start_index, end_index):
+                    storage.download_file(
+                        flex_input.bucket,
+                        flex_input.keys[index],
+                        flex_input.local_paths[index],
+                    )
+            else:  # Dynamic partitioning
+                chunker = flex_input.chunker
+                output = chunker.data_slices[self.worker_id].get()
+                filename = f"{flex_input.local_base_path}_worker_{self.worker_id}"
+                with open(filename, "wb") as f:
+                    f.write(output.encode("utf-8"))
+                flex_input.set_local_paths([filename])
 
+    def upload_files(self):
+        storage = Storage()
+        # TODO: parallelize upload?
+        for output_id, flex_output in self.outputs.items():
+            for index in range(len(flex_output.local_paths)):
+                storage.upload_file(
+                    flex_output.local_paths[index],
+                    flex_output.bucket,
+                    flex_output.keys[index],
+                )
 class StageContext:
     def __init__(self, context: InternalStageContext):
         self._context = context

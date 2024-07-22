@@ -2,6 +2,7 @@ from setuptools import setup, find_packages
 from itertools import chain
 
 install_requires = [
+    "git+https://github.com/CLOUDLAB-URV/dataplug",
     "lithops",
     "boto3",
     "cloudpickle",

@@ -1,16 +1,10 @@
 import os
-from enum import Enum
 from pathlib import Path
 from typing import Optional, Tuple
 
 from lithops import Storage
 
-from flexecutor.storage.chunker import Chunker
-
-
-class StrategyEnum(Enum):
-    SCATTER = 1
-    BROADCAST = 2
+from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
 class FlexInput:
@@ -20,7 +14,7 @@ class FlexInput:
         bucket=None,
         custom_input_id=None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
-        chunker: Optional[Chunker] = None,
+        chunker=None,
         local_base_path: str = "/tmp",
     ):
         """
@@ -33,7 +27,7 @@ class FlexInput:
             prefix += "/"
         self.prefix = prefix or ""
         self.strategy = strategy
-        self.chunk_indexes: Optional[Tuple[int, int]] = None
+        self.file_indexes: Optional[Tuple[int, int]] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
         self.keys = []
@@ -46,44 +40,54 @@ class FlexInput:
     def id(self):
         return self._input_id
 
-    def scan_objects(self, worker_id, num_workers) -> None:
-        try:
-            self.keys = [
-                obj["Key"]
-                for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
-            ]
-            if self.keys == []:
-                raise FileNotFoundError(
-                    "No files found in the specified bucket/prefix."
-                )
+    @id.setter
+    def id(self, value):
+        self._input_id = value
 
-            self.local_paths = [
-                str(self.local_base_path / key.split("/")[-1]) for key in self.keys
-            ]
+    def has_chunker_type(self, chunking_type: ChunkerTypeEnum):
+        return self.chunker is not None and self.chunker.chunker_type is chunking_type
 
-            if self.chunker:
-                self.file_index = (0, num_workers)
-                return
+    def scan_keys(self):
+        self.keys = [
+            obj["Key"]
+            for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
+        ]
 
-            if self.strategy == StrategyEnum.BROADCAST:
-                start = 0
-                end = len(self.local_paths)
-            else:  # SCATTER
-                num_files = len(self.local_paths)
-                start = (worker_id * num_files) // num_workers
-                end = ((worker_id + 1) * num_files) // num_workers
-            self.file_index = (start, end)
+    def set_local_paths(self, override_local_paths: Optional[list[str]] = None):
+        if (
+            self.has_chunker_type(ChunkerTypeEnum.DYNAMIC)
+            and override_local_paths is None
+        ):
+            return
+        if override_local_paths:
+            self.local_paths = override_local_paths
+            return
+        self.local_paths = [
+            str(self.local_base_path / key.split("/")[-1]) for key in self.keys
+        ]
 
-        except FileNotFoundError as e:
-            print(f"Error: {e}")
-            self.keys = []
-            self.local_paths = []
-            self.file_index = None
-        except Exception as e:
-            print(f"Error: {e}")
-            self.keys = []
-            self.local_paths = []
-            self.file_index = None
+    def set_file_indexes(self, worker_id, num_workers):
+        if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
+            self.file_indexes = (0, 1)
+            return
+        if self.has_chunker_type(ChunkerTypeEnum.STATIC):
+            self.file_indexes = (worker_id, worker_id + 1)
+            return
+        if self.strategy == StrategyEnum.BROADCAST:
+            start = 0
+            end = len(self.local_paths)
+        else:  # SCATTER
+            num_files = len(self.local_paths)
+            start = (worker_id * num_files) // num_workers
+            end = ((worker_id + 1) * num_files) // num_workers
+        self.file_indexes = (start, end)
+
+    def flush(self):
+        self.prefix = None
+        self.keys = []
+        self.local_paths = []
+        self.file_indexes = None
+        self.chunker = None
 
 
 class FlexOutput:

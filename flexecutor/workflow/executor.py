@@ -203,11 +203,13 @@ class DAGExecutor:
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
 
-    def execute(self) -> Dict[str, StageFuture]:
+    def execute(self, num_workers=None) -> Dict[str, StageFuture]:
         """
         Execute the DAG
 
-        :return: A dictionary with the output data of the DAG stages with the stage ID as key
+        @param num_workers: **DEV** parameter to set the number of workers to use in the stages in the DAG.
+         If defined, overrides the number of workers defined in the resource configuration of the stages.
+        @return A dictionary with the output data of the DAG stages with the stage ID as key
         """
         logger.info(f"Executing DAG {self._dag.dag_id}")
 
@@ -216,7 +218,10 @@ class DAGExecutor:
 
         # Before the execution, get the optimal configurations for all stages in the DAG
         # FIXME: actually optimize, hardcoded for now
-        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
+
+        if num_workers is not None:
+            for stage in self._dag.stages:
+                stage.resource_config = StageConfig(cpu=1, memory=1024, workers=num_workers)
 
         self._futures = dict()
 
