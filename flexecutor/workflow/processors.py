@@ -7,7 +7,7 @@ from lithops import FunctionExecutor
 
 from flexecutor.storage.chunker import ChunkerTypeEnum
 from flexecutor.storage.wrapper import worker_wrapper
-from flexecutor.utils.iomanager import InternalIOManager
+from flexecutor.workflow.stagecontext import InternalStageContext
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
 from flexecutor.utils import setup_logging
@@ -20,11 +20,11 @@ class ThreadPoolProcessor:
     Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self, executor: FunctionExecutor, max_concurrency=256):
+    def __init__(self, executor: FunctionExecutor, max_threadpool_concurrency=256):
         super().__init__()
         self._executor = executor
-        self._max_concurrency = max_concurrency
-        self._pool = ThreadPoolExecutor(max_workers=max_concurrency)
+        self._max_concurrency = max_threadpool_concurrency
+        self._pool = ThreadPoolExecutor(max_workers=max_threadpool_concurrency)
 
     def process(
         self,
@@ -36,7 +36,8 @@ class ThreadPoolProcessor:
         :param stages: List of stages to process
         :param on_future_done: Callback to execute every time a future is done
         :return: Futures of the stages
-        :raises ValueError: If there are no stages to process or if there are more stages than the maximum parallelism
+        :raises ValueError: If there are no stages to process or if there are
+        more stages than the maximum parallelism
         """
         if len(stages) == 0:
             raise ValueError("No stages to process")
@@ -54,9 +55,8 @@ class ThreadPoolProcessor:
 
             stage.state = StageState.RUNNING
             ex_futures[stage.stage_id] = self._pool.submit(
-                lambda: self._process_stage(stage, on_future_done)
+                lambda s=stage: self._process_stage(s, on_future_done)
             )
-
         wait(ex_futures.values())
 
         return {
@@ -91,11 +91,11 @@ class ThreadPoolProcessor:
             for input_item in copy_inputs:
                 input_item.scan_keys()
                 input_item.set_local_paths()
-                input_item.set_chunk_indexes(worker_id, num_workers)
-            io = InternalIOManager(
+                input_item.set_file_indexes(worker_id, num_workers)
+            ctx = InternalStageContext(
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
             )
-            map_iterdata.append(io)
+            map_iterdata.append(ctx)
 
         future = self._executor.map(
             map_function=worker_wrapper(stage.map_func),

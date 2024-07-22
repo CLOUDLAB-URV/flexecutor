@@ -27,11 +27,14 @@ class FlexInput:
             prefix += "/"
         self.prefix = prefix or ""
         self.strategy = strategy
-        self.chunk_indexes: Optional[Tuple[int, int]] = None
+        self.file_indexes: Optional[Tuple[int, int]] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
         self.keys = []
         self.local_paths = []
+
+    def __repr__(self):
+        return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_index={self.file_index})"
 
     @property
     def id(self):
@@ -63,12 +66,12 @@ class FlexInput:
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
 
-    def set_chunk_indexes(self, worker_id, num_workers):
+    def set_file_indexes(self, worker_id, num_workers):
         if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
-            self.chunk_indexes = (0, 1)
+            self.file_indexes = (0, 1)
             return
         if self.has_chunker_type(ChunkerTypeEnum.STATIC):
-            self.chunk_indexes = (worker_id, worker_id + 1)
+            self.file_indexes = (worker_id, worker_id + 1)
             return
         if self.strategy == StrategyEnum.BROADCAST:
             start = 0
@@ -77,13 +80,13 @@ class FlexInput:
             num_files = len(self.local_paths)
             start = (worker_id * num_files) // num_workers
             end = ((worker_id + 1) * num_files) // num_workers
-        self.chunk_indexes = (start, end)
+        self.file_indexes = (start, end)
 
     def flush(self):
         self.prefix = None
         self.keys = []
         self.local_paths = []
-        self.chunk_indexes = None
+        self.file_indexes = None
         self.chunker = None
 
 
@@ -103,6 +106,9 @@ class FlexOutput:
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         self.keys = []
         self.local_paths = []
+
+    def __repr__(self):
+        return f"FlexOutput(prefix={self.prefix}, bucket={self.bucket}, suffix={self.suffix}, local_base_path={self.local_base_path})"
 
     @property
     def id(self):

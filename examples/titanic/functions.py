@@ -3,11 +3,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
-from flexecutor.utils.iomanager import IOManager
+from flexecutor import StageContext
 
 
-def train_model(io: IOManager) -> None:
-    chunk_path = io.get_input_paths("titanic")[0]
+def train_model(ctx: StageContext) -> None:
+    chunk_path = ctx.get_input_paths("titanic")[0]
     chunk = pd.read_csv(chunk_path)
     features = ["Pclass", "Sex", "Age", "SibSp", "Parch", "Fare"]
     chunk = chunk.dropna(subset=features + ["Survived"])
@@ -26,5 +26,5 @@ def train_model(io: IOManager) -> None:
     y_pred = model.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
 
-    with open(io.next_output_path("titanic-accuracy"), "w") as f:
+    with open(ctx.next_output_path("titanic-accuracy"), "w") as f:
         f.write(str(accuracy))

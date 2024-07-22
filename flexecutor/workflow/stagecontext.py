@@ -8,7 +8,7 @@ from flexecutor.storage.storage import FlexInput, FlexOutput
 from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
-class InternalIOManager:
+class InternalStageContext:
     def __init__(
         self,
         worker_id,
@@ -23,8 +23,11 @@ class InternalIOManager:
         self.outputs: dict[str, FlexOutput] = {o.id: o for o in outputs}
         self._params = params
 
+    def __repr__(self):
+        return f"InternalStageContext(worker_id={self.worker_id}, num_workers={self.num_workers}, inputs={self.inputs}, outputs={self.outputs}, params={self._params})"
+
     def input_paths(self, input_id: str) -> list[str]:
-        start, end = self.inputs[input_id].chunk_indexes
+        start, end = self.inputs[input_id].file_indexes
         return self.inputs[input_id].local_paths[start:end]
 
     def get_param(self, key: str) -> Any:
@@ -48,7 +51,7 @@ class InternalIOManager:
                 or flex_input.strategy is StrategyEnum.BROADCAST
                 or flex_input.has_chunker_type(ChunkerTypeEnum.STATIC)
             ):  # More files than workers and scattering
-                start_index, end_index = flex_input.chunk_indexes
+                start_index, end_index = flex_input.file_indexes
                 for index in range(start_index, end_index):
                     storage.download_file(
                         flex_input.bucket,
@@ -73,18 +76,18 @@ class InternalIOManager:
                     flex_output.bucket,
                     flex_output.keys[index],
                 )
+class StageContext:
+    def __init__(self, context: InternalStageContext):
+        self._context = context
 
-
-# IOManager is a facade for InternalIOManager
-class IOManager:
-    def __init__(self, manager: InternalIOManager):
-        self._manager = manager
+    def __repr__(self):
+        return f"StageContext({self._context})"
 
     def get_input_paths(self, input_id: str) -> list[str]:
-        return self._manager.input_paths(input_id)
+        return self._context.input_paths(input_id)
 
     def get_param(self, key: str) -> Any:
-        return self._manager.get_param(key)
+        return self._context.get_param(key)
 
     def next_output_path(self, param: str) -> str:
-        return self._manager.next_output_path(param)
+        return self._context.next_output_path(param)

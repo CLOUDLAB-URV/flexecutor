@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
         dag.add_stage(stage)
         executor = DAGExecutor(dag, executor=FunctionExecutor())
-        results = executor.execute()
+        results = executor.execute(num_workers=7)
         print(results["stage"].get_timings())
 
     main()

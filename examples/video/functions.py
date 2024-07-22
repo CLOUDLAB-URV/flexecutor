@@ -7,11 +7,11 @@ from imageai.Detection import ObjectDetection
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from PIL import Image
 
-from flexecutor.utils.iomanager import IOManager
+from flexecutor import StageContext
 
 
-def split_videos(io: IOManager):
-    video_paths = io.get_input_paths("videos")
+def split_videos(ctx: StageContext):
+    video_paths = ctx.get_input_paths("videos")
     chunk_size = 10
 
     for index, video_path in enumerate(video_paths):
@@ -20,7 +20,7 @@ def split_videos(io: IOManager):
         start_size = 0
         while start_size < video_len:
             end_size = min(start_size + chunk_size, video_len)
-            chunk_path = f"{io.next_output_path('video-chunks')}"
+            chunk_path = f"{ctx.next_output_path('video-chunks')}"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
                 chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"]
@@ -30,7 +30,7 @@ def split_videos(io: IOManager):
         vc.close()
 
 
-def extract_frames(io: IOManager):
+def extract_frames(ctx: StageContext):
     def calculate_average_pixel_value(image):
         # Convert image to grayscale image
         gray_image = np.mean(image, axis=2).astype(np.uint8)
@@ -38,7 +38,7 @@ def extract_frames(io: IOManager):
         average_pixel_value = np.mean(gray_image)
         return average_pixel_value
 
-    chunk_paths = io.get_input_paths("video-chunks")
+    chunk_paths = ctx.get_input_paths("video-chunks")
 
     for index, chunk_path in enumerate(chunk_paths):
         best_frame = None
@@ -52,22 +52,22 @@ def extract_frames(io: IOManager):
                 best_frame = frame
 
         pil_image = Image.fromarray(best_frame)
-        frame_path = io.next_output_path("mainframes")
+        frame_path = ctx.next_output_path("mainframes")
         pil_image.save(frame_path)
         video_clip.close()
 
 
-def sharpening_filter(io: IOManager):
-    frame_paths = io.get_input_paths("mainframes")
+def sharpening_filter(ctx: StageContext):
+    frame_paths = ctx.get_input_paths("mainframes")
     for index, frame_path in enumerate(frame_paths):
         image = cv2.imread(frame_path)
         sharpening_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
         sharpened_image = cv2.filter2D(image, -1, sharpening_kernel)
-        cv2.imwrite(io.next_output_path("filtered-frames"), sharpened_image)
+        cv2.imwrite(ctx.next_output_path("filtered-frames"), sharpened_image)
 
 
-def classify_images(io: IOManager):
-    frame_paths = io.get_input_paths("filtered-frames")
+def classify_images(ctx: StageContext):
+    frame_paths = ctx.get_input_paths("filtered-frames")
 
     detector = ObjectDetection()
     detector.setModelTypeAsTinyYOLOv3()
@@ -82,6 +82,6 @@ def classify_images(io: IOManager):
         )
 
         json_data = json.dumps(detection, indent=4)
-        tmp_filename = io.next_output_path("classification")
+        tmp_filename = ctx.next_output_path("classification")
         with open(tmp_filename, "w") as json_file:
             json_file.write(json_data)

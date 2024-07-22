@@ -1,20 +1,23 @@
 import logging
 import os
 from enum import Enum
-from typing import Dict, Set, List, Iterable, Optional
+from typing import Dict, Set, List, Optional
 
-import numpy as np
-import pandas as pd
+
 from lithops import FunctionExecutor
-from matplotlib import pyplot as plt
-from pandas import DataFrame
+from lithops.utils import get_executor_id
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
-from flexecutor.utils.utils import load_profiling_results, save_profiling_results, get_my_exec_path
+from flexecutor.utils.utils import (
+    load_profiling_results,
+    save_profiling_results,
+    get_my_exec_path,
+)
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
-from flexecutor.workflow.stage import Stage
+from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
+from flexecutor.optimization import BruteforceSolver
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +26,9 @@ class AssetType(Enum):
     """
     Enum class for asset types
     """
+
     MODEL = ("model", ".pkl")
-    PROFILE = ("profile", ".json")
+    PROFILE = ("profiling", ".json")
     IMAGE = ("image", ".png")
 
 
@@ -51,27 +55,20 @@ class DAGExecutor:
         self._running_stages: List[Stage] = list()
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
+        self._executor_id = get_executor_id()
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
-        # previous folder creation
-        if asset_type == AssetType.MODEL:
-            os.makedirs(f"{self._base_path}/models/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/models/{self._dag.dag_id}/{stage.stage_id}.pkl"
-        elif asset_type == AssetType.PROFILE:
-            os.makedirs(f"{self._base_path}/profiling/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
-        elif asset_type == AssetType.IMAGE:
-            os.makedirs(f"{self._base_path}/images/{self._dag.dag_id}", exist_ok=True)
-            return f"{self._base_path}/images/{self._dag.dag_id}/{stage.stage_id}.png"
+        dir_name, file_extension = asset_type.value
+        os.makedirs(f"{self._base_path}/{dir_name}/{self._dag.dag_id}", exist_ok=True)
+        return f"{self._base_path}/{dir_name}/{self._dag.dag_id}/{stage.stage_id}{file_extension}"
 
     def _store_profiling(
         self,
-        file: str,
+        profile_data: dict,
         new_profile_data: List[FunctionTimes],
         resource_config: StageConfig,
     ) -> None:
-        profile_data = load_profiling_results(file)
-        config_key = resource_config.key
+        config_key = str(resource_config.key)
         if config_key not in profile_data:
             profile_data[config_key] = {}
         for key in FunctionTimes.profile_keys():
@@ -81,27 +78,107 @@ class DAGExecutor:
         for profiling in new_profile_data:
             for key in FunctionTimes.profile_keys():
                 profile_data[config_key][key][-1].append(getattr(profiling, key))
-        save_profiling_results(file, profile_data)
+        print(f"Profile data: {profile_data}")
 
     def profile(
         self,
-        config_space: Iterable[StageConfig],
-        stage: Optional[Stage] = None,
-        num_iterations: int = 1,
+        # TODO: add a profile id (also on training) to allow having different
+        # trained models, mostly for different backends (k8s, lambda, etc.)
+        config_space: List[Dict[str, StageConfig]],
+        num_reps: int = 1,
     ) -> None:
-        """Profile the DAG."""
-        stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
+
+        logger.info(f"Profiling DAG {self._dag.dag_id}")
+        print(config_space)
+
+        for config in config_space:
+            if len(config) != len(self._dag.stages):
+                raise ValueError(
+                    "Each configuration dictionary must have the same length as the number of stages in the DAG"
+                )
+            for stage_id in self._dag.stages:
+                if stage_id._stage_id not in config:
+                    raise ValueError(
+                        f"Configuration for stage {stage_id._stage_id} is missing"
+                    )
+        profile_data = {}
+        for stage in self._dag.stages:
             profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
-            for resource_config in config_space:
-                stage.resource_config = resource_config
-                for iteration in range(num_iterations):
-                    timings = self.execute_stage(stage)
-                    self._store_profiling(profiling_file, timings, resource_config)
+            profile_data[stage.stage_id] = load_profiling_results(profiling_file)
+
+        for iteration in range(num_reps):
+            logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
+
+            for config_combination in config_space:
+                config_description = ", ".join(
+                    f"{stage_id} config: {config}"
+                    for stage_id, config in config_combination.items()
+                )
+                logger.info(f"Applying configuration combination: {config_description}")
+
+                for stage in self._dag.stages:
+                    stage.resource_config = config_combination[stage._stage_id]
+                    stage.state = StageState.NONE
+                    logger.info(
+                        f"Configured {stage.stage_id} with {config_combination[stage._stage_id]}"
+                    )
+
+                futures = self.execute()
+
+                for stage in self._dag.stages:
+                    future = futures.get(stage.stage_id)
+                    if future and not future.error():
+                        timings = future.get_timings()
+                        self._store_profiling(
+                            profile_data[stage.stage_id],
+                            timings,
+                            config_combination[stage._stage_id],
+                        )
+                        logger.info(
+                            f"Profiling data for {stage.stage_id} updated in memory"
+                        )
+                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                        save_profiling_results(
+                            profiling_file, profile_data[stage.stage_id]
+                        )
+                        logger.info(
+                            f"Profiling data for {stage.stage_id} saved in {profiling_file}"
+                        )
+                    elif future and future.error():
+                        logger.error(
+                            f"Error processing stage {stage.stage_id}: {future.error()}"
+                        )
+
+        logger.info("Profiling completed for all configurations")
 
     def predict(
         self, resource_config: List[StageConfig], stage: Optional[Stage] = None
     ) -> List[FunctionTimes]:
+        """Predicts the latency of the entire dag for a given dictionary of resource configurations.
+        If a stage is provided, it will predict the latency of that stage only.
+
+
+        Args:
+            resource_config (List[StageConfig]): Dictionary with the resource configuration for each stage.
+            stage (Optional[Stage], optional): Stage to profile. Defaults to None.
+
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+
+        Returns:
+            List[FunctionTimes]: _description_
+        """
+        # TODO: predict latency/cost of the full dag. Return an object with the
+        # breakdown of latencies per stage.
+
+        # FIXME: (?) predict makes sense to move as method of DAG/Stage since models
+        # are stored there. Train too?
+        # Keep this method as a convenient wrapper for self._dag.predict()
+
+        # FIXME: (?) resource_config as a list or as a dict by stage_id?
+        # assert it contains config for all stages
+
         if stage is not None and len(resource_config) > 1:
             raise ValueError(
                 "predict() requires single Stage when only one StageConfig is provided and vice versa."
@@ -116,25 +193,23 @@ class DAGExecutor:
             result.append(stage.perf_model.predict(resource_config))
         return result
 
-    def execute_stage(self, stage: Stage) -> List[FunctionTimes]:
-        """Run a stage with a given configuration space."""
-        futures = self._processor.process([stage])
-        [future] = futures.values()
-        return future.get_timings()
-
     def train(self, stage: Optional[Stage] = None) -> None:
         """Train the DAG."""
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
-            profile_data = load_profiling_results(self._get_asset_path(stage, AssetType.PROFILE))
+            profile_data = load_profiling_results(
+                self._get_asset_path(stage, AssetType.PROFILE)
+            )
             stage.perf_model.train(profile_data)
             stage.perf_model.save_model()
 
-    def execute(self) -> Dict[str, StageFuture]:
+    def execute(self, num_workers=None) -> Dict[str, StageFuture]:
         """
         Execute the DAG
 
-        :return: A dictionary with the output data of the DAG stages with the stage ID as key
+        @param num_workers: **DEV** parameter to set the number of workers to use in the stages in the DAG.
+         If defined, overrides the number of workers defined in the resource configuration of the stages.
+        @return A dictionary with the output data of the DAG stages with the stage ID as key
         """
         logger.info(f"Executing DAG {self._dag.dag_id}")
 
@@ -142,13 +217,11 @@ class DAGExecutor:
         logger.info(f"DAG {self._dag.dag_id} has {self._num_final_stages} final stages")
 
         # Before the execution, get the optimal configurations for all stages in the DAG
-        # FIXME: The model has been already trained, there's no need to train on the execute, we must separate training from execution
+        # FIXME: actually optimize, hardcoded for now
 
-        # self.train()
-        # FIXME: the optimal config seems to be an array, why is that?
-        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
-        for stage in self._dag.stages:
-            stage.resource_config = StageConfig(cpu=5, memory=722, workers=7)
+        if num_workers is not None:
+            for stage in self._dag.stages:
+                stage.resource_config = StageConfig(cpu=1, memory=1024, workers=num_workers)
 
         self._futures = dict()
 
@@ -181,118 +254,19 @@ class DAGExecutor:
 
         return self._futures
 
-    def model_perf_metrics(
-        self, stage: Stage, config_space: List[StageConfig]
-    ) -> DataFrame:
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(
-            stage, config_space
-        )
-
-        actual_latencies = np.array(actual_latencies)
-        predicted_latencies = np.array(predicted_latencies)
-
-        data = np.array(
-            [
-                [
-                    config.workers,
-                    config.cpu,
-                    config.memory,
-                    actual,
-                    predicted,
-                    abs(actual - predicted),
-                    (actual - predicted) ** 2,
-                ]
-                for config, actual, predicted in zip(
-                    config_space, actual_latencies, predicted_latencies
-                )
-            ]
-        )
-
-        df = pd.DataFrame(
-            data,
-            columns=[
-                "Workers",
-                "CPU",
-                "Memory",
-                "Actual latency",
-                "Predicted latency",
-                "MAE",
-                "MSE",
-            ],
-        )
-
-        return df
-
-    def plot_model_performance(self, stage: Stage, config_space: List[StageConfig]):
-        actual_latencies, predicted_latencies = self._prediction_vs_actual(
-            stage, config_space
-        )
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(config_space))
-
-        ax.plot(x, predicted_latencies, label="Predicted Latencies", marker="x")
-
-        if any(actual_latencies):
-            ax.plot(x, actual_latencies, label="Actual Latencies", marker="o")
-
-        ax.set_xlabel("Configurations")
-        ax.set_ylabel("Latency")
-        ax.set_title("Model Performance Comparison")
-        ax.set_xticks(x)
-        ax.set_xticklabels([str(i.key) for i in config_space], rotation=45, ha="right")
-        ax.legend()
-
-        plt.tight_layout()
-
-        plt.savefig(self._get_asset_path(stage, AssetType.IMAGE))
-
-    def _prediction_vs_actual(self, stage: Stage, config_space: List[StageConfig]):
-        actual_latencies = []
-        predicted_latencies = []
-        profiling_data = load_profiling_results(
-            f"{self._base_path}/profiling/{self._dag.dag_id}/{stage.stage_id}.json"
-        )
-        stage.perf_model.train(profiling_data)
-        for config in config_space:
-            if config.key in profiling_data:
-                executions = profiling_data[config.key]
-                total_latencies = [
-                    sum(lats)
-                    for breaks in zip(
-                        executions["read"],
-                        executions["compute"],
-                        executions["write"],
-                        executions["cold_start"],
-                    )
-                    for lats in zip(*breaks)
-                ]
-                avg_actual_latency = np.mean(total_latencies)
-                actual_latencies.append(avg_actual_latency)
-            else:
-                actual_latencies.append(None)
-
-            predicted_latency = stage.perf_model.predict(config).total
-            predicted_latencies.append(predicted_latency)
-        return actual_latencies, predicted_latencies
-
     def optimize(
-        self, config_bounds: ConfigBounds, stage: Optional[Stage] = None
-    ) -> List[StageConfig]:
+        self,
+        dag_critical_path=List[str],
+        config_bounds: ConfigBounds = None,
+    ):
         """
         Sets the optimal configuration for each stage.
         """
-        result = []
-        stages_list = [stage] if stage is not None else self._dag.stages
-        for stage in stages_list:
-            # optimal_config = stage.perf_model.optimize(config_bounds)
-            # Hardcoded config for now
-            optimal_config = StageConfig(cpu=5, memory=722, workers=2)
-            print(f"Optimal configuration for stage {stage.stage_id}: {optimal_config}")
-            stage.optimal_config = optimal_config
 
-            result.append(optimal_config)
-        return result
+        print(f"Optimizing DAG {self._dag.dag_id}")
+
+        solver = BruteforceSolver("bruteforce")
+        solver.solve(self._dag, dag_critical_path, config_bounds)
 
     def shutdown(self):
         """

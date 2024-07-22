@@ -5,19 +5,22 @@ from typing import Callable, Any
 import numpy as np
 
 from flexecutor.utils.dataclass import FunctionTimes
-from flexecutor.utils.iomanager import InternalIOManager, IOManager
+from flexecutor.workflow.stagecontext import (
+    InternalStageContext,
+    StageContext,
+)
 
 
 def worker_wrapper(func: Callable[..., Any]):
     @wraps(func)
-    def wrapper(io: InternalIOManager, *args, **kwargs):
+    def wrapper(ctx: InternalStageContext, *args, **kwargs):
         before_read = time.time()
-        io.download_files()
+        ctx.download_files()
         after_read = time.time()
-        func_io = IOManager(io)
+        func_io = StageContext(ctx)
         result = func(func_io, *args, **kwargs)
         before_write = time.time()
-        io.upload_files()
+        ctx.upload_files()
         after_write = time.time()
         times = {
             "read": after_read - before_read,

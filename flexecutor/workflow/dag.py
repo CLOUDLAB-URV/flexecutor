@@ -1,3 +1,4 @@
+from typing import Optional
 from flexecutor.workflow.stage import Stage
 
 
@@ -11,6 +12,14 @@ class DAG:
     def __init__(self, dag_id):
         self._dag_id = dag_id
         self._stages = set()
+
+    def __iter__(self):
+        return iter(self.stages)
+
+    def get_stage_by_id(self, stage_id: str) -> Stage:
+        for stage in self.stages:
+            if stage.stage_id == stage_id:
+                return stage
 
     @property
     def dag_id(self):
@@ -50,7 +59,9 @@ class DAG:
         stage.dag_id = self.dag_id
 
         if stage.stage_id in {t.stage_id for t in self.stages}:
-            raise ValueError(f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}")
+            raise ValueError(
+                f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}"
+            )
 
         self._stages.add(stage)
 
@@ -64,9 +75,12 @@ class DAG:
         for stage in stages:
             self.add_stage(stage)
 
-    def draw(self):
+    def draw(self, filename: Optional[str] = None):
         """
-        Draw the DAG for user visualization
+        Draw the DAG for user visualization and save it to a file.
+
+        Parameters:
+            filename (str): The name of the file to save the image to.
         """
         import networkx as nx
         from matplotlib import pyplot as plt
@@ -77,10 +91,21 @@ class DAG:
             graph.add_node(stage.stage_id, label=stage.stage_id)
             for parent in stage.parents:
                 graph.add_edge(parent.stage_id, stage.stage_id)
-        pos = graphviz_layout(graph, prog='dot')
-        labels = nx.get_node_attributes(graph, 'label')
-        plt.title(self.dag_id, fontsize=15, fontweight='bold')
-        nx.draw(graph, pos, labels=labels, with_labels=True, node_size=2000, node_color="skyblue", font_size=10,
-                font_weight="bold", arrows=True)
-        plt.show()
-        
+        pos = graphviz_layout(graph, prog="dot")
+        labels = nx.get_node_attributes(graph, "label")
+        plt.title(self.dag_id, fontsize=15, fontweight="bold")
+        nx.draw(
+            graph,
+            pos,
+            labels=labels,
+            with_labels=True,
+            node_size=2000,
+            node_color="skyblue",
+            font_size=10,
+            font_weight="bold",
+            arrows=True,
+        )
+        if filename:
+            plt.savefig(filename)
+        else:
+            plt.show()
