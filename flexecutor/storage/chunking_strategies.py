@@ -9,8 +9,11 @@ def chunking_static_csv(ctx: ChunkerContext) -> None:
     # TODO: Manage the case when there are multiple files
     file = ctx.get_input_paths()[0]
     df = pd.read_csv(file)
-    chunk_size = len(df) // ctx.get_num_workers()
-    chunks = [df[i : i + chunk_size] for i in range(0, len(df), chunk_size)]
+    chunk_sizes = [len(df) // ctx.get_num_workers()] * ctx.get_num_workers()
+    remaining = len(df) % ctx.get_num_workers()
+    for i in range(remaining):
+        chunk_sizes[i % ctx.get_num_workers()] += 1
+    chunks = [df.iloc[sum(chunk_sizes[:i]):sum(chunk_sizes[:i + 1])] for i in range(ctx.get_num_workers())]
     for worker_id, chunk in enumerate(chunks):
         chunk.to_csv(ctx.next_chunk_path(), index=False)
 
