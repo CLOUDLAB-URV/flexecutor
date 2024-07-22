@@ -33,15 +33,15 @@ class Chunker:
         self.data_slices: List[CloudObjectSlice] = []
         self.cloud_object_format = cloud_object_format
 
-    def preprocess(self, flex_input, num_workers):
+    def chunk(self, flex_input, num_workers):
         if self.chunker_type == ChunkerTypeEnum.STATIC:
-            self._static_preprocess(flex_input, num_workers)
+            self._static_chunking(flex_input, num_workers)
         elif self.chunker_type == ChunkerTypeEnum.DYNAMIC:
-            self._dynamic_preprocess(flex_input, num_workers)
+            self._dynamic_chunking(flex_input, num_workers)
         else:
             raise ValueError("Invalid chunker type")
 
-    def _static_preprocess(self, flex_input, num_workers):
+    def _static_chunking(self, flex_input, num_workers):
         chunker_ctx = InternalChunkerContext(flex_input, num_workers)
         # Download the files to the local storage
         storage = Storage()
@@ -69,7 +69,7 @@ class Chunker:
         flex_input.flush()
         flex_input.prefix = chunker_ctx.prefix_output
 
-    def _dynamic_preprocess(self, flex_input, num_workers):
+    def _dynamic_chunking(self, flex_input, num_workers):
         files = [f"s3://{flex_input.bucket}/{file}" for file in flex_input.keys]
         storage = Storage()
         storage_dict = storage.config[storage.config["backend"]]

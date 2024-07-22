@@ -5,7 +5,7 @@ import pandas as pd
 from flexecutor.storage.chunker import ChunkerContext
 
 
-def preprocess_static_csv(ctx: ChunkerContext) -> None:
+def chunking_static_csv(ctx: ChunkerContext) -> None:
     # TODO: Manage the case when there are multiple files
     file = ctx.get_input_paths()[0]
     df = pd.read_csv(file)
@@ -15,7 +15,7 @@ def preprocess_static_csv(ctx: ChunkerContext) -> None:
         chunk.to_csv(ctx.next_chunk_path(), index=False)
 
 
-def preprocess_static_txt(ctx: ChunkerContext) -> None:
+def chunking_static_txt(ctx: ChunkerContext) -> None:
     # TODO: Manage the case when there are multiple files
     file_path = ctx.get_input_paths()[0]
     file = open(file_path, "r")

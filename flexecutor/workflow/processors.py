@@ -84,7 +84,7 @@ class ThreadPoolProcessor:
             if flex_input.chunker:
                 flex_input.scan_keys()
                 flex_input.set_local_paths()
-                flex_input.chunker.preprocess(flex_input, num_workers)
+                flex_input.chunker.chunk(flex_input, num_workers)
 
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
