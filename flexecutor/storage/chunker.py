@@ -6,7 +6,7 @@ from dataplug import CloudObject
 from dataplug.entities import CloudObjectSlice
 from lithops import Storage
 
-from flexecutor.storage.storage import FlexInput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.enums import ChunkerTypeEnum
 
 
@@ -101,7 +101,7 @@ class Chunker:
 
 
 class InternalChunkerContext:
-    def __init__(self, flex_input: FlexInput, num_workers: int):
+    def __init__(self, flex_input: FlexData, num_workers: int):
         self.flex_input = flex_input
         self.prefix_output = flex_input.prefix.removesuffix("/") + "-chunks"
         self.num_workers = num_workers

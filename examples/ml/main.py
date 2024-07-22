@@ -1,7 +1,7 @@
 from lithops import FunctionExecutor
 
 from examples.ml.functions import pca, train_with_multiprocessing, aggregate, test
-from flexecutor.storage.storage import FlexInput, StrategyEnum, FlexOutput
+from flexecutor.storage.storage import FlexData, StrategyEnum
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -13,11 +13,21 @@ if __name__ == "__main__":
     def main():
         dag = DAG("machine-learning")
 
+        data_training = FlexData("training-data")
+        data_vectors_pca = FlexData("vectors-pca")
+        data_training_transform = FlexData(
+            "training-data-transform", strategy=StrategyEnum.BROADCAST
+        )
+        data_models = FlexData("models")
+        data_forests = FlexData("forests")
+        data_predictions = FlexData("predictions")
+        data_accuracies = FlexData("accuracies", suffix=".txt")
+
         stage0 = Stage(
             stage_id="stage0",
             func=pca,
-            inputs=[FlexInput("training-data")],
-            outputs=[FlexOutput("vectors-pca"), FlexOutput("training-data-transform")],
+            inputs=[data_training],
+            outputs=[data_vectors_pca, data_training_transform],
             params={"n_components": 2},
             max_concurrency=1,
         )
@@ -25,33 +35,22 @@ if __name__ == "__main__":
         stage1 = Stage(
             stage_id="stage1",
             func=train_with_multiprocessing,
-            inputs=[
-                FlexInput("training-data-transform", strategy=StrategyEnum.BROADCAST)
-            ],
-            outputs=[FlexOutput("models")],
+            inputs=[data_training_transform],
+            outputs=[data_models],
         )
 
         stage2 = Stage(
             stage_id="stage2",
             func=aggregate,
-            inputs=[
-                FlexInput("training-data-transform", strategy=StrategyEnum.BROADCAST),
-                FlexInput("models"),
-            ],
-            outputs=[
-                FlexOutput("forests"),
-                FlexOutput("predictions"),
-            ],
+            inputs=[data_training_transform, data_models],
+            outputs=[data_forests, data_predictions],
         )
 
         stage3 = Stage(
             stage_id="stage3",
             func=test,
-            inputs=[
-                FlexInput("predictions"),
-                FlexInput("training-data-transform", strategy=StrategyEnum.BROADCAST),
-            ],
-            outputs=[FlexOutput("accuracies", suffix=".txt")],
+            inputs=[data_predictions, data_training_transform],
+            outputs=[data_accuracies],
         )
 
         stage0 >> [stage1, stage2, stage3]
@@ -61,7 +60,7 @@ if __name__ == "__main__":
         dag.add_stages([stage0, stage1, stage2, stage3])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor(log_level="INFO"))
-        results = executor.execute()
+        results = executor.execute(num_workers=6)
         print(results["stage1"].get_timings())
 
     main()

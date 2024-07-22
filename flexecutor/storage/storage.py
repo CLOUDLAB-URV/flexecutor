@@ -7,21 +7,22 @@ from lithops import Storage
 from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
-class FlexInput:
+class FlexData:
     def __init__(
         self,
         prefix: str,
         bucket=None,
-        custom_input_id=None,
+        custom_data_id=None,
         strategy: StrategyEnum = StrategyEnum.SCATTER,
         chunker=None,
         local_base_path: str = "/tmp",
+        suffix=".file",
     ):
         """
         A class to define inputs in flex stages.
         ...
         """
-        self._input_id = custom_input_id or prefix
+        self._input_id = custom_data_id or prefix
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         if prefix[-1] != "/":
             prefix += "/"
@@ -30,11 +31,13 @@ class FlexInput:
         self.file_indexes: Optional[Tuple[int, int]] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
+        self.suffix = suffix
         self.keys = []
         self.local_paths = []
 
     def __repr__(self):
-        return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_index={self.file_index})"
+        return (f"FlexData(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, "
+                f"chunker={self.chunker}, local_base_path={self.local_base_path}, file_indexes={self.file_indexes})")
 
     @property
     def id(self):
@@ -88,28 +91,3 @@ class FlexInput:
         self.local_paths = []
         self.file_indexes = None
         self.chunker = None
-
-
-class FlexOutput:
-    def __init__(
-        self,
-        prefix,
-        bucket=None,
-        custom_output_id=None,
-        suffix=".file",
-        local_base_path="/tmp",
-    ):
-        self._output_id = custom_output_id or prefix
-        self.prefix = prefix
-        self.suffix = suffix
-        self.local_base_path = Path(local_base_path) / prefix
-        self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
-        self.keys = []
-        self.local_paths = []
-
-    def __repr__(self):
-        return f"FlexOutput(prefix={self.prefix}, bucket={self.bucket}, suffix={self.suffix}, local_base_path={self.local_base_path})"
-
-    @property
-    def id(self):
-        return self._output_id

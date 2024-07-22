@@ -4,7 +4,7 @@ from typing import Optional, Any
 
 from lithops import Storage
 
-from flexecutor.storage.storage import FlexInput, FlexOutput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
@@ -13,14 +13,14 @@ class InternalStageContext:
         self,
         worker_id,
         num_workers,
-        inputs: list[FlexInput],
-        outputs: list[FlexOutput],
+        inputs: list[FlexData],
+        outputs: list[FlexData],
         params: Optional[dict[str, Any]],
     ):
         self.worker_id = worker_id
         self.num_workers = num_workers
-        self.inputs: dict[str, FlexInput] = {i.id: i for i in inputs}
-        self.outputs: dict[str, FlexOutput] = {o.id: o for o in outputs}
+        self.inputs: dict[str, FlexData] = {i.id: i for i in inputs}
+        self.outputs: dict[str, FlexData] = {o.id: o for o in outputs}
         self._params = params
 
     def __repr__(self):
@@ -38,7 +38,7 @@ class InternalStageContext:
         serial = str(uuid.uuid4())[0:8] + self.outputs[param].suffix
         local_path = f"{self.outputs[param].local_base_path}/{serial}"
         self.outputs[param].local_paths.append(local_path)
-        self.outputs[param].keys.append(f"{self.outputs[param].prefix}/{serial}")
+        self.outputs[param].keys.append(f"{self.outputs[param].prefix}{serial}")
         return local_path
 
     def download_files(self):
@@ -76,6 +76,8 @@ class InternalStageContext:
                     flex_output.bucket,
                     flex_output.keys[index],
                 )
+
+
 class StageContext:
     def __init__(self, context: InternalStageContext):
         self._context = context

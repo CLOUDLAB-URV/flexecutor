@@ -7,10 +7,9 @@ from lithops import FunctionExecutor
 from functions.word_count import (
     word_count,
     sum_counts,
-    word_count_input,
-    word_count_output,
-    reduce_input,
-    reduce_output,
+    flex_data_txt,
+    flex_data_word_count,
+    flex_data_reduce_count,
 )
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
@@ -34,14 +33,14 @@ if __name__ == "__main__":
         stage1 = Stage(
             "map",
             func=word_count,
-            inputs=[word_count_input],
-            outputs=[word_count_output],
+            inputs=[flex_data_txt],
+            outputs=[flex_data_word_count],
         )
         stage2 = Stage(
             "reduce",
             func=sum_counts,
-            inputs=[reduce_input],
-            outputs=[reduce_output],
+            inputs=[flex_data_word_count],
+            outputs=[flex_data_reduce_count],
             max_concurrency=1,
         )
 

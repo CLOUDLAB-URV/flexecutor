@@ -1,7 +1,7 @@
 
 from flexecutor.storage.chunker import Chunker, ChunkerTypeEnum
 from flexecutor.storage.chunking_strategies import chunking_static_txt
-from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
+from flexecutor.storage.storage import FlexData, StrategyEnum
 from flexecutor import StageContext
 
 
@@ -31,26 +31,20 @@ def sum_counts(ctx: StageContext):
         f.write(str(total))
 
 
-word_count_input = FlexInput(
+flex_data_txt = FlexData(
     prefix="dir",
-    custom_input_id="txt",
+    custom_data_id="txt",
     bucket="test-bucket",
     chunker=Chunker(chunker_type=ChunkerTypeEnum.STATIC, strategy=chunking_static_txt),
 )
 
 # word_count_input = FlexInput(
 #     prefix="dir",
-#     custom_input_id="txt",
+#     custom_data_id="txt",
 #     bucket="test-bucket",
 #     chunker=CarelessFileChunker(),
 # )
 
-word_count_output = FlexOutput(prefix="count", bucket="test-bucket", suffix=".count")
+flex_data_word_count = FlexData(prefix="count", bucket="test-bucket", strategy=StrategyEnum.BROADCAST, suffix=".count")
 
-reduce_input = FlexInput(
-    prefix="count",
-    bucket="test-bucket",
-    strategy=StrategyEnum.BROADCAST,
-)
-
-reduce_output = FlexOutput(prefix="total", bucket="test-bucket", suffix=".total")
+flex_data_reduce_count = FlexData(prefix="total", bucket="test-bucket", suffix=".total")
