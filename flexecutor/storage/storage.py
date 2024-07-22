@@ -34,7 +34,7 @@ class FlexInput:
         self.local_paths = []
 
     def __repr__(self):
-        return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_index={self.file_index})"
+        return f"FlexInput(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, chunker={self.chunker}, local_base_path={self.local_base_path}, file_indexes={self.file_indexes})"
 
     @property
     def id(self):
