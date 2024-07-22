@@ -16,7 +16,7 @@ if __name__ == "__main__":
         data_training = FlexData("training-data")
         data_vectors_pca = FlexData("vectors-pca")
         data_training_transform = FlexData(
-            "training-data-transform", strategy=StrategyEnum.BROADCAST
+            "training-data-transform", read_strategy=StrategyEnum.BROADCAST
         )
         data_models = FlexData("models")
         data_forests = FlexData("forests")

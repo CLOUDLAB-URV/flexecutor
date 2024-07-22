@@ -10,7 +10,7 @@ class TestFlexInput(unittest.TestCase):
         self.prefix = "test_prefix/"
         self.bucket = "test_bucket"
         self.custom_data_id = "input123"
-        self.strategy = StrategyEnum.SCATTER
+        self.read_strategy = StrategyEnum.SCATTER
         self.local_base_path = "/tmp"
 
         self.mock_storage_handler = Mock()
@@ -29,7 +29,7 @@ class TestFlexInput(unittest.TestCase):
             prefix=self.prefix,
             bucket=self.bucket,
             custom_data_id=self.custom_data_id,
-            strategy=self.strategy,
+            read_strategy=self.read_strategy,
             local_base_path=self.local_base_path,
         )
         print("Test Environment Set Up Complete")
@@ -57,7 +57,7 @@ class TestFlexInput(unittest.TestCase):
 
     def test_broadcast_strategy(self):
         print("Testing scan_objects with BROADCAST strategy")
-        self.flex_data.strategy = StrategyEnum.BROADCAST
+        self.flex_data.read_strategy = StrategyEnum.BROADCAST
         self.flex_data.scan_keys()
         self.flex_data.set_local_paths()
         self.flex_data.set_file_indexes(worker_id=0, num_workers=2)

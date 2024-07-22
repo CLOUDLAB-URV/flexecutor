@@ -48,7 +48,7 @@ class InternalStageContext:
             os.makedirs(flex_data.local_base_path, exist_ok=True)
             if (
                 len(flex_data.keys) >= self.num_workers
-                or flex_data.strategy is StrategyEnum.BROADCAST
+                or flex_data.read_strategy is StrategyEnum.BROADCAST
                 or flex_data.has_chunker_type(ChunkerTypeEnum.STATIC)
             ):  # More files than workers and scattering
                 start_index, end_index = flex_data.file_indexes

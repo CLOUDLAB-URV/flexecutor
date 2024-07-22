@@ -13,7 +13,7 @@ class TestStageContext(unittest.TestCase):
             prefix="test_prefix/",
             bucket="test_bucket",
             custom_data_id="input123",
-            strategy=StrategyEnum.SCATTER,
+            read_strategy=StrategyEnum.SCATTER,
             local_base_path="/tmp",
         )
         self.flex_data_output = FlexData(

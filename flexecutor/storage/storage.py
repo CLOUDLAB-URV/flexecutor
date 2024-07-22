@@ -13,7 +13,7 @@ class FlexData:
         prefix: str,
         bucket=None,
         custom_data_id=None,
-        strategy: StrategyEnum = StrategyEnum.SCATTER,
+        read_strategy: StrategyEnum = StrategyEnum.SCATTER,
         chunker=None,
         local_base_path: str = "/tmp",
         suffix=".file",
@@ -27,7 +27,7 @@ class FlexData:
         if prefix[-1] != "/":
             prefix += "/"
         self.prefix = prefix or ""
-        self.strategy = strategy
+        self.read_strategy = read_strategy
         self.file_indexes: Optional[Tuple[int, int]] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
@@ -36,7 +36,7 @@ class FlexData:
         self.local_paths = []
 
     def __repr__(self):
-        return (f"FlexData(prefix={self.prefix}, bucket={self.bucket}, strategy={self.strategy}, "
+        return (f"FlexData(prefix={self.prefix}, bucket={self.bucket}, strategy={self.read_strategy}, "
                 f"chunker={self.chunker}, local_base_path={self.local_base_path}, file_indexes={self.file_indexes})")
 
     @property
@@ -76,7 +76,7 @@ class FlexData:
         if self.has_chunker_type(ChunkerTypeEnum.STATIC):
             self.file_indexes = (worker_id, worker_id + 1)
             return
-        if self.strategy == StrategyEnum.BROADCAST:
+        if self.read_strategy == StrategyEnum.BROADCAST:
             start = 0
             end = len(self.local_paths)
         else:  # SCATTER

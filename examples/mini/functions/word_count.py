@@ -35,7 +35,7 @@ flex_data_txt = FlexData(
     prefix="dir",
     custom_data_id="txt",
     bucket="test-bucket",
-    chunker=Chunker(chunker_type=ChunkerTypeEnum.STATIC, strategy=chunking_static_txt),
+    chunker=Chunker(chunker_type=ChunkerTypeEnum.STATIC, chunking_strategy=chunking_static_txt),
 )
 
 # word_count_input = FlexInput(
@@ -45,6 +45,6 @@ flex_data_txt = FlexData(
 #     chunker=CarelessFileChunker(),
 # )
 
-flex_data_word_count = FlexData(prefix="count", bucket="test-bucket", strategy=StrategyEnum.BROADCAST, suffix=".count")
+flex_data_word_count = FlexData(prefix="count", bucket="test-bucket", read_strategy=StrategyEnum.BROADCAST, suffix=".count")
 
 flex_data_reduce_count = FlexData(prefix="total", bucket="test-bucket", suffix=".total")

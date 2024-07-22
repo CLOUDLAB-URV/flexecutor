@@ -20,13 +20,13 @@ if __name__ == "__main__":
     if CHUNKER_TYPE == "STATIC":
         chunker = Chunker(
             chunker_type=ChunkerTypeEnum.STATIC,
-            strategy=chunking_static_csv,
+            chunking_strategy=chunking_static_csv,
         )
 
     elif CHUNKER_TYPE == "DYNAMIC":
         chunker = Chunker(
             chunker_type=ChunkerTypeEnum.DYNAMIC,
-            strategy=chunking_dynamic_csv,
+            chunking_strategy=chunking_dynamic_csv,
             cloud_object_format=CSV,
         )
 
