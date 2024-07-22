@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from lithops import Storage
 
@@ -18,7 +18,7 @@ class FlexInput:
         local_base_path: str = "/tmp",
     ):
         """
-        A class for define inputs in flex stages.
+        A class to define inputs in flex stages.
         ...
         """
         self._input_id = custom_input_id or prefix
@@ -27,7 +27,7 @@ class FlexInput:
             prefix += "/"
         self.prefix = prefix or ""
         self.strategy = strategy
-        self.chunk_indexes: Optional[(int, int)] = None
+        self.chunk_indexes: Optional[Tuple[int, int]] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
         self.keys = []

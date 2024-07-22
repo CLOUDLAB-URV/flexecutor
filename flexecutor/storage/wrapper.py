@@ -8,7 +8,7 @@ from flexecutor.utils.dataclass import FunctionTimes
 from flexecutor.utils.iomanager import InternalIOManager, IOManager
 
 
-def worker_wrapper(func: Callable[[...], Any]):
+def worker_wrapper(func: Callable[..., Any]):
     @wraps(func)
     def wrapper(io: InternalIOManager, *args, **kwargs):
         before_read = time.time()
@@ -24,7 +24,7 @@ def worker_wrapper(func: Callable[[...], Any]):
             "compute": before_write - after_read,
             "write": after_write - before_write,
         }
-        times["total"] = np.mean(list(times.values()))
+        times["total"] = float(np.mean(list(times.values())))
         func_times = FunctionTimes(**times)
         return result, func_times
 

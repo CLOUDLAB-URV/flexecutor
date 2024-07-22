@@ -31,9 +31,9 @@ class Stage:
     def __init__(
         self,
         stage_id: str,
-        func: Callable[[...], Any],
-        inputs: list[FlexInput],
-        outputs: list[FlexOutput],
+        func: Callable[..., Any],
+        inputs: List[FlexInput],
+        outputs: List[FlexOutput],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
         params: Optional[dict[str, Any]] = None,
         max_concurrency: int = 1024,
@@ -98,12 +98,12 @@ class Stage:
         return self._children
 
     @property
-    def inputs(self) -> list[FlexInput]:
+    def inputs(self) -> List[FlexInput]:
         """Return the list of input paths."""
         return self._inputs
 
     @property
-    def outputs(self) -> list[FlexOutput]:
+    def outputs(self) -> List[FlexOutput]:
         """Return the output path."""
         return self._outputs
 
