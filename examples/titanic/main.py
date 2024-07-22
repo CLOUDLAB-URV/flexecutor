@@ -5,7 +5,7 @@ from lithops import FunctionExecutor
 from examples.titanic.functions import train_model
 from flexecutor.storage.chunker import Chunker
 from flexecutor.storage.chunking_strategies import chunking_static_csv
-from flexecutor.storage.storage import FlexInput, FlexOutput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.enums import ChunkerTypeEnum
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
@@ -20,13 +20,13 @@ if __name__ == "__main__":
     if CHUNKER_TYPE == "STATIC":
         chunker = Chunker(
             chunker_type=ChunkerTypeEnum.STATIC,
-            strategy=chunking_static_csv,
+            chunking_strategy=chunking_static_csv,
         )
 
     elif CHUNKER_TYPE == "DYNAMIC":
         chunker = Chunker(
             chunker_type=ChunkerTypeEnum.DYNAMIC,
-            strategy=chunking_dynamic_csv,
+            chunking_strategy=chunking_dynamic_csv,
             cloud_object_format=CSV,
         )
 
@@ -40,9 +40,9 @@ if __name__ == "__main__":
         stage = Stage(
             stage_id="stage",
             func=train_model,
-            inputs=[FlexInput(prefix="titanic", chunker=chunker)],
+            inputs=[FlexData(prefix="titanic", chunker=chunker)],
             outputs=[
-                FlexOutput(
+                FlexData(
                     prefix="titanic-accuracy",
                     suffix=".txt",
                 )

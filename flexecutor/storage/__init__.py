@@ -1,1 +1,1 @@
-from .storage import FlexInput, FlexOutput, StrategyEnum
+from .storage import FlexData, StrategyEnum

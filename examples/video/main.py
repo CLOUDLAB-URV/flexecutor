@@ -6,7 +6,7 @@ from examples.video.functions import (
     sharpening_filter,
     classify_images,
 )
-from flexecutor.storage.storage import FlexInput, FlexOutput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -18,51 +18,35 @@ if __name__ == "__main__":
     def main():
         dag = DAG("video-analytics")
 
-        # TODO: avoid repeating the same bucket name in every input/output
+        data_videos = FlexData("videos")
+        data_video_chunks = FlexData("video-chunks", suffix=".mp4")
+        data_mainframes = FlexData("mainframes", suffix=".jpg")
+        data_filtered_frames = FlexData("filtered-frames", suffix=".jpg")
+        data_classification = FlexData("classification", suffix=".json")
 
         stage0 = Stage(
             stage_id="stage0",
             func=split_videos,
-            inputs=[FlexInput("videos")],
-            outputs=[
-                FlexOutput(
-                    prefix="video-chunks",
-                    suffix=".mp4",
-                )
-            ],
+            inputs=[data_videos],
+            outputs=[data_video_chunks],
         )
         stage1 = Stage(
             stage_id="stage1",
             func=extract_frames,
-            inputs=[FlexInput("video-chunks")],
-            outputs=[
-                FlexOutput(
-                    prefix="mainframes",
-                    suffix=".jpg",
-                )
-            ],
+            inputs=[data_video_chunks],
+            outputs=[data_mainframes],
         )
         stage2 = Stage(
             stage_id="stage2",
             func=sharpening_filter,
-            inputs=[FlexInput("mainframes")],
-            outputs=[
-                FlexOutput(
-                    prefix="filtered-frames",
-                    suffix=".jpg",
-                )
-            ],
+            inputs=[data_mainframes],
+            outputs=[data_filtered_frames],
         )
         stage3 = Stage(
             stage_id="stage3",
             func=classify_images,
-            inputs=[FlexInput("filtered-frames")],
-            outputs=[
-                FlexOutput(
-                    prefix="classification",
-                    suffix=".json",
-                )
-            ],
+            inputs=[data_filtered_frames],
+            outputs=[data_classification],
         )
 
         stage0 >> stage1 >> [stage2, stage3]
@@ -70,7 +54,7 @@ if __name__ == "__main__":
 
         dag.add_stages([stage0, stage1, stage2, stage3])
         executor = DAGExecutor(dag, executor=FunctionExecutor(log_level="INFO"))
-        results = executor.execute()
+        results = executor.execute(num_workers=8)
         print(results["stage1"].get_timings())
 
     main()

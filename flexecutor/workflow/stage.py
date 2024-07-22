@@ -4,8 +4,7 @@ from enum import Enum
 from typing import Any, Set, List, Optional, Callable
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.storage.storage import FlexInput
-from flexecutor.storage.storage import FlexOutput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.dataclass import StageConfig
 
 
@@ -32,8 +31,8 @@ class Stage:
         self,
         stage_id: str,
         func: Callable[..., Any],
-        inputs: List[FlexInput],
-        outputs: List[FlexOutput],
+        inputs: List[FlexData],
+        outputs: List[FlexData],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
         params: Optional[dict[str, Any]] = None,
         max_concurrency: int = 1024,
@@ -112,13 +111,13 @@ class Stage:
         return self._children
 
     @property
-    def inputs(self) -> List[FlexInput]:
+    def inputs(self) -> List[FlexData]:
         """Return the list of input paths."""
         return self._inputs
 
     @property
-    def outputs(self) -> List[FlexOutput]:
-        """Return the output path."""
+    def outputs(self) -> List[FlexData]:
+        """Return the list of output paths."""
         return self._outputs
 
     @property

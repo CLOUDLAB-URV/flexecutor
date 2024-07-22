@@ -6,20 +6,20 @@ from dataplug import CloudObject
 from dataplug.entities import CloudObjectSlice
 from lithops import Storage
 
-from flexecutor.storage.storage import FlexInput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.enums import ChunkerTypeEnum
 
 
 class Chunker:
     def __init__(
-        self, chunker_type: ChunkerTypeEnum, strategy, cloud_object_format=None
+        self, chunker_type: ChunkerTypeEnum, chunking_strategy, cloud_object_format=None
     ):
         """
         The Chunker class is responsible for chunking the data before processing it in the workers.
         @param chunker_type: STATIC or DYNAMIC.
          Static chunking is used when the data is downloaded, chunked, and then uploaded into smaller parts.
          Dynamic chunking is used when the data is chunked using on-the-fly partitioning via Dataplug.
-        @param strategy: the function that will be used to chunk the data.
+        @param chunking_strategy: the function that will be used to chunk the data.
          If chunker_type is STATIC, the strategy will implement downloading, chunking, and uploading of the data.
          If chunker_type is DYNAMIC, the strategy will be a partitioning function already implemented by Dataplug.
         @param cloud_object_format: the format of the Dataplug cloud object
@@ -29,48 +29,48 @@ class Chunker:
         #     prefix += "/"
         # self.prefix = prefix
         self.chunker_type: ChunkerTypeEnum = chunker_type
-        self.strategy = strategy
+        self.chunking_strategy = chunking_strategy
         self.data_slices: List[CloudObjectSlice] = []
         self.cloud_object_format = cloud_object_format
 
-    def chunk(self, flex_input, num_workers):
+    def chunk(self, flex_data, num_workers):
         if self.chunker_type == ChunkerTypeEnum.STATIC:
-            self._static_chunking(flex_input, num_workers)
+            self._static_chunking(flex_data, num_workers)
         elif self.chunker_type == ChunkerTypeEnum.DYNAMIC:
-            self._dynamic_chunking(flex_input, num_workers)
+            self._dynamic_chunking(flex_data, num_workers)
         else:
             raise ValueError("Invalid chunker type")
 
-    def _static_chunking(self, flex_input, num_workers):
-        chunker_ctx = InternalChunkerContext(flex_input, num_workers)
+    def _static_chunking(self, flex_data, num_workers):
+        chunker_ctx = InternalChunkerContext(flex_data, num_workers)
         # Download the files to the local storage
         storage = Storage()
-        flex_input = chunker_ctx.flex_input
-        os.makedirs(flex_input.local_base_path, exist_ok=True)
-        for index in range(len(flex_input.keys)):
+        flex_data = chunker_ctx.flex_data
+        os.makedirs(flex_data.local_base_path, exist_ok=True)
+        for index in range(len(flex_data.keys)):
             storage.download_file(
-                flex_input.bucket,
-                flex_input.keys[index],
-                flex_input.local_paths[index],
+                flex_data.bucket,
+                flex_data.keys[index],
+                flex_data.local_paths[index],
             )
 
         # Execute the chunker function
-        self.strategy(ChunkerContext(chunker_ctx))
+        self.chunking_strategy(ChunkerContext(chunker_ctx))
 
         # Upload the chunked files to the object storage
         for index in range(len(chunker_ctx.output_paths)):
             storage.upload_file(
                 chunker_ctx.output_paths[index],
-                flex_input.bucket,
+                flex_data.bucket,
                 chunker_ctx.output_keys[index],
             )
 
-        # Adapt the flex_input object to the new state
-        flex_input.flush()
-        flex_input.prefix = chunker_ctx.prefix_output
+        # Adapt the flex_data object to the new state
+        flex_data.flush()
+        flex_data.prefix = chunker_ctx.prefix_output
 
-    def _dynamic_chunking(self, flex_input, num_workers):
-        files = [f"s3://{flex_input.bucket}/{file}" for file in flex_input.keys]
+    def _dynamic_chunking(self, flex_data, num_workers):
+        files = [f"s3://{flex_data.bucket}/{file}" for file in flex_data.keys]
         storage = Storage()
         storage_dict = storage.config[storage.config["backend"]]
 
@@ -96,26 +96,26 @@ class Chunker:
             )
             cloud_object.preprocess()
             self.data_slices.extend(
-                cloud_object.partition(self.strategy, num_chunks=num_chunks_file)
+                cloud_object.partition(self.chunking_strategy, num_chunks=num_chunks_file)
             )
 
 
 class InternalChunkerContext:
-    def __init__(self, flex_input: FlexInput, num_workers: int):
-        self.flex_input = flex_input
-        self.prefix_output = flex_input.prefix.removesuffix("/") + "-chunks"
+    def __init__(self, flex_data: FlexData, num_workers: int):
+        self.flex_data = flex_data
+        self.prefix_output = flex_data.prefix.removesuffix("/") + "-chunks"
         self.num_workers = num_workers
         self.output_paths = []
         self.output_keys = []
         self.counter = 0
 
     def get_input_paths(self):
-        return self.flex_input.local_paths
+        return self.flex_data.local_paths
 
     def next_chunk_path(self):
         new_local_base_path = Path(
-            str(self.flex_input.local_base_path).replace(
-                self.flex_input.prefix.removesuffix("/"), self.prefix_output
+            str(self.flex_data.local_base_path).replace(
+                self.flex_data.prefix.removesuffix("/"), self.prefix_output
             )
         )
         os.makedirs(new_local_base_path, exist_ok=True)
@@ -127,7 +127,7 @@ class InternalChunkerContext:
         return local_path
 
     def _get_suffix(self):
-        return self.flex_input.keys[0].split(".")[-1]
+        return self.flex_data.keys[0].split(".")[-1]
 
 
 # ChunkerContext is a facade for InternalChunkerContext
