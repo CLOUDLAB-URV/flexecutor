@@ -79,44 +79,45 @@ class AnaPerfModel(PerfModel):
             ), f"Each configuration's data must contain {FunctionTimes.profile_keys()} keys."
 
         print(f"Training Analytical performance model for {self._stage_name}")
-        # cold_arr = np.array(
-        #     [data["cold_start"] for _, data in stage_profile_data.items()]
-        # )
-        # self._cold_params = np.mean(cold_arr)
 
         size2points_coldstart = {}
         size2points_read = {}
         size2points_comp = {}
         size2points_write = {}
 
+        print(stage_profile_data)
         for config_tuple, data in stage_profile_data.items():
-            num_vcpu, memory, num_func = config_tuple
-            # adapt to parallel mode
-            # if the stage does not allow more than one function, ignore num_func
+            print(f"Training for config: {config_tuple}")
+            num_vcpu, memory, num_func = eval(config_tuple)
             if self._allow_parallel:
                 config_key = self._config_to_xparam(num_vcpu, memory, num_func)
             else:
                 config_key = self._config_to_xparam(num_vcpu, memory, 1)
 
-            # collect data for cold_start
+            def average_worker_times(data):
+                return [np.mean(worker_data) for worker_data in zip(*data)]
+
+            # collect and flatten data for cold_start
             if config_key not in size2points_coldstart:
                 size2points_coldstart[config_key] = []
-            size2points_coldstart[config_key].extend(data["cold_start"])
+            size2points_coldstart[config_key].extend(
+                average_worker_times(data["cold_start"])
+            )
 
-            # collect data for read step
+            # collect and flatten data for read step
             if config_key not in size2points_read:
                 size2points_read[config_key] = []
-            size2points_read[config_key].extend(data["read"])
+            size2points_read[config_key].extend(average_worker_times(data["read"]))
 
-            # collect data for comp step
+            # collect and flatten data for comp step
             if config_key not in size2points_comp:
                 size2points_comp[config_key] = []
-            size2points_comp[config_key].extend(data["compute"])
+            size2points_comp[config_key].extend(average_worker_times(data["compute"]))
 
-            # collect data for write step
+            # collect and flatten data for write step
             if config_key not in size2points_write:
                 size2points_write[config_key] = []
-            size2points_write[config_key].extend(data["write"])
+            size2points_write[config_key].extend(average_worker_times(data["write"]))
 
         # average the data
         for config in size2points_coldstart:
@@ -169,7 +170,7 @@ class AnaPerfModel(PerfModel):
             f"COMPUTE STEP: alpha parameter = {self._comp_params[0]}, beta parameter = {self._comp_params[1]}"
         )
         print(
-            f"WRITE_STEP: alpha parameter = {self._write_params[0]}, beta parameter = {self._write_params[1]}"
+            f"WRITE STEP: alpha parameter = {self._write_params[0]}, beta parameter = {self._write_params[1]}"
         )
 
     @property
@@ -228,6 +229,9 @@ class AnaPerfModel(PerfModel):
         # TODO: implement this
         """Dummy response in AnaPerfModel"""
         return StageConfig(cpu=1, memory=2048, workers=8)
+
+    def plot_fitted_functions(self):
+        pass
 
     # def fit_polynomial(self, x, y, degree):
     #     coeffs = np.polyfit(x, y, degree)

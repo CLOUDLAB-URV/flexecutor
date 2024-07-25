@@ -71,7 +71,8 @@ def classify_images(ctx: StageContext):
 
     detector = ObjectDetection()
     detector.setModelTypeAsTinyYOLOv3()
-    detector.setModelPath(str(Path(__file__).parent / "tiny-yolov3.pt"))
+    print(str(Path(__file__).parent / "tiny-yolov3.pt"))
+    detector.setModelPath("/app/tiny-yolov3.pt")
     detector.loadModel()
 
     for index, frame_path in enumerate(frame_paths):

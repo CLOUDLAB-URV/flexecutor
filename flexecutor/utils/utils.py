@@ -5,6 +5,12 @@ import os
 import time
 import ast
 from contextlib import contextmanager
+from lithops import Storage
+
+
+def remove_dir_os(bucket: str, dir: str):
+    keys_to_delete = [key for key in Storage().list_keys(bucket, prefix=dir)]
+    Storage().delete_objects(bucket, keys_to_delete)
 
 
 def initialize_timings():
@@ -49,24 +55,22 @@ def setup_logging(level):
     return logger
 
 
+def save_profiling_results(file: str, profile_data: dict):
+    with open(file, "w") as f:
+        json.dump(profile_data, f, indent=4)
+
+
 def load_profiling_results(file: str) -> dict:
-    file = os.path.join(get_my_exec_path(), file)
     if not os.path.exists(file):
         return {}
     with open(file, "r") as f:
         try:
             data = json.load(f)
-            # Convert string keys back to tuples
-            data = {ast.literal_eval(k): v for k, v in data.items()}
+            # Convert string keys back to tuples for the outer dictionary
+            data = {k: v for k, v in data.items()}
         except (json.JSONDecodeError, ValueError, SyntaxError):
             return {}
     return data
-
-
-def save_profiling_results(file: str, profile_data: dict):
-    serial_data = {str(k): v for k, v in profile_data.items()}
-    with open(file, "w") as f:
-        json.dump(serial_data, f, indent=4)
 
 
 FLEXECUTOR_EXEC_PATH = "FLEXECUTOR_EXEC_PATH"

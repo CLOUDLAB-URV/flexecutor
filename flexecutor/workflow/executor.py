@@ -12,6 +12,7 @@ from flexecutor.utils.utils import (
     load_profiling_results,
     save_profiling_results,
     get_my_exec_path,
+    remove_dir_os,
 )
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
@@ -70,20 +71,23 @@ class DAGExecutor:
     ) -> None:
         config_key = str(resource_config.key)
         if config_key not in profile_data:
-            profile_data[config_key] = {}
-        for key in FunctionTimes.profile_keys():
-            if key not in profile_data[config_key]:
-                profile_data[config_key][key] = []
-            profile_data[config_key][key].append([])
+            profile_data[config_key] = {key: [] for key in FunctionTimes.profile_keys()}
+
+        new_execution = {key: [] for key in FunctionTimes.profile_keys()}
+
         for profiling in new_profile_data:
             for key in FunctionTimes.profile_keys():
-                profile_data[config_key][key][-1].append(getattr(profiling, key))
-        print(f"Profile data: {profile_data}")
+                new_execution[key].append(getattr(profiling, key))
+
+        for key in FunctionTimes.profile_keys():
+            profile_data[config_key][key].append(new_execution[key])
+
+        print(
+            f"Updated profile data for config {config_key}: {profile_data[config_key]}"
+        )
 
     def profile(
         self,
-        # TODO: add a profile id (also on training) to allow having different
-        # trained models, mostly for different backends (k8s, lambda, etc.)
         config_space: List[Dict[str, StageConfig]],
         num_reps: int = 1,
     ) -> None:
@@ -101,6 +105,7 @@ class DAGExecutor:
                     raise ValueError(
                         f"Configuration for stage {stage_id._stage_id} is missing"
                     )
+
         profile_data = {}
         for stage in self._dag.stages:
             profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
@@ -108,6 +113,9 @@ class DAGExecutor:
 
         for iteration in range(num_reps):
             logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
+            for stage in self._dag:
+                for output in stage.outputs:
+                    remove_dir_os(output.bucket, output.prefix)
 
             for config_combination in config_space:
                 config_description = ", ".join(
@@ -187,10 +195,10 @@ class DAGExecutor:
             raise ValueError(
                 "predict() requires a list of StageConfig equal to the number of Stage in the DAG."
             )
-        result = []
+        result = {}
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage, resource_config in zip(stages_list, resource_config):
-            result.append(stage.perf_model.predict(resource_config))
+            result[stage.stage_id] = stage.perf_model.predict_time(resource_config)
         return result
 
     def train(self, stage: Optional[Stage] = None) -> None:
@@ -221,7 +229,9 @@ class DAGExecutor:
 
         if num_workers is not None:
             for stage in self._dag.stages:
-                stage.resource_config = StageConfig(cpu=1, memory=1024, workers=num_workers)
+                stage.resource_config = StageConfig(
+                    cpu=1, memory=1024, workers=num_workers
+                )
 
         self._futures = dict()
 
@@ -267,6 +277,10 @@ class DAGExecutor:
 
         solver = BruteforceSolver("bruteforce")
         solver.solve(self._dag, dag_critical_path, config_bounds)
+
+    def plot_model(self):
+        for stage in self._dag:
+            
 
     def shutdown(self):
         """
