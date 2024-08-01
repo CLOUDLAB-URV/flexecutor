@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
 
+from modelling.perfmodel import PerfModelEnum
+from workflow.dag import DAG
+
 
 class Scheduler(ABC):
-    def __init__(self, dag, perf_model_type):
+    def __init__(self, dag: DAG, perf_model_type: PerfModelEnum):
         self._dag = dag
         self._perf_model_type = perf_model_type
         for stage in self._dag.stages:
