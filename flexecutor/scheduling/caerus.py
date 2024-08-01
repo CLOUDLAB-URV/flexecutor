@@ -20,7 +20,7 @@ class Caerus(Scheduler):
         and the number of CPUs per function.
         @param dag: the DAG associated with the scheduler
         @param total_parallelism: sum of worker over all stages in the DAG
-        @param cpu_per_fn: number of CPUs per function
+        @param cpu_per_worker: number of CPUs per function
         """
         super().__init__(dag, PerfModelEnum.ANALYTIC)
         self.total_parallelism = total_parallelism
