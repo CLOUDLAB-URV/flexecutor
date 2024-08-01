@@ -33,7 +33,6 @@ class Stage:
         func: Callable[..., Any],
         inputs: List[FlexData],
         outputs: List[FlexData],
-        perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
         params: Optional[dict[str, Any]] = None,
         max_concurrency: int = 1024,
     ):
@@ -41,8 +40,6 @@ class Stage:
             params = {}
         self._stage_unique_id = None
         self._stage_id = stage_id
-        self._perf_model = None  # Lazy init
-        self._perf_model_type = perf_model_type
         self._inputs = inputs
         self._outputs = outputs
         self._params = params
@@ -52,6 +49,8 @@ class Stage:
         self._map_func = func
         self._max_concurrency = max_concurrency
         self.dag_id = None
+        self._perf_model_type: Optional[PerfModelEnum] = None
+        self._perf_model: Optional[PerfModel] = None
         self._resource_config: Optional[StageConfig] = StageConfig(
             cpu=1, memory=2048, workers=1
         )
@@ -83,13 +82,14 @@ class Stage:
     def dag_id(self, value: str):
         self._dag_id = value
         self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
-        self._perf_model = PerfModel.instance(
-            model_type=self._perf_model_type, model_name=self._stage_unique_id
-        )
 
     @property
     def perf_model(self) -> PerfModel:
         return self._perf_model
+
+    def init_perf_model(self, perf_model_type: PerfModelEnum):
+        self._perf_model_type = perf_model_type
+        self._perf_model = PerfModel.instance(perf_model_type, self._stage_unique_id)
 
     @property
     def max_concurrency(self) -> int:
