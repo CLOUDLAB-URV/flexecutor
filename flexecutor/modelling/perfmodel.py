@@ -9,6 +9,7 @@ from flexecutor.utils.utils import get_my_exec_path
 class PerfModelEnum(Enum):
     ANALYTIC = "analytic"
     GENETIC = "genetic"
+    DISTRIBUTION = "distribution"
 
 
 class PerfModel(ABC):
@@ -66,5 +67,14 @@ class PerfModel(ABC):
             from flexecutor.modelling.gaperfmodel import GAPerfModel
 
             return GAPerfModel(model_name=model_name, model_dst=model_dst)
+        elif model_type == PerfModelEnum.DISTRIBUTION:
+            from flexecutor.modelling.distperfmodel import DistPerfModel
+
+            return DistPerfModel(
+                stage_id=0,
+                stage_name="stage",
+                model_name=model_name,
+                model_dst=model_dst,
+            )
         else:
             raise ValueError("Invalid model type")
