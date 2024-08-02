@@ -26,9 +26,9 @@ class PerfModel(ABC):
     def predict_time(self, config: StageConfig) -> FunctionTimes:
         raise NotImplementedError
 
-    @abstractmethod
-    def optimize(self, config: ConfigBounds) -> StageConfig:
-        raise NotImplementedError
+    # @abstractmethod
+    # def optimize(self, config: ConfigBounds) -> StageConfig:
+    #     raise NotImplementedError
 
     @abstractmethod
     def load_model(self):
