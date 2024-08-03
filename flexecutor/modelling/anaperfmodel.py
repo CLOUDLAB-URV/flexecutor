@@ -30,6 +30,9 @@ class AnaPerfModel(PerfModel):
     Adapted from https://github.com/pkusys/Jolteon/blob/main/workflow/perf_model_analytic.py
     """
 
+    def init_from_dag(self, dag):
+        pass
+
     def __init__(self, model_name, model_dst, stage_id, stage_name) -> None:
         assert isinstance(stage_name, str)
         assert isinstance(stage_id, int) and stage_id >= 0
@@ -224,10 +227,10 @@ class AnaPerfModel(PerfModel):
             cold_start=predicted_cold_time,
         )
 
-    def optimize(self, config: ConfigBounds) -> StageConfig:
-        # TODO: implement this
-        """Dummy response in AnaPerfModel"""
-        return StageConfig(cpu=1, memory=2048, workers=8)
+    # def optimize(self, config: ConfigBounds) -> StageConfig:
+    #     # TODO: implement this
+    #     """Dummy response in AnaPerfModel"""
+    #     return StageConfig(cpu=1, memory=2048, workers=8)
 
     # def fit_polynomial(self, x, y, degree):
     #     coeffs = np.polyfit(x, y, degree)

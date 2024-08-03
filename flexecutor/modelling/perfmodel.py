@@ -51,6 +51,15 @@ class PerfModel(ABC):
     def parameters(self):
         raise NotImplementedError
 
+    @abstractmethod
+    def init_from_dag(self, dag):
+        """
+        After declaring the Scheduler, some models need to be initialized with the DAG.
+        This method is used to initialize the model with the DAG.
+        @param dag: the DAG object
+        """
+        raise NotImplementedError
+
     @classmethod
     def instance(cls, model_type: PerfModelEnum, model_name="default"):
         model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"

@@ -87,9 +87,10 @@ class Stage:
     def perf_model(self) -> PerfModel:
         return self._perf_model
 
-    def init_perf_model(self, perf_model_type: PerfModelEnum):
+    def init_perf_model(self, perf_model_type: PerfModelEnum) -> PerfModel:
         self._perf_model_type = perf_model_type
         self._perf_model = PerfModel.instance(perf_model_type, self._stage_unique_id)
+        return self._perf_model
 
     @property
     def max_concurrency(self) -> int:

@@ -3,51 +3,7 @@ from typing import Dict
 import numpy as np
 
 from modelling.perfmodel import PerfModel
-from utils.dataclass import ConfigBounds, StageConfig, FunctionTimes
-
-
-class DistPerfModel(PerfModel):
-    def __init__(self, model_name, model_dst, stage_id, stage_name):
-        super().__init__("distribution", model_name, model_dst)
-
-        assert isinstance(stage_name, str)
-        assert isinstance(stage_id, int) and stage_id >= 0
-        self._stage_name = stage_name
-        self._stage_id = stage_id
-
-        self.distributions = {}  # k*d -> Distribution
-        self.up_models = []
-        self.func_size = 1.0
-
-    def train(self, stage_profile_data: Dict) -> None:
-        """
-        This train function in DistPerfModel loads the profile data Distributions into memory
-        Distributions only contain total stage duration values
-        @param stage_profile_data:
-        """
-        for config_tuple, data in stage_profile_data.items():
-            config_latencies = (
-                np.array(data["read"])
-                + np.array(data["compute"])
-                + np.array(data["write"])
-                + np.array(data["cold_start"])
-            )
-            self.distributions[config_tuple] = Distribution(list(config_latencies))
-
-    def predict_time(self, config: StageConfig) -> FunctionTimes:
-        pass
-
-    def optimize(self, config: ConfigBounds) -> StageConfig:
-        pass
-
-    def load_model(self):
-        pass
-
-    def save_model(self):
-        pass
-
-    def parameters(self):
-        pass
+from utils.dataclass import StageConfig, FunctionTimes
 
 
 class Distribution:
@@ -66,11 +22,11 @@ class Distribution:
 
         self.subset = []
 
-    def combine(self, dist, com_type=0):  # com_type: 0 for in_serie, 1 for parallel
+    def combine(self, dist, com_type="in-series"):
         assert isinstance(dist, Distribution)
         assert isinstance(com_type, int)
 
-        if com_type == 0:
+        if com_type == "in-series":
             new_data = []
             for i in range(len(self.data)):
                 for j in range(len(dist.data)):
@@ -81,7 +37,7 @@ class Distribution:
             new_data.sort()
             self.data = np.array([item[0] for item in new_data])
             self.prob = np.array([item[1] for item in new_data])
-        elif com_type == 1:
+        elif com_type == "parallel":
             cum_prob1 = np.cumsum(self.prob)
             cum_prob2 = np.cumsum(dist.prob)
 
@@ -108,7 +64,6 @@ class Distribution:
                 if new_prob[i] > 0:
                     self.data = np.append(self.data, new_data[i])
                     self.prob = np.append(self.prob, new_prob[i])
-
         else:
             raise ValueError("Unknown combine type")
 
@@ -186,3 +141,124 @@ class Distribution:
 
     def __str__(self):
         return str(list(zip(self.data, self.prob)))
+
+
+class DistPerfModel(PerfModel):
+    def __init__(self, model_name, model_dst, stage_id, stage_name):
+        super().__init__("distribution", model_name, model_dst)
+
+        assert isinstance(stage_name, str)
+        assert isinstance(stage_id, int) and stage_id >= 0
+        self._stage_name = stage_name
+        self._stage_id = stage_id
+
+        self.distributions = {}  # k*d -> Distribution
+        self.up_models = []
+        self.max_stage_size = None
+
+    def init_from_dag(self, dag):
+        """
+        In DistPerfModel, the initialization consists in load the parent models
+        @param dag:
+        """
+        my_stage = dag.get_stage_by_id(self._stage_id)
+        parents = my_stage.parents
+        for parent in parents:
+            model = parent.perf_model
+            assert isinstance(model, DistPerfModel)
+            self.up_models.append(model)
+
+    def train(self, stage_profile_data: Dict) -> None:
+        """
+        This train function in DistPerfModel loads the profile data Distributions into memory
+        Distributions only contain total stage duration values
+        @param stage_profile_data:
+        """
+        for config_tuple, data in stage_profile_data.items():
+            _, memory, workers = config_tuple
+            config_latencies = (
+                np.array(data["read"])
+                + np.array(data["compute"])
+                + np.array(data["write"])
+                + np.array(data["cold_start"])
+            )
+            # In Jolteon impl, cpu key is calculated via memory*workers/1769
+            # TODO: consider that in the future this will change
+            stage_size = round(memory * workers / 1769, 1)
+            self.distributions[stage_size] = Distribution(list(config_latencies))
+            self.max_stage_size = max(self.distributions.keys())
+
+    def calculate(self, stage_size) -> Distribution:
+        cur_dist = self._interpolate(stage_size)
+
+        if len(self.up_models) == 0:
+            return cur_dist
+
+        sub_dist = None
+
+        for sub_model in self.up_models:
+            dist = sub_model.calculate()
+            if sub_dist is None:
+                sub_dist = dist
+            else:
+                sub_dist.combine(dist, com_type="parallel")
+        cur_dist.combine(sub_dist, com_type="in-series")
+
+        return cur_dist
+
+    def _interpolate(self, stage_size) -> Distribution:
+        assert stage_size >= 0
+
+        if stage_size in self.distributions:
+            return self.distributions[stage_size].copy()
+
+        if stage_size >= self.max_stage_size:
+            return self.distributions[self.max_stage_size].copy()
+
+        stage_size_list = sorted(self.distributions.keys())
+        index = None
+        for idx, val in enumerate(stage_size_list):
+            if val > stage_size:
+                index = idx
+                break
+        lower_idx = index - 1
+        upper_idx = index
+
+        lower_dist = (
+            self.distributions[stage_size_list[lower_idx]]
+            if lower_idx >= 0
+            else Distribution([0])
+        )
+        upper_dist = self.distributions[stage_size_list[upper_idx]]
+
+        lower_size = stage_size_list[lower_idx] if lower_idx >= 0 else 0
+        upper_size = stage_size_list[upper_idx]
+
+        assert lower_size < stage_size < upper_size
+
+        # y1 + (y2 - y1) * (x - x1) / (x2 - x1)
+        slope = (stage_size - lower_size) / (upper_size - lower_size)
+        new_data = []
+        new_prob = []
+
+        for i in range(len(lower_dist.data)):
+            for j in range(len(upper_dist.data)):
+                new_data.append(
+                    lower_dist.data[i]
+                    + (upper_dist.data[j] - lower_dist.data[i]) * slope
+                )
+                new_prob.append(lower_dist.prob[i] * upper_dist.prob[j])
+
+        return Distribution(new_data, new_prob)
+
+    def predict_time(self, config: StageConfig) -> FunctionTimes:
+        pass
+
+    def load_model(self):
+        pass
+
+    def save_model(self):
+        pass
+
+    def parameters(self):
+        pass
