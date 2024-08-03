@@ -59,7 +59,7 @@ class Orion(Scheduler):
         self.total_parallelism = total_parallelism
         self.max_cpu_per_worker = max_cpu_per_worker
         self.memory_step = memory_step
-        # TODO: Note that AWS Lambda effects are present here
+        # FIXME: Note that AWS Lambda effects are present here
         self.max_memory = 1792 * max_cpu_per_worker
         self.stage_workers = {}
 
@@ -95,7 +95,7 @@ class Orion(Scheduler):
         # FIXME: parametrize fixed vars
         mode = "simple"  # | "priority"
 
-        # TODO: convert workers_size_list to a dict "stage_id: memory"
+        # FIXME: convert workers_size_list to a dict "stage_id: memory"
         workers_size_list = None
         if mode == "simple":
             workers_size_list = self._bfs_simple_queue()
@@ -213,7 +213,7 @@ class Orion(Scheduler):
     def _get_distribution(self, config_list: List[float]):
         stage_sizes = {}
 
-        # TODO: check consistency between stage_workers dict and config list
+        # FIXME: check consistency between stage_workers dict and config list
         for (stage_id, workers), memory in zip(self.stage_workers.items(), config_list):
             stage_sizes[stage_id] = round(memory * workers / 1769, 1)
 
@@ -235,7 +235,7 @@ class Orion(Scheduler):
     def _get_cost(self, config_list, confidence):
         stage_sizes = {}
 
-        # TODO: check consistency between stage_workers dict and config list
+        # FIXME: check consistency between stage_workers dict and config list
         for (stage_id, workers), memory in zip(self.stage_workers.items(), config_list):
             stage_sizes[stage_id] = round(memory * workers / 1769, 1)
 
