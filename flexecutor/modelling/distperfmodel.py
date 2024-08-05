@@ -4,6 +4,7 @@ import numpy as np
 
 from modelling.perfmodel import PerfModel
 from utils.dataclass import StageConfig, FunctionTimes
+from workflow.stage import Stage
 
 
 class Distribution:
@@ -144,13 +145,8 @@ class Distribution:
 
 
 class DistPerfModel(PerfModel):
-    def __init__(self, model_name, model_dst, stage_id, stage_name):
-        super().__init__("distribution", model_name, model_dst)
-
-        assert isinstance(stage_name, str)
-        assert isinstance(stage_id, int) and stage_id >= 0
-        self._stage_name = stage_name
-        self._stage_id = stage_id
+    def __init__(self, stage: Stage):
+        super().__init__("distribution", stage)
 
         self.distributions = {}  # k*d -> Distribution
         self.up_models = []

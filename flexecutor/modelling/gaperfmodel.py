@@ -12,6 +12,7 @@ from scipy.optimize import differential_evolution
 
 from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils.dataclass import FunctionTimes, ConfigBounds, StageConfig
+from workflow.stage import Stage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,14 +32,13 @@ def rand101():
 class GAPerfModel(PerfModel):
     def __init__(
         self,
-        model_name,
-        model_dst,
+        stage: Stage,
         population_size=300,
         crossover_prob=0.7,
         mutation_prob=0.2,
         n_generations=40,
     ):
-        super().__init__("genetic", model_name, model_dst)
+        super().__init__("genetic", stage)
         self._population_size = population_size
         self._crossover_prob = crossover_prob
         self._mutation_prob = mutation_prob

@@ -67,11 +67,13 @@ class Stage:
     def resource_config(self):
         return self._resource_config
 
+    @property
+    def stage_unique_id(self) -> str:
+        return self._stage_unique_id
 
     @resource_config.setter
     def resource_config(self, value: StageConfig):
         self._resource_config = value
-
 
     @property
     def map_func(self) -> Callable[..., Any]:
@@ -89,7 +91,7 @@ class Stage:
 
     def init_perf_model(self, perf_model_type: PerfModelEnum) -> PerfModel:
         self._perf_model_type = perf_model_type
-        self._perf_model = PerfModel.instance(perf_model_type, self._stage_unique_id)
+        self._perf_model = PerfModel.instance(perf_model_type, self)
         return self._perf_model
 
     @property

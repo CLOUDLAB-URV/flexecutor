@@ -6,6 +6,7 @@ from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
+from workflow.stage import Stage
 
 
 def coldstart_func(x, a, b):
@@ -33,15 +34,8 @@ class AnaPerfModel(PerfModel):
     def init_from_dag(self, dag):
         pass
 
-    def __init__(self, model_name, model_dst, stage_id, stage_name) -> None:
-        assert isinstance(stage_name, str)
-        assert isinstance(stage_id, int) and stage_id >= 0
-        super().__init__("analytic", model_name, model_dst)
-
-        self._stage_name = stage_name
-        self._stage_id = stage_id
-
-        self._allow_parallel = True
+    def __init__(self, stage: Stage) -> None:
+        super().__init__("analytic", stage)
 
         # Init in train, list with size three
         self._write_params = None
@@ -54,11 +48,6 @@ class AnaPerfModel(PerfModel):
     @classmethod
     def _config_to_xparam(cls, num_vcpu, memory, num_func):
         return round(num_vcpu * memory * num_func, 1)
-
-    # TODO: review that and rethink
-    def update_allow_parallel(self, allow_parallel) -> None:
-        assert isinstance(allow_parallel, bool)
-        self._allow_parallel = allow_parallel
 
     @overrides
     def save_model(self):
@@ -96,7 +85,7 @@ class AnaPerfModel(PerfModel):
             num_vcpu, memory, num_func = config_tuple
             # adapt to parallel mode
             # if the stage does not allow more than one function, ignore num_func
-            if self._allow_parallel:
+            if self.allow_parallel:
                 config_key = self._config_to_xparam(num_vcpu, memory, num_func)
             else:
                 config_key = self._config_to_xparam(num_vcpu, memory, 1)

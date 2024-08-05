@@ -4,6 +4,7 @@ from typing import Dict
 
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from flexecutor.utils.utils import get_my_exec_path
+from workflow.stage import Stage
 
 
 class PerfModelEnum(Enum):
@@ -13,7 +14,15 @@ class PerfModelEnum(Enum):
 
 
 class PerfModel(ABC):
-    def __init__(self, model_type, model_name, model_dst):
+    def __init__(self, model_type, stage: Stage):
+        model_name = stage.stage_unique_id or "default"
+        model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"
+
+        self._stage_name = stage.stage_unique_id
+        self._stage_id = stage.stage_id
+
+        self.allow_parallel = stage.max_concurrency > 1
+
         self._model_name = model_name
         self._model_dst = model_dst
         self._model_type = model_type
@@ -61,29 +70,18 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @classmethod
-    def instance(cls, model_type: PerfModelEnum, model_name="default"):
-        model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"
+    def instance(cls, model_type: PerfModelEnum, stage: Stage):
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
 
-            return AnaPerfModel(
-                stage_id=0,
-                stage_name="stage",
-                model_name=model_name,
-                model_dst=model_dst,
-            )
+            return AnaPerfModel(stage)
         elif model_type == PerfModelEnum.GENETIC:
             from flexecutor.modelling.gaperfmodel import GAPerfModel
 
-            return GAPerfModel(model_name=model_name, model_dst=model_dst)
+            return GAPerfModel(stage)
         elif model_type == PerfModelEnum.DISTRIBUTION:
             from flexecutor.modelling.distperfmodel import DistPerfModel
 
-            return DistPerfModel(
-                stage_id=0,
-                stage_name="stage",
-                model_name=model_name,
-                model_dst=model_dst,
-            )
+            return DistPerfModel(stage)
         else:
             raise ValueError("Invalid model type")
