@@ -8,8 +8,8 @@ from casacore.tables import table
 from lithops import FunctionExecutor
 
 from examples.radio_interferometry.utils import get_dir_size, my_zip, unzip
-from flexecutor.storage.storage import FlexInput, FlexOutput
-from flexecutor.utils.iomanager import IOManager
+from examples.radio_interferometry.utils import FlexInput, FlexOutput
+from flexecutor import StageContext
 from flexecutor.utils.utils import flexorchestrator, setup_logging
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -47,19 +47,17 @@ def create_partition(i, start_row, end_row, ms, msout, logger):
     partition.close()
 
     partition_size = get_dir_size(partition_path)
-    logger.debug(
-        f"Partition {i} created. Size before zip: {partition_size} bytes"
-    )
+    logger.debug(f"Partition {i} created. Size before zip: {partition_size} bytes")
 
     my_zip(partition_path, Path(msout))
     return partition_size
 
 
-def partition_ms(io: IOManager):
+def partition_ms(ctx: StageContext):
     logger = setup_logging(logging.DEBUG)
 
     num_partitions = 5
-    full_file_paths = [Path(file) for file in io.get_input_paths("huge-ms")]
+    full_file_paths = [Path(file) for file in ctx.get_input_paths("huge-ms")]
 
     logger.debug(f"Downloaded files to: {full_file_paths}")
 
@@ -71,14 +69,10 @@ def partition_ms(io: IOManager):
 
         ms_table = table(str(unzipped_ms), ack=False)
         mss.append(ms_table)
-        logger.info(
-            f"Number of rows in the measurement set: {ms_table.nrows()}"
-        )
+        logger.info(f"Number of rows in the measurement set: {ms_table.nrows()}")
     ms = table(mss)
     identifier = generate_concatenated_identifier(mss, num_partitions)
-    logger.info(
-        f"Unique identifier for concatenated measurement sets: {identifier}"
-    )
+    logger.info(f"Unique identifier for concatenated measurement sets: {identifier}")
 
     logger.info(f"#rows: {ms.nrows()}; #cols: {ms.ncols()}")
 
@@ -87,9 +81,7 @@ def partition_ms(io: IOManager):
     logger.info(f"Total rows in the measurement set: {total_rows}")
     times = np.array(ms_sorted.getcol("TIME"))
     total_duration = times[-1] - times[0]
-    logger.debug(
-        f"Total duration in the measurement set: {total_duration}"
-    )
+    logger.debug(f"Total duration in the measurement set: {total_duration}")
 
     chunk_duration = total_duration / num_partitions
     partitions_info = []
@@ -109,18 +101,12 @@ def partition_ms(io: IOManager):
         partition_count += 1
 
     partition_sizes = []
-    msout_list = [io.next_output_path("chunks") for _ in range(num_partitions)]
+    msout_list = [ctx.next_output_path("chunks") for _ in range(num_partitions)]
     print(msout_list)
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = [
             executor.submit(
-                create_partition,
-                info[0],
-                info[1],
-                info[2],
-                ms_sorted,
-                msout,
-                logger
+                create_partition, info[0], info[1], info[2], ms_sorted, msout, logger
             )
             for info, msout in zip(partitions_info, msout_list)
         ]
@@ -134,15 +120,14 @@ def partition_ms(io: IOManager):
         )
 
     total_partition_size = sum(partition_sizes)
-    logger.debug(
-        f"Total size of all partitions: {total_partition_size / MB:.2f} MB"
-    )
+    logger.debug(f"Total size of all partitions: {total_partition_size / MB:.2f} MB")
 
     ms_sorted.close()
     logger.info("Partitioning completed.")
 
 
 if __name__ == "__main__":
+
     @flexorchestrator(bucket="test-bucket")
     def main():
         dag = DAG("chunking")
@@ -163,6 +148,5 @@ if __name__ == "__main__":
         )
         results = executor.execute()
         print(results["chunking"].get_timings())
-
 
     main()
