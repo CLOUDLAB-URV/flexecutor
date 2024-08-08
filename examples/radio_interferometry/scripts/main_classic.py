@@ -4,8 +4,9 @@ from examples.radio_interferometry.functions import (
     imaging,
     dp3,
 )
+from examples.radio_interferometry.utils import FlexInput, FlexOutput
 from examples.radio_interferometry.utils import filter_io_params
-from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
+from flexecutor.storage.storage import StrategyEnum
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor

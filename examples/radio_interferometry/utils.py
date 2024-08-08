@@ -3,7 +3,7 @@ import zipfile
 from pathlib import Path, PosixPath
 from typing import Union, List, Dict, Type
 
-from flexecutor.storage.storage import FlexInput, FlexOutput
+from flexecutor.storage.storage import FlexData
 
 
 def unzip(ms: Path) -> Path:
@@ -102,3 +102,16 @@ def filter_io_params(
     all_values = [value for parameter in parameters for value in parameter.values()]
     flex_values = [value for value in all_values if type(value) is flex_type]
     return list(set(flex_values))
+
+
+# FlexInput and FlexOutput classes are a way for distinguishing between
+# input and output data in the radio-interferometry workflow
+class FlexInput(FlexData):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+class FlexOutput(FlexData):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
