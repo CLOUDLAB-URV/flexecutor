@@ -22,7 +22,7 @@ if __name__ == "__main__":
             "aoflag.type": "aoflagger",
             "aoflag.strategy": FlexInput(
                 prefix="parameters/rebinning",
-                custom_input_id="lua",
+                custom_data_id="lua",
                 strategy=StrategyEnum.BROADCAST,
             ),
             "avg.type": "averager",
@@ -48,7 +48,7 @@ if __name__ == "__main__":
             "cal.caltype": "diagonal",
             "cal.sourcedb": FlexInput(
                 prefix="parameters/calibration/step2a",
-                custom_input_id="step2a",
+                custom_data_id="step2a",
                 strategy=StrategyEnum.BROADCAST,
             ),
             "cal.parmdb": FlexOutput(
@@ -73,7 +73,7 @@ if __name__ == "__main__":
             "aoflag.type": "aoflagger",
             "aoflag.strategy": FlexInput(
                 prefix="parameters/rebinning",
-                custom_input_id="lua",
+                custom_data_id="lua",
                 strategy=StrategyEnum.BROADCAST,
             ),
             "avg.type": "averager",
@@ -193,7 +193,7 @@ if __name__ == "__main__":
             func=imaging,
             max_concurrency=1,
             inputs=[
-                FlexInput(prefix="TAR/applycal_out/ms", custom_input_id="imaging_input")
+                FlexInput(prefix="TAR/applycal_out/ms", custom_data_id="imaging_input")
             ],
             outputs=[
                 FlexOutput(prefix="image_out", suffix="-image.fits"),

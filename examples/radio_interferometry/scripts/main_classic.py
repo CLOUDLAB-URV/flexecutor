@@ -17,12 +17,12 @@ if __name__ == "__main__":
     @flexorchestrator(bucket="test-bucket")
     def main():
         rebinning_parameters = {
-            "msin": FlexInput(prefix="partitions", custom_input_id="partitions"),
+            "msin": FlexInput(prefix="partitions", custom_data_id="partitions"),
             "steps": "[aoflag, avg, count]",
             "aoflag.type": "aoflagger",
             "aoflag.strategy": FlexInput(
                 prefix="parameters/rebinning",
-                custom_input_id="lua",
+                custom_data_id="lua",
                 strategy=StrategyEnum.BROADCAST,
             ),
             "avg.type": "averager",
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
         calibration_parameters = {
             "msin": FlexInput(
-                prefix="rebinning_out/ms", custom_input_id="rebinning_ms"
+                prefix="rebinning_out/ms", custom_data_id="rebinning_ms"
             ),
             "msin.datacolumn": "DATA",
             "steps": "[cal]",
@@ -56,7 +56,7 @@ if __name__ == "__main__":
             "numthreads": 4,
             "cal.sourcedb": FlexInput(
                 prefix="parameters/calibration/step2a",
-                custom_input_id="step2a",
+                custom_data_id="step2a",
                 strategy=StrategyEnum.BROADCAST,
             ),
             "log_output": FlexOutput(
@@ -80,7 +80,7 @@ if __name__ == "__main__":
             "msout": ".",
             "sub.sourcedb": FlexInput(
                 prefix="parameters/calibration/step2a",
-                custom_input_id="step2a",
+                custom_data_id="step2a",
                 strategy=StrategyEnum.BROADCAST,
             ),
             "log_output": FlexOutput(
@@ -177,7 +177,7 @@ if __name__ == "__main__":
             max_concurrency=1,
             inputs=[
                 FlexInput(
-                    prefix="applycal_out/apply/ms", custom_input_id="imaging_input"
+                    prefix="applycal_out/apply/ms", custom_data_id="imaging_input"
                 )
             ],
             outputs=[

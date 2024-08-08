@@ -10,7 +10,7 @@ cal_rebinning_parameters = {
     "aoflag.type": "aoflagger",
     "aoflag.strategy": FlexInput(
         prefix="parameters/rebinning",
-        custom_input_id="lua",
+        custom_data_id="lua",
         strategy=StrategyEnum.BROADCAST,
     ),
     "avg.type": "averager",
@@ -36,7 +36,7 @@ cal_calibration_params = {
     "cal.caltype": "diagonal",
     "cal.sourcedb": FlexInput(
         prefix="parameters/calibration/step2a",
-        custom_input_id="step2a",
+        custom_data_id="step2a",
         strategy=StrategyEnum.BROADCAST,
     ),
     "cal.parmdb": FlexOutput(
@@ -61,7 +61,7 @@ target_rebinning_params = {
     "aoflag.type": "aoflagger",
     "aoflag.strategy": FlexInput(
         prefix="parameters/rebinning",
-        custom_input_id="lua",
+        custom_data_id="lua",
         strategy=StrategyEnum.BROADCAST,
     ),
     "avg.type": "averager",
@@ -178,7 +178,7 @@ imaging_stage = Stage(
     stage_id="imaging",
     func=imaging,
     max_concurrency=1,
-    inputs=[FlexInput(prefix="TAR/applycal_out/ms", custom_input_id="imaging_input")],
+    inputs=[FlexInput(prefix="TAR/applycal_out/ms", custom_data_id="imaging_input")],
     outputs=[
         FlexOutput(prefix="image_out", suffix="-image.fits"),
         FlexOutput(prefix="image_out/logs", suffix=".log"),
