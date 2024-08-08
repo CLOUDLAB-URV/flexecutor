@@ -41,19 +41,3 @@ class StageFuture:
             r.cold_start = worker_start_tstamp - host_submit_tstamp
             timings_list.append(r)
         return timings_list
-
-
-class InputFile(StageFuture):
-    def __init__(self, file: Any, stage_id: str):
-        super().__init__(stage_id)
-        self._file = file
-
-    @property
-    def file(self) -> Any:
-        return self._file
-
-    def result(self) -> Any:
-        return self._file
-
-    def error(self) -> bool:
-        return False

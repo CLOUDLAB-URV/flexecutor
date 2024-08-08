@@ -1,94 +1,96 @@
 import os
-from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from lithops import Storage
 
-from flexecutor.storage.chunker import Chunker
+from flexecutor.utils.enums import StrategyEnum, ChunkerTypeEnum
 
 
-class StrategyEnum(Enum):
-    SCATTER = 1
-    BROADCAST = 2
-
-
-class FlexInput:
+class FlexData:
     def __init__(
         self,
         prefix: str,
         bucket=None,
-        custom_input_id=None,
-        strategy: StrategyEnum = StrategyEnum.SCATTER,
-        chunker: Optional[Chunker] = None,
+        custom_data_id=None,
+        read_strategy: StrategyEnum = StrategyEnum.SCATTER,
+        chunker=None,
         local_base_path: str = "/tmp",
+        suffix=".file",
     ):
         """
-        A class for define inputs in flex stages.
+        A class to define inputs in flex stages.
         ...
         """
-        self._input_id = custom_input_id or prefix
+        self._input_id = custom_data_id or prefix
         self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
         if prefix[-1] != "/":
             prefix += "/"
         self.prefix = prefix or ""
-        self.strategy = strategy
-        self.chunk_indexes: Optional[(int, int)] = None
+        self.read_strategy = read_strategy
+        self.file_indexes: Optional[Tuple[int, int]] = None
         self.chunker = chunker
         self.local_base_path = Path(local_base_path) / self.prefix
+        self.suffix = suffix
         self.keys = []
         self.local_paths = []
+
+    def __repr__(self):
+        return (f"FlexData(prefix={self.prefix}, bucket={self.bucket}, strategy={self.read_strategy}, "
+                f"chunker={self.chunker}, local_base_path={self.local_base_path}, file_indexes={self.file_indexes})")
 
     @property
     def id(self):
         return self._input_id
 
-    def scan_objects(self, worker_id, num_workers) -> None:
-        # Update keys and local_paths
+    @id.setter
+    def id(self, value):
+        self._input_id = value
+
+    def has_chunker_type(self, chunking_type: ChunkerTypeEnum):
+        return self.chunker is not None and self.chunker.chunker_type is chunking_type
+
+    def scan_keys(self):
         self.keys = [
             obj["Key"]
             for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
         ]
+
+    def set_local_paths(self, override_local_paths: Optional[list[str]] = None):
+        if (
+            self.has_chunker_type(ChunkerTypeEnum.DYNAMIC)
+            and override_local_paths is None
+        ):
+            return
+        if override_local_paths:
+            self.local_paths = override_local_paths
+            return
         self.local_paths = [
             str(self.local_base_path / key.split("/")[-1]) for key in self.keys
         ]
-        # Define chunk indexes
-        if self.chunker:
-            self.chunk_indexes = (0, num_workers)
+
+    def set_file_indexes(self, worker_id, num_workers):
+        if self.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
+            self.file_indexes = (0, 1)
             return
-        if self.strategy == StrategyEnum.BROADCAST:
+        if self.has_chunker_type(ChunkerTypeEnum.STATIC):
+            self.file_indexes = (worker_id, worker_id + 1)
+            return
+        if self.read_strategy == StrategyEnum.BROADCAST:
             start = 0
             end = len(self.local_paths)
         else:  # SCATTER
             num_files = len(self.local_paths)
             start = (worker_id * num_files) // num_workers
             end = ((worker_id + 1) * num_files) // num_workers
-        self.chunk_indexes = (start, end)
+        self.file_indexes = (start, end)
 
     def __hash__(self):
         return hash(self.prefix)
 
-
-class FlexOutput:
-    def __init__(
-        self,
-        prefix,
-        bucket=None,
-        custom_output_id=None,
-        suffix=".file",
-        local_base_path="/tmp",
-    ):
-        self._output_id = custom_output_id or prefix
-        self.prefix = prefix
-        self.suffix = suffix
-        self.local_base_path = Path(local_base_path) / prefix
-        self.bucket = bucket if bucket else os.environ.get("FLEX_BUCKET")
+    def flush(self):
+        self.prefix = None
         self.keys = []
         self.local_paths = []
-
-    @property
-    def id(self):
-        return self._output_id
-
-    def __hash__(self):
-        return hash(self.prefix)
+        self.file_indexes = None
+        self.chunker = None

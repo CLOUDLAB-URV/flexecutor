@@ -6,8 +6,7 @@ from typing import Any, Set, List, Optional, Callable
 from lithops import FunctionExecutor
 
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
-from flexecutor.storage.storage import FlexInput
-from flexecutor.storage.storage import FlexOutput
+from flexecutor.storage.storage import FlexData
 from flexecutor.utils.dataclass import StageConfig
 from flexecutor.workflow.stagefuture import StageFuture
 
@@ -34,9 +33,9 @@ class Stage:
     def __init__(
         self,
         stage_id: str,
-        func: Callable[[...], Any],
-        inputs: list[FlexInput],
-        outputs: list[FlexOutput],
+        func: Callable[..., Any],
+        inputs: List[FlexData],
+        outputs: List[FlexData],
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
         params: Optional[dict[str, Any]] = None,
         max_concurrency: int = 1024,
@@ -56,13 +55,27 @@ class Stage:
         self._map_func = func
         self._max_concurrency = max_concurrency
         self.dag_id = None
-        self.optimal_config: Optional[StageConfig] = None
-        self.resource_config: Optional[StageConfig] = None
+        self._resource_config: Optional[StageConfig] = StageConfig(
+            cpu=1, memory=2048, workers=1
+        )
+
+    def __repr__(self) -> str:
+        return f"Stage({self._stage_id}, resource_config={self.resource_config}) "
 
     @property
     def dag_id(self) -> str:
         """Return the DAG ID."""
         return self._dag_id
+
+    @property
+    def resource_config(self):
+        return self._resource_config
+
+
+    @resource_config.setter
+    def resource_config(self, value: StageConfig):
+        self._resource_config = value
+
 
     @property
     def map_func(self) -> Callable[..., Any]:
@@ -101,13 +114,13 @@ class Stage:
         return self._children
 
     @property
-    def inputs(self) -> list[FlexInput]:
+    def inputs(self) -> List[FlexData]:
         """Return the list of input paths."""
         return self._inputs
 
     @property
-    def outputs(self) -> list[FlexOutput]:
-        """Return the output path."""
+    def outputs(self) -> List[FlexData]:
+        """Return the list of output paths."""
         return self._outputs
 
     @property

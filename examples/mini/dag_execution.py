@@ -4,59 +4,49 @@ import logging
 
 from lithops import FunctionExecutor
 
-from examples.mini.functions.word_count import (
+from functions.word_count import (
     word_count,
-    word_count_input,
-    word_count_output,
+    sum_counts,
+    flex_data_txt,
+    flex_data_word_count,
+    flex_data_reduce_count,
 )
-from flexecutor.modelling.perfmodel import PerfModelEnum
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
+from flexecutor.utils import setup_logging
+
+logger = setup_logging(level=logging.INFO)
 
 config = {"lithops": {"backend": "localhost", "storage": "localhost"}}
 
-LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s -- %(message)s"
-logging.basicConfig(format=LOGGER_FORMAT, level=logging.INFO)
-
-logger = logging.getLogger(__name__)
-
-NUM_ITERATIONS = 1
+NUM_ITERATIONS = 2
 
 
 if __name__ == "__main__":
 
     @flexorchestrator()
     def main():
-
         dag = DAG("mini-dag")
 
         stage1 = Stage(
-            "stage1",
+            "map",
             func=word_count,
-            perf_model_type=PerfModelEnum.GENETIC,
-            inputs=[word_count_input],
-            outputs=[word_count_output],
+            inputs=[flex_data_txt],
+            outputs=[flex_data_word_count],
         )
         stage2 = Stage(
-            "stage2",
-            func=word_count,
-            perf_model_type=PerfModelEnum.GENETIC,
-            inputs=[word_count_input],
-            outputs=[word_count_output],
-        )
-        stage3 = Stage(
-            "stage3",
-            func=word_count,
-            perf_model_type=PerfModelEnum.GENETIC,
-            inputs=[word_count_input],
-            outputs=[word_count_output],
+            "reduce",
+            func=sum_counts,
+            inputs=[flex_data_word_count],
+            outputs=[flex_data_reduce_count],
+            max_concurrency=1,
         )
 
-        stage1 >> stage2 << stage3
+        stage1 >> stage2
 
-        dag.add_stages([stage1, stage2, stage3])
+        dag.add_stages([stage1, stage2])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor())
         executor.execute()

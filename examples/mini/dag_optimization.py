@@ -11,11 +11,10 @@ from functions.word_count import (
     flex_data_word_count,
     flex_data_reduce_count,
 )
-from flexecutor.utils.utils import flexorchestrator
+from flexecutor.utils.utils import setup_logging, flexorchestrator
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.executor import DAGExecutor
+from flexecutor.workflow.executor import DAGExecutor, ConfigBounds
 from flexecutor.workflow.stage import Stage
-from flexecutor.utils import setup_logging
 
 logger = setup_logging(level=logging.INFO)
 
@@ -28,6 +27,8 @@ if __name__ == "__main__":
 
     @flexorchestrator()
     def main():
+        dag_critical_path = ["map", "reduce"]
+
         dag = DAG("mini-dag")
 
         stage1 = Stage(
@@ -48,8 +49,12 @@ if __name__ == "__main__":
 
         dag.add_stages([stage1, stage2])
 
-        executor = DAGExecutor(dag, executor=FunctionExecutor())
+        executor = DAGExecutor(dag, executor=FunctionExecutor(runtime_cpus=1))
+        config_bounds = ConfigBounds(
+            cpu=(0.5, 4.5), memory=(1024, 4096), workers=(1, 10)
+        )
         executor.train()
+        executor.optimize(dag_critical_path, config_bounds)
         executor.shutdown()
         print("Tasks completed")
 
