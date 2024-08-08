@@ -23,7 +23,7 @@ if __name__ == "__main__":
             "aoflag.strategy": FlexInput(
                 prefix="parameters/rebinning",
                 custom_data_id="lua",
-                strategy=StrategyEnum.BROADCAST,
+                read_strategy=StrategyEnum.BROADCAST,
             ),
             "avg.type": "averager",
             "avg.freqstep": 4,
@@ -57,7 +57,7 @@ if __name__ == "__main__":
             "cal.sourcedb": FlexInput(
                 prefix="parameters/calibration/step2a",
                 custom_data_id="step2a",
-                strategy=StrategyEnum.BROADCAST,
+                read_strategy=StrategyEnum.BROADCAST,
             ),
             "log_output": FlexOutput(
                 prefix="applycal_out/cal/logs",
@@ -81,7 +81,7 @@ if __name__ == "__main__":
             "sub.sourcedb": FlexInput(
                 prefix="parameters/calibration/step2a",
                 custom_data_id="step2a",
-                strategy=StrategyEnum.BROADCAST,
+                read_strategy=StrategyEnum.BROADCAST,
             ),
             "log_output": FlexOutput(
                 prefix="applycal_out/sub/logs",
