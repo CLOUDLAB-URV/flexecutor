@@ -31,6 +31,7 @@ class AssetType(Enum):
     MODEL = ("model", ".pkl")
     PROFILE = ("profiling", ".json")
     IMAGE = ("image", ".png")
+    PLOT = ("plot", ".png")
 
 
 class DAGExecutor:
