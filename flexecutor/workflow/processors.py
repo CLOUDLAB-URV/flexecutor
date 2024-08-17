@@ -99,14 +99,17 @@ class ThreadPoolProcessor:
 
         # FIXME: In lithops, we have to allow the map to take a runtime_cpu only and only if the backend is k8s?
         if self._executor.config["lithops"]["backend"] == "k8s":
-            self._executor.config["k8s"]["runtime_cpu"] = stage.resource_config.cpu
+            self._executor.config["k8s"]["runtime_cpu"] = int(stage.resource_config.cpu)
 
-        future = self._executor.map(
-            map_function=worker_wrapper(stage.map_func),
-            map_iterdata=map_iterdata,
-            runtime_memory=int(stage.resource_config.memory),
-        )
-
+        try:
+            future = self._executor.map(
+                map_function=worker_wrapper(stage.map_func),
+                map_iterdata=map_iterdata,
+                runtime_memory=int(stage.resource_config.memory),
+            )
+        except Exception as e:
+            logger.error(f"Error during map execution: {str(e)}", exc_info=True)
+            raise
         self._executor.wait(future)
         future = StageFuture(stage.stage_id, future)
 
