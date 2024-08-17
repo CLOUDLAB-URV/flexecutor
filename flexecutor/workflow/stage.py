@@ -36,6 +36,7 @@ class Stage:
         perf_model_type: PerfModelEnum = PerfModelEnum.ANALYTIC,
         params: Optional[dict[str, Any]] = None,
         max_concurrency: int = 1024,
+        compute_scaling: str = "cpu",
     ):
         if params is None:
             params = {}
@@ -43,6 +44,7 @@ class Stage:
         self._stage_id = stage_id
         self._perf_model = None  # Lazy init
         self._perf_model_type = perf_model_type
+        self._compute_scaling = compute_scaling
         self._inputs = inputs
         self._outputs = outputs
         self._params = params
@@ -68,11 +70,9 @@ class Stage:
     def resource_config(self):
         return self._resource_config
 
-
     @resource_config.setter
     def resource_config(self, value: StageConfig):
         self._resource_config = value
-
 
     @property
     def map_func(self) -> Callable[..., Any]:
@@ -84,7 +84,11 @@ class Stage:
         self._dag_id = value
         self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
         self._perf_model = PerfModel.instance(
-            model_type=self._perf_model_type, model_name=self._stage_unique_id
+            model_type=self._perf_model_type,
+            model_name=self._stage_unique_id,
+            stage_id=self._stage_id,
+            stage_name=self._stage_id,
+            compute_scaling=self._compute_scaling,
         )
 
     @property

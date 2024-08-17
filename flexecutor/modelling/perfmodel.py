@@ -27,10 +27,6 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def optimize(self, config: ConfigBounds) -> StageConfig:
-        raise NotImplementedError
-
-    @abstractmethod
     def load_model(self):
         raise NotImplementedError
 
@@ -51,16 +47,24 @@ class PerfModel(ABC):
         raise NotImplementedError
 
     @classmethod
-    def instance(cls, model_type: PerfModelEnum, model_name="default"):
+    def instance(
+        cls,
+        model_type: PerfModelEnum,
+        model_name="default",
+        stage_id="0",
+        stage_name="stage",
+        compute_scaling="cpu",
+    ):
         model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
 
             return AnaPerfModel(
-                stage_id=0,
-                stage_name="stage",
+                stage_id=stage_id,
+                stage_name=stage_name,
                 model_name=model_name,
                 model_dst=model_dst,
+                compute_scaling=compute_scaling,
             )
         elif model_type == PerfModelEnum.GENETIC:
             from flexecutor.modelling.gaperfmodel import GAPerfModel
