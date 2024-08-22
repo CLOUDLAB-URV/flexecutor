@@ -31,9 +31,6 @@ class AnaPerfModel(PerfModel):
     Adapted from https://github.com/pkusys/Jolteon/blob/main/workflow/perf_model_analytic.py
     """
 
-    def init_from_dag(self, dag):
-        pass
-
     def __init__(self, stage: Stage) -> None:
         super().__init__("analytic", stage)
 

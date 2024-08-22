@@ -61,14 +61,14 @@ class PerfModel(ABC):
     def parameters(self):
         raise NotImplementedError
 
-    @abstractmethod
     def init_from_dag(self, dag):
         """
         After declaring the Scheduler, some models need to be initialized with the DAG.
         This method is used to initialize the model with the DAG.
+        Override this method to implement the logic.
         @param dag: the DAG object
         """
-        raise NotImplementedError
+        pass
 
     @classmethod
     def instance(cls, model_type: PerfModelEnum, stage: Stage):

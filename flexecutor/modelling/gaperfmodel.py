@@ -48,9 +48,6 @@ class GAPerfModel(PerfModel):
         self._toolbox = base.Toolbox()
         self._setup_genetic_algorithm()
 
-    def init_from_dag(self, dag):
-        pass
-
     def _setup_genetic_algorithm(self):
         creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
         creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)

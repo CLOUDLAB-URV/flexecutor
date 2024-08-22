@@ -224,6 +224,3 @@ class MixedPerfModel(PerfModel):
 
     def parameters(self):
         pass
-
-    def init_from_dag(self, dag):
-        pass
