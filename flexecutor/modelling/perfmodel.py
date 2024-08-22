@@ -22,6 +22,7 @@ class PerfModel(ABC):
         self._stage_id = stage.stage_id
 
         self.allow_parallel = stage.max_concurrency > 1
+        self.has_parent = stage.parents is not None and len(stage.parents) > 0
 
         self._model_name = model_name
         self._model_dst = model_dst
