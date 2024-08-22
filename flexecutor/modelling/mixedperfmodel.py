@@ -275,3 +275,53 @@ class MixedPerfModel(PerfModel):
                 self.const_coeff,
             ]
         )
+
+    def sample_offline(self, num_samples=10000):
+        # Sample for num_samples times
+        res = {"cold": [], "read": [], "compute": [], "write": []}
+
+        # seed_val = int(time.time())
+        seed_val = 0
+
+        rng = np.random.default_rng(seed=seed_val)
+        res["cold"] = rng.choice(self.cold_params_avg, num_samples)
+        res["read"] = rng.multivariate_normal(
+            self.read_params_avg, self.read_cov_avg, num_samples
+        )
+        res["compute"] = rng.multivariate_normal(
+            self.compute_params_avg, self.compute_cov_avg, num_samples
+        )
+        res["write"] = rng.multivariate_normal(
+            self.write_params_avg, self.write_cov_avg, num_samples
+        )
+
+        # Organize into coefficient form
+        coeffs = np.zeros((num_samples, 6))
+        coeffs[:, 0] = res["cold"]
+        if self.allow_parallel:
+            if self.can_intra_parallel["read"]:
+                coeffs[:, 2] += res["read"].T[0]  # 1/(kd)
+            else:
+                coeffs[:, 1] += res["read"].T[0]  # 1/d
+            if self.can_intra_parallel["compute"]:
+                coeffs[:, 2] += res["compute"].T[0]
+            else:
+                coeffs[:, 1] += res["compute"].T[0]
+            if self.can_intra_parallel["write"]:
+                coeffs[:, 2] += res["write"].T[0]
+            else:
+                coeffs[:, 1] += res["write"].T[0]
+            coeffs[:, 3] += res["compute"].T[1]  # log(x)/x
+            coeffs[:, 4] += res["compute"].T[2]  # 1/x**2
+            coeffs[:, 5] += res["read"].T[1] + res["compute"].T[3] + res["write"].T[1]
+        else:
+            coeffs[:, 1] += res["read"].T[0] + res["compute"].T[0] + res["write"].T[0]
+            if self.parent_relavent:
+                coeffs[:, 2] += res["read"].T[1]
+                coeffs[:, 5] += res["read"].T[2]
+            else:
+                coeffs[:, 5] += res["read"].T[1]
+            coeffs[:, 3] += res["compute"].T[1]
+            coeffs[:, 4] += res["compute"].T[2]
+
+        return coeffs
