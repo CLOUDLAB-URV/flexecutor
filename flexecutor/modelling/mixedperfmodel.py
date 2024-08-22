@@ -80,6 +80,7 @@ class MixedPerfModel(PerfModel):
             np.append(kd, [num_vcpu * num_func] * number_items)
             np.append(k_d, [num_vcpu, num_func] * number_items)
 
+        # STEP 2: Fit the data to the model & compute the coefficients
         if self.allow_parallel:
             phases_params = {
                 "read": {
@@ -196,6 +197,8 @@ class MixedPerfModel(PerfModel):
                 + self.logx_coeff * np.log(k) / k
                 + self.x2_coeff / k**2
             )
+
+        # STEP 3: Verify the accuracy of the model
         err = (y_pred - y_actual) / y_actual
         s_err = np.mean(np.abs(err))
         m_err = np.mean(err)
