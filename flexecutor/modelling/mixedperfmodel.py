@@ -2,6 +2,7 @@ from typing import Dict
 
 import numpy as np
 import scipy.optimize as scipy_opt
+from overrides import overrides
 
 from modelling.perfmodel import PerfModel
 from utils.dataclass import StageConfig, FunctionTimes
@@ -56,6 +57,7 @@ class MixedPerfModel(PerfModel):
         self.x2_coeff = 0  # the coefficient of 1/x**2 in the stage, x can be d or kd
         self.const_coeff = 0  # the constant coefficient in the stage
 
+    @overrides
     def train(self, stage_profile_data: Dict) -> None:
         # STEP 1: Populate ndarray with data
         y_s = np.empty(0)  # cold start times
@@ -213,14 +215,63 @@ class MixedPerfModel(PerfModel):
             "%",
         )
 
+    @overrides
     def predict_time(self, config: StageConfig) -> FunctionTimes:
-        pass
+        mode = "latency"
 
+        # FIXME: check parent_d and cold_percent meaning
+        parent_d = 0
+        cold_percent = 60
+
+        # FIXME: check conversion cpu-memory in this lines
+        k = config.cpu
+        kd = config.cpu * config.workers
+        d = config.workers
+        x = [1.0 / d, 1.0 / kd, np.log(d) / d, 1.0 / d**2, 1.0]
+        if self.allow_parallel:
+            if self.can_intra_parallel[1]:
+                x[2] = np.log(kd) / kd
+                x[3] = 1.0 / kd**2
+        else:
+            x = [1.0 / k, parent_d, np.log(k) / k, 1.0 / k**2, 1.0]
+            if not self.parent_relavent:
+                x[1] = 0
+
+        params = self.parameters
+        pred = np.dot(params[1:], x)
+        # if input_size != 1024:
+        #     pred *= input_size / self.default_input_size
+        if mode == "latency":
+            pred += np.percentile(self.cold_params_avg, cold_percent)
+            return pred
+        else:
+            # TODO: retrieve the meaning of this weird formula
+            # 1792 / 1024 * 0.0000000167 * 1000
+            return (
+                pred * config.workers * config.cpu * 2.9225 + 0.02 * config.workers
+            ) / 100000
+
+    @overrides
     def load_model(self):
         pass
 
+    @overrides
     def save_model(self):
         pass
 
+    @property
+    @overrides
     def parameters(self):
-        pass
+        cold_percent = 60
+        cold_coeff = np.percentile(self.cold_params_avg, cold_percent)
+
+        return np.array(
+            [
+                cold_coeff,
+                self.x_coeff,
+                self.kd_d_coeff,
+                self.logx_coeff,
+                self.x2_coeff,
+                self.const_coeff,
+            ]
+        )
