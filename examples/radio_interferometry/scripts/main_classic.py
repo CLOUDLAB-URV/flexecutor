@@ -14,7 +14,7 @@ from flexecutor.workflow.stage import Stage
 
 if __name__ == "__main__":
 
-    @flexorchestrator(bucket="test-bucket")
+    @flexorchestrator(bucket="astronomics-ow")
     def main():
         rebinning_parameters = {
             "msin": FlexInput(prefix="partitions", custom_data_id="partitions"),
@@ -31,7 +31,7 @@ if __name__ == "__main__":
             "numthreads": 4,
             "msout": FlexOutput(
                 prefix="rebinning_out/ms",
-                custom_output_id="rebinning_ms",
+                custom_data_id="rebinning_ms",
                 suffix=".ms.zip",
             ),
             "log_output": FlexOutput(
