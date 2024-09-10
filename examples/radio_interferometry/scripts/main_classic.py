@@ -14,7 +14,7 @@ from flexecutor.workflow.stage import Stage
 
 if __name__ == "__main__":
 
-    @flexorchestrator(bucket="astronomics-ow")
+    @flexorchestrator(bucket="test-bucket")
     def main():
         rebinning_parameters = {
             "msin": FlexInput(prefix="partitions", custom_data_id="partitions"),
