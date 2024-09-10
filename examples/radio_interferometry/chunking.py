@@ -42,7 +42,7 @@ def create_partition(i, start_row, end_row, ms, msout, logger):
         f"Creating partition {i} with rows from {start_row} to {end_row - 1}..."
     )
     partition = ms.selectrows(list(range(start_row, end_row)))
-    partition_path = PosixPath(f"/tmp/partition_{i}.ms")
+    partition_path = PosixPath(msout.removesuffix('.zip'))
     partition.copy(str(partition_path), deep=True)
     partition.close()
 

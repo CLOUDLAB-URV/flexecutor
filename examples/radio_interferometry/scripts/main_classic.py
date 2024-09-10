@@ -28,6 +28,8 @@ if __name__ == "__main__":
             "avg.type": "averager",
             "avg.freqstep": 4,
             "avg.timestep": 8,
+            # "avg.freqstep": 2,
+            # "avg.timestep": 2,
             "numthreads": 4,
             "msout": FlexOutput(
                 prefix="rebinning_out/ms",
