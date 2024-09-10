@@ -10,3 +10,5 @@
 
 - `classic`: Sequential pipeline (rebibbing + calibration + imaging).
 - `julien`: Parallel pipeline (TARGET + CAL branches).
+
+> **Note**: Zip files pushed to S3 mustn't contain the root folder. The files must be at the root level of the zip file.

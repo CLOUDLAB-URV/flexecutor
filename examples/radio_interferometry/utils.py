@@ -12,12 +12,13 @@ def unzip(ms: Path) -> Path:
         print(f"Expected a .zip file, got {ms}")
         raise ValueError(f"Expected a .zip file, got {ms}")
 
-    extract_path = ms.parent
+    # extract_path = ms.parent
+    extract_path = ms.parent / ms.stem
     print(f"Extracting to directory: {extract_path}")
 
     with zipfile.ZipFile(ms, "r") as zipf:
         zipf.extractall(extract_path)
-        extracted_dir = extract_path / ms.stem
+        extracted_dir = extract_path
 
     ms.unlink()
     print(f"Deleted zip file at {ms}")
