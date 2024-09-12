@@ -89,7 +89,7 @@ RUN git clone https://gitlab.com/aroffringa/aoflagger.git /AOFlagger \
     && cd / && rm -rf /AOFlagger
 
 # Install EveryBeam
-RUN git clone https://git.astron.nl/RD/EveryBeam.git /EveryBeam \
+RUN git clone https://git.astron.nl/RD/EveryBeam.git -b v0.5.8 /EveryBeam \
     && cd /EveryBeam \
     && mkdir build && cd build \
     && cmake .. \
@@ -98,7 +98,7 @@ RUN git clone https://git.astron.nl/RD/EveryBeam.git /EveryBeam \
     && cd / && rm -rf /EveryBeam
 
 # Install WSClean
-RUN git clone --recursive -j8  https://gitlab.com/aroffringa/wsclean.git /wsclean \
+RUN git clone --recursive -j8  https://gitlab.com/aroffringa/wsclean.git -b v3.4 /wsclean \
     && cd /wsclean \
     && mkdir build && cd build \
     && cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX=/usr \
@@ -108,18 +108,18 @@ RUN git clone --recursive -j8  https://gitlab.com/aroffringa/wsclean.git /wsclea
     && cd / && rm -rf /wsclean
 
 # Install DP3
-RUN git clone https://github.com/lofar-astron/DP3.git /DP3 \
+RUN git clone https://github.com/lofar-astron/DP3.git -b v6.0 /DP3 \
     && cd /DP3 \
     && mkdir build && cd build \
     && cmake .. \
-    && make -j8 \
+    && make -j4 \
     && make install \
     && cd / && rm -rf /DP3
 
 
 #Install dysco
 
-RUN git clone https://github.com/aroffringa/dysco.git /dysco \
+RUN git clone https://github.com/aroffringa/dysco.git  /dysco \
     && cd /dysco \
     && mkdir build && cd build \
     && cmake .. \
