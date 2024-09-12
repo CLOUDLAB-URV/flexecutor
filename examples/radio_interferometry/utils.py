@@ -12,7 +12,7 @@ def unzip(ms: Path) -> Path:
         print(f"Expected a .zip file, got {ms}")
         raise ValueError(f"Expected a .zip file, got {ms}")
 
-    extract_path = ms.parent / ms.stem
+    extract_path = ms.parent
     print(f"Extracting to directory: {extract_path}")
 
     with zipfile.ZipFile(ms, "r") as zipf:
