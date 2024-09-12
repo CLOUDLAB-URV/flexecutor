@@ -41,6 +41,8 @@ def imaging(ctx: StageContext):
         ms_path = unzip(Path(zip_path))
         imaging_params.append(ms_path)
 
+    define_home_if_unset()
+
     with open(ctx.next_output_path("image_out/logs"), "w") as log_file:
         proc = sp.Popen(
             ["wsclean"] + imaging_params, stdout=sp.PIPE, stderr=sp.PIPE, text=True
@@ -49,7 +51,9 @@ def imaging(ctx: StageContext):
         log_file.write(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
 
 
-def before_exec_dp3(parameters, msout_path: Path, dp3_type: str, ctx: StageContext) -> Path:
+def before_exec_dp3(
+    parameters, msout_path: Path, dp3_type: str, ctx: StageContext
+) -> Path:
     """
     This function prepares the parameters for the DP3 execution.
     Depending on the DP3 type, it will unzip the input files and set the parameters accordingly.
@@ -121,10 +125,26 @@ def exec_dp3(parameters):
     cmd = ["DP3", str(params_path)]
     print("Executing command: ", cmd)
     os.makedirs(os.path.dirname(parameters["log_output"]), exist_ok=True)
+
+    define_home_if_unset()
+
     with open(parameters["log_output"], "w") as log_file:
         proc = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, text=True)
         stdout, stderr = proc.communicate()
         log_file.write(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
+
+
+def define_home_if_unset():
+    if "HOME" not in os.environ:
+        os.environ["HOME"] = "/tmp"
+
+
+def print_cmd_output(stderr, stdout):
+    # print the output of the command
+    print("STDOUT:")
+    print(stdout)
+    print("STDERR:")
+    print(stderr)
 
 
 def after_exec_dp3(params, msout_path: Path, dp3_type: str, ctx: StageContext):

@@ -51,10 +51,8 @@ class FlexData:
         return self.chunker is not None and self.chunker.chunker_type is chunking_type
 
     def scan_keys(self):
-        self.keys = [
-            obj["Key"]
-            for obj in Storage().list_objects(self.bucket, prefix=self.prefix)
-        ]
+        objects = Storage().list_objects(self.bucket, prefix=self.prefix)
+        self.keys = [obj["Key"] for obj in objects if obj["Key"][-1] != "/"]
 
     def set_local_paths(self, override_local_paths: Optional[list[str]] = None):
         if (
