@@ -153,7 +153,7 @@ class DistPerfModel(PerfModel):
         self.max_stage_size = None
 
     def init_from_dag(self, dag):
-        """
+        """f
         In DistPerfModel, the initialization consists in load the parent models
         @param dag:
         """

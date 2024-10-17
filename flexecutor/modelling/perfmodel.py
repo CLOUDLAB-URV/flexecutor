@@ -2,26 +2,27 @@ from abc import abstractmethod, ABC
 from enum import Enum
 from typing import Dict
 
-from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
+from flexecutor.utils.dataclass import FunctionTimes, StageConfig
 from flexecutor.utils.utils import get_my_exec_path
-from workflow.stage import Stage
 
 
 class PerfModelEnum(Enum):
     ANALYTIC = "analytic"
     GENETIC = "genetic"
     DISTRIBUTION = "distribution"
+    MIXED = "mixed"
 
 
 class PerfModel(ABC):
-    def __init__(self, model_type, stage: Stage):
+    def __init__(self, model_type, stage):
         model_name = stage.stage_unique_id or "default"
         model_dst = get_my_exec_path() + "/models/" + model_name + ".pkl"
 
         self._stage_name = stage.stage_unique_id
         self._stage_id = stage.stage_id
 
-        self.allow_parallel = stage.max_concurrency > 1
+        # self.allow_parallel = stage.max_concurrency > 1
+        self.allow_parallel = True
         self.has_parent = stage.parents is not None and len(stage.parents) > 0
 
         self._model_name = model_name
@@ -71,7 +72,7 @@ class PerfModel(ABC):
         pass
 
     @classmethod
-    def instance(cls, model_type: PerfModelEnum, stage: Stage):
+    def instance(cls, model_type: PerfModelEnum, stage):
         if model_type == PerfModelEnum.ANALYTIC:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
 
@@ -84,5 +85,10 @@ class PerfModel(ABC):
             from flexecutor.modelling.distperfmodel import DistPerfModel
 
             return DistPerfModel(stage)
+
+        elif model_type.value == PerfModelEnum.MIXED.value:
+            from flexecutor.modelling.mixedperfmodel import MixedPerfModel
+
+            return MixedPerfModel(stage)
         else:
             raise ValueError("Invalid model type")

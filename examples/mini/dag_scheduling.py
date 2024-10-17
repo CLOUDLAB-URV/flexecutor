@@ -13,9 +13,10 @@ from functions.word_count import (
 )
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
-from flexecutor.workflow.executor import DAGExecutor, StageConfig
+from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from flexecutor.utils import setup_logging
+from scheduling.jolteon import Jolteon
 
 logger = setup_logging(level=logging.INFO)
 
@@ -26,37 +27,19 @@ NUM_ITERATIONS = 2
 
 if __name__ == "__main__":
 
-    @flexorchestrator()
+    @flexorchestrator(bucket="test-bucket")
     def main():
-        config_space = [
-            {
-                "map": StageConfig(cpu=1, memory=2048, workers=2),
-                "reduce": StageConfig(cpu=1, memory=2048, workers=2),
-            },
-            {
-                "map": StageConfig(cpu=1, memory=512, workers=4),
-                "reduce": StageConfig(cpu=1, memory=512, workers=4),
-            },
-            {
-                "map": StageConfig(cpu=1, memory=1024, workers=3),
-                "reduce": StageConfig(cpu=1, memory=2048, workers=3),
-            },
-            {
-                "map": StageConfig(cpu=1, memory=4096, workers=1),
-                "reduce": StageConfig(cpu=1, memory=4096, workers=1),
-            }
-        ]
-
         dag = DAG("mini-dag")
 
+        # FIXME: make stage_id be a string with letters
         stage1 = Stage(
-            "map",
+            "0",
             func=word_count,
             inputs=[flex_data_txt],
             outputs=[flex_data_word_count],
         )
         stage2 = Stage(
-            "reduce",
+            "1",
             func=sum_counts,
             inputs=[flex_data_word_count],
             outputs=[flex_data_reduce_count],
@@ -67,8 +50,12 @@ if __name__ == "__main__":
 
         dag.add_stages([stage1, stage2])
 
-        executor = DAGExecutor(dag, executor=FunctionExecutor(log_level="DEBUG"))
-        executor.profile(config_space, num_reps=NUM_ITERATIONS)
+        executor = DAGExecutor(dag, executor=FunctionExecutor())
+        scheduler = Jolteon(dag, total_parallelism=10, cpu_per_worker=1)
+
+        executor.train()
+        scheduler.schedule()
+
         executor.shutdown()
         print("Tasks completed")
 
