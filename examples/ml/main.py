@@ -6,6 +6,7 @@ from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
+from scheduling.jolteon import Jolteon
 
 if __name__ == "__main__":
 
@@ -24,7 +25,7 @@ if __name__ == "__main__":
         data_accuracies = FlexData("accuracies", suffix=".txt")
 
         stage0 = Stage(
-            stage_id="stage0",
+            stage_id="0",
             func=pca,
             inputs=[data_training],
             outputs=[data_vectors_pca, data_training_transform],
@@ -33,24 +34,25 @@ if __name__ == "__main__":
         )
 
         stage1 = Stage(
-            stage_id="stage1",
+            stage_id="1",
             func=train_with_multiprocessing,
             inputs=[data_training_transform],
             outputs=[data_models],
         )
 
         stage2 = Stage(
-            stage_id="stage2",
+            stage_id="2",
             func=aggregate,
             inputs=[data_training_transform, data_models],
             outputs=[data_forests, data_predictions],
         )
 
         stage3 = Stage(
-            stage_id="stage3",
+            stage_id="3",
             func=test,
             inputs=[data_predictions, data_training_transform],
             outputs=[data_accuracies],
+            max_concurrency=1
         )
 
         stage0 >> [stage1, stage2, stage3]
@@ -60,7 +62,14 @@ if __name__ == "__main__":
         dag.add_stages([stage0, stage1, stage2, stage3])
 
         executor = DAGExecutor(dag, executor=FunctionExecutor(log_level="INFO"))
-        results = executor.execute(num_workers=6)
-        print(results["stage1"].get_timings())
+        # results = executor.execute(num_workers=6)
+        # print(results["stage1"].get_timings())
+
+        scheduler = Jolteon(dag, total_parallelism=10, cpu_per_worker=1)
+
+        executor.train()
+        scheduler.schedule()
+
+        executor.shutdown()
 
     main()

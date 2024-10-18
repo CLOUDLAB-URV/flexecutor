@@ -16,10 +16,12 @@ class Jolteon(Scheduler):
         super().__init__(dag, PerfModelEnum.MIXED)
         self.total_parallelism = total_parallelism
         self.cpu_per_worker = cpu_per_worker
+        self.cpu_search_space = [0.6, 1, 1.5, 2, 2.5, 3, 4]
+        self.workers_search_space = [1, 4, 8, 16, 32]
 
     def schedule(self):
         # FIXME: allow parametrization
-        num_samples = 3000
+        num_samples = 2715
         bound_type = "latency"
         # noInspection PyUnresolvedReferences
         samples = np.concatenate(
@@ -48,36 +50,40 @@ class Jolteon(Scheduler):
             self._dag,
             objective_func,
             constraint_func,
-            0.1,
+            40,
             parameters.tolist(),
             samples.tolist(),
+            self.cpu_search_space,
+            self.workers_search_space,
         )
 
         # FIXME: these numbers are magic numbers in Jolteon (different per use case)
         # Review if we can destroy this shit
-        x_init = [16, 2, 8, 2, 8, 2, 8, 2]
+        x_init = [1, 3, 16, 3, 8, 3, 1, 3]
         x_bound = [
+            (1, 2),
+            (0.5, 4.1),
             (4, 32),
-            (1, 5.1),
+            (0.5, 4.1),
             (4, 32),
-            (1, 5.1),
-            (4, 32),
-            (1, 5.1),
-            (4, 32),
-            (1, 5.1),
+            (0.5, 4.1),
+            (1, 2),
+            (0.5, 4.1),
         ]
 
         res = solver.iter_solve(x_init, x_bound)
 
-        # num_cpu = res["x"][0::2]
-        # num_func = res["x"][1::2]
-        num_cpu = [1, 1]
-        num_func = [1, 1]
+        num_workers = res["x"][0::2]
+        num_cpu = res["x"][1::2]
 
-        num_cpu, num_func = solver.probe(num_cpu, num_func)
+        solver.bound = 40
+
+        num_workers, num_cpu = self._round_config(num_workers, num_cpu)
+
+        num_workers, num_cpu = solver.probe(num_workers, num_cpu)
 
         print(f"Num CPU: {num_cpu}")
-        print(f"Num Func: {num_func}")
+        print(f"Num Func: {num_workers}")
         print("Jolteon PCPSolver finished as expected!")
 
     def _generate_func_code(
@@ -228,6 +234,27 @@ class Jolteon(Scheduler):
         with open(code_path, "w") as f:
             f.write(s)
 
+    def _round_config(self, num_workers, num_cpu):
+        rounded_num_workers = []
+        rounded_num_cpu = []
+        # FIXME: check order in iteration
+        for i, stage in enumerate(self._dag.stages):
+            w = (
+                next(
+                    (p for p in self.workers_search_space if num_workers[i] <= p),
+                    self.workers_search_space[-1],
+                )
+                if stage.perf_model.allow_parallel
+                else 1
+            )
+            c = next(
+                (v for v in self.cpu_search_space if num_cpu[i] < v),
+                self.cpu_search_space[-1],
+            )
+            rounded_num_workers.append(w)
+            rounded_num_cpu.append(c)
+        return rounded_num_workers, rounded_num_cpu
+
 
 class PCPSolver:
     def __init__(
@@ -238,6 +265,8 @@ class PCPSolver:
         bound: float,
         objective_params: list,
         constraint_params: list,
+        cpu_search_space: list,
+        workers_search_space: list,
     ):
 
         self.num_X = 2 * len(dag.stages)
@@ -247,22 +276,23 @@ class PCPSolver:
         self.obj_params = objective_params
         self.cons_params = constraint_params
 
+        # used for probing
+        self.cpu_search_space = cpu_search_space
+        self.workers_search_space = workers_search_space
+
         # FIXME: please rethink if we need to extract the values of next variables to user-defined parameters site
 
         # User-defined risk level (epsilon) for constraint satisfaction (e.g., 0.01 or 0.05)
-        self.risk = 0.5
+        self.risk = 0.05
         # Approximated risk level (alpha), a parameter for the sample approximation problem
         self.approx_risk = 0
         # Confidence error (delta) for the lower bound property of the ground-truth optimal
         # objective value or the feasibility of the solution or both,
         # depending on the relationship between epsilon and alpha, default to 0.01
-        self.confidence_error = 0.01
+        self.confidence_error = 0.001
 
         # Used for solving
-        self.ftol = 1.0
-        # Used for probing
-        self.k_configs = [0.5, 1, 1.5, 2, 2.5, 3, 4]
-        self.d_configs = [1, 4, 8, 16, 32]
+        self.ftol = self.risk * self.bound
 
         self.bound_type = "latency"
         self.need_probe = None
@@ -345,8 +375,8 @@ class PCPSolver:
         # assume init is within the feasible region
         d_pos = []
         k_pos = []
-        d_config = np.array(self.d_configs)
-        k_config = np.array(self.k_configs)
+        d_config = np.array(self.workers_search_space)
+        k_config = np.array(self.cpu_search_space)
         for d in d_init:
             mask = d_config == d
             if np.any(mask):

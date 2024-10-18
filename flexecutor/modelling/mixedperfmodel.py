@@ -9,6 +9,10 @@ from modelling.perfmodel import PerfModel
 from utils.dataclass import StageConfig, FunctionTimes
 
 
+def eq_vcpu_alloc(mem, num_func):
+    return round((mem / 1792) * num_func, 1)
+
+
 def io_func(x, a, b):
     return a / x + b
 
@@ -17,7 +21,7 @@ def io_func2(x, a, b, c):  # io_func2 is for parent relavent read
     return a / x[0] + b * x[1] + c
 
 
-def comp_func(x, a, b, c, d) -> float:
+def comp_func(x, a, b, c, d):
     return a / x + b * np.log(x) / x + c / x**2 + d
 
 
@@ -28,6 +32,8 @@ def curve_fit(func, x, y, dims):
 class MixedPerfModel(PerfModel):
     def __init__(self, stage):
         super().__init__("mixed", stage)
+
+        np.set_printoptions(precision=8)
 
         self.can_intra_parallel = {
             "read": True,
@@ -68,30 +74,33 @@ class MixedPerfModel(PerfModel):
         y_c = np.empty(0)  # compute times
         y_w = np.empty(0)  # write times
         d = np.empty(0)  # number of workers
-        kd = np.empty(0)  # number of total cpu units
+        kd = []  # number of total cpu units
         k = np.empty(0)  # number of individual cpu units (per worker)
-        k_d = np.empty(0)  # read time may be related to the parent number of functions
+        k_d = []  # number of individual cpu units (per worker) and number of workers
         for config_tuple, data in stage_profile_data.items():
-            num_vcpu, memory, num_func = config_tuple
-            number_items = len(
-                [item for sublist in data["cold_start"] for item in sublist]
-            )
-            y_r = np.append(y_r, [item for sublist in data["read"] for item in sublist])
-            y_c = np.append(
-                y_c, [item for sublist in data["compute"] for item in sublist]
-            )
-            y_w = np.append(
-                y_w, [item for sublist in data["write"] for item in sublist]
-            )
+            _, memory, num_func = config_tuple
+
+            # Jolteon's conversion from memory to vCPU (lambda fix rate)
+            # FIXME: self system that does not use this conversion
+            num_vcpu = eq_vcpu_alloc(memory, num_func if self.allow_parallel else 1)
+
+            # Only taken the first item in each round & discarding the first exec (erase cold start effects)
+            # FIXME: check if more data improve results
+            number_items = len(data["cold_start"]) - 1
+            y_r = np.append(y_r, [item[0] for item in data["read"][1:]])
+            y_c = np.append(y_c, [item[0] for item in data["compute"][1:]])
+            y_w = np.append(y_w, [item[0] for item in data["write"][1:]])
             d = np.append(d, [num_func] * number_items)
             k = np.append(k, [num_vcpu] * number_items)
-            kd = np.append(kd, [num_vcpu * num_func] * number_items)
-            k_d = np.append(k_d, [num_vcpu, num_func] * number_items)
-            y_s = np.append(
-                y_s, [item for sublist in data["cold_start"] for item in sublist]
-            )
+            kd.append([[eq_vcpu_alloc(memory, num_func)] * number_items])
+            k_d.append([[num_vcpu, num_func] * number_items])
+            y_s = np.append(y_s, [item[0] for item in data["cold_start"][1:]])
 
-            # STEP 2: Fit the data to the model & compute the coefficients
+        kd = np.array(kd).reshape(-1)
+        k_d = np.array(k_d).reshape(-1, 2)
+        self.cold_params_avg = y_s
+
+        # STEP 2: Fit the data to the model & compute the coefficients
         if self.allow_parallel:
             phases_params = {
                 "read": {
@@ -143,9 +152,7 @@ class MixedPerfModel(PerfModel):
                 else:
                     self.x_coeff += items["params"][0]
 
-
             # FIXME: make this more elegant
-            self.cold_params_avg = y_s
             self.read_params_avg = phases_params["read"]["params"]
             self.compute_params_avg = phases_params["compute"]["params"]
             self.write_params_avg = phases_params["write"]["params"]
@@ -357,7 +364,8 @@ class MixedPerfModel(PerfModel):
     def generate_func_code(
         self, mode, var, param, parent_id=-1, solver_type="scipy"
     ) -> str:
-        assert isinstance(parent_id, int)
+        # assert isinstance(parent_id, int)
+        parent_id = int(parent_id)
         assert mode in ["latency", "cost"]
         assert isinstance(var, str) and isinstance(param, str)
         assert solver_type == "scipy"

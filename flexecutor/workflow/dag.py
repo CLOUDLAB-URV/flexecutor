@@ -11,7 +11,7 @@ class DAG:
 
     def __init__(self, dag_id):
         self._dag_id = dag_id
-        self._stages = set()
+        self._stages = list()
 
     def __iter__(self):
         return iter(self.stages)
@@ -27,7 +27,7 @@ class DAG:
         return self._dag_id
 
     @property
-    def stages(self) -> set[Stage]:
+    def stages(self) -> list[Stage]:
         """Return all stages in the DAG"""
         return self._stages
 
@@ -63,7 +63,7 @@ class DAG:
                 f"Stage with id {stage.stage_id} already exists in DAG {self._dag_id}"
             )
 
-        self._stages.add(stage)
+        self._stages.append(stage)
 
     def add_stages(self, stages: list[Stage]):
         """
