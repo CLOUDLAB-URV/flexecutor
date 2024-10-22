@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict
 
@@ -9,19 +10,83 @@ from modelling.perfmodel import PerfModel
 from utils.dataclass import StageConfig, FunctionTimes
 
 
+@dataclass
+class MixedModelCoefficients:
+    """
+    The coefficients of the mixed performance model
+
+    The dimension of the parameters is reduced from 8 to 5 (mixing common degree
+    coeffs between phases), excluding cold start
+    By merging the parameters of read, compute, and write as follows:
+    - allow_parallel: a/d + b/(kd) + c*log(x)/x + e/x**2 + f, x can be d or kd
+    - not allow_parallel: a/k + b*d + c*log(k)/k + e/k**2 + f
+    """
+    cold: float       # _ --> cold start time
+    x: float          # a --> coefficient of 1/d or 1/k
+    kd_d: float       # b --> coefficient of 1/(kd) or d
+    logx: float       # c --> coefficient of log(x)/x, x can be d or kd
+    x2: float         # e --> coefficient of 1/x**2, x can be d or kd
+    const: float      # f --> constant coefficient
+
+
 def eq_vcpu_alloc(mem, num_func):
+    """
+    The eq_vcpu_alloc is used to convert the memory to vCPU (Lambda fix rate)
+    Function inherited from Jolteon
+    """
     return round((mem / 1792) * num_func, 1)
 
 
 def io_func(x, a, b):
+    """
+    The io_func is used to model the read and write phases of the stage
+    Note that the form is a*(1/x) + b
+    @param x: array with the computational resource. Can be:
+        - k: number of individual cpu units (per worker) --> Only for not allow_parallel
+        - kd: number of total cpu units
+        - d: number of workers
+    @param a: variable coefficient for 1/x
+    @param b: the constant coefficient
+    @return: the time taken for the phase
+    """
     return a / x + b
 
 
-def io_func2(x, a, b, c):  # io_func2 is for parent relavent read
-    return a / x[0] + b * x[1] + c
+def io_func_pr(_input, a, b, c):
+    """
+    io_func2 is used to model the read parent_relevant phase
+    Note that the form is a*(1/x) + b*y + c
+    @param _input: two-dim array with (specific case):
+        _input[0] (x): number of individual cpu units (per worker)
+        _input[1] (y): number of workers
+    @param a: variable coefficient for 1/x
+    @param b: variable coefficient for y
+    @param c: the constant coefficient
+    @return: the time taken for the phase
+    """
+    x = _input[0]
+    y = _input[1]
+    return a / x + b * y + c
 
 
 def comp_func(x, a, b, c, d):
+    """
+    The comp_func is used to model the compute phase of the stage
+    Two different complexities are considered:
+        - logarithmic complexity
+        - quadratic complexity
+    So, the curve is more adaptable to the real data, being aware of the different complexities
+    Note that the form is a*(1/x) + b*log(x)/x + c/x**2 + d
+    @param x: array with the computational resource. Can be:
+        - k: number of individual cpu units (per worker) --> Only for not allow_parallel
+        - kd: number of total cpu units
+        - d: number of workers
+    @param a: variable coefficient for 1/x
+    @param b: variable coefficient for log(x)/x
+    @param c: variable coefficient for 1/x**2
+    @param d: the constant coefficient
+    @return: the time taken for the phase
+    """
     return a / x + b * np.log(x) / x + c / x**2 + d
 
 
@@ -30,10 +95,34 @@ def curve_fit(func, x, y, dims):
 
 
 class MixedPerfModel(PerfModel):
+    """
+    Mixed performance model that combines the white-box and black-box modelling
+    Here, definitions of the notations used in the model:
+    - y_s: array with cold start times
+    - y_r: array with read times
+    - y_c: array with compute times
+    - y_w: array with write times
+    - d: array with number of workers
+    - kd: array with number of total cpu units
+    - k: array with number of individual cpu units (per worker)
+    - k_d: two-dim array with:
+        k_d[0]: number of individual cpu units (per worker)
+        k_d[1]: number of workers
+    - can_intra_parallel:
+        if True, we can parallelize the phase (read|compute|write) of the stage
+        else otherwise
+    - allow_parallel:
+        if True, the stage can be parallelized
+        else the stage cannot be parallelized (only 1 worker is allowed) for this stage
+    - parent_relevant: this attribute deserves a better explanation:
+        when profiling, not allow_parallel stages also are profiled with multiple workers
+        but the result of the optimization will only output 1 worker
+        so, parent_relevant is used to check if the read time of the stages depend on:
+            only the number of cpu of the worker (parent_relevant = False)
+            or the number of cpu of the worker and the number of workers (parent_relevant = True)
+    """
     def __init__(self, stage):
         super().__init__("mixed", stage)
-
-        np.set_printoptions(precision=8)
 
         self.can_intra_parallel = {
             "read": True,
@@ -54,10 +143,7 @@ class MixedPerfModel(PerfModel):
 
         self.coeffs = []
 
-        # Reduce the dimension of the parameters from 8 to 5, excluding cold start
-        # By merging the parameters of read, compute, and write as follows:
-        # allow_parallel: a/d + b/(kd) + c*log(x)/x + e/x**2 + f, x can be d or kd
-        # not allow_parallel: a/k + b*d + c*log(k)/k + e/k**2 + f,
+
         self.x_coeff = 0  # the coefficient of 1/d or 1/k in the stage, x can be d or kd
         self.kd_d_coeff = 0  # the coefficient of 1/(kd) or d in the stage
         self.logx_coeff = (
@@ -183,8 +269,8 @@ class MixedPerfModel(PerfModel):
             popt1, pcov1 = curve_fit(io_func, k, y_r, 2)
             y_ = io_func(k, popt1[0], popt1[1])
             err1 = (y_ - y_r) / y_r
-            popt2, pcov2 = curve_fit(io_func2, k_d.T, y_r, 3)
-            y_ = io_func2(k_d.T, popt2[0], popt2[1], popt2[2])
+            popt2, pcov2 = curve_fit(io_func_pr, k_d.T, y_r, 3)
+            y_ = io_func_pr(k_d.T, popt2[0], popt2[1], popt2[2])
             err2 = (y_ - y_r) / y_r
             s_err1 = np.mean(np.abs(err1))
             s_err2 = np.mean(np.abs(err2))
