@@ -106,17 +106,6 @@ class Jolteon(Scheduler):
         code_path = os.path.join(code_dir, file_name)
         obj_mode = "cost" if cons_mode == "latency" else "latency"
 
-        parent_ids = {}
-        for stage in self._dag.stages:
-            parent_ids[stage.stage_id] = -1
-
-        for stage in self._dag.stages:
-            if not stage.perf_model.allow_parallel:
-                for parent in stage.parents:
-                    if parent.perf_model.allow_parallel:
-                        parent_ids[stage.stage_id] = parent.stage_id
-                        break
-
         s = "import numpy as np\n\n"
 
         # Generate objective function
