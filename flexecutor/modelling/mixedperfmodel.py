@@ -492,19 +492,18 @@ class MixedPerfModel(PerfModel, GetAndSet):
         # 0: var d, 1: var k
 
         s = ""
-        offset = 0
         stage_id = int(self._stage_id)
-        cold_param = param + "[%d]" % (stage_id * 6 + offset)
-        x_param = param + "[%d]" % (stage_id * 6 + 1 + offset)
-        kd_d_param = param + "[%d]" % (stage_id * 6 + 2 + offset)
-        logx_param = param + "[%d]" % (stage_id * 6 + 3 + offset)
-        x2_param = param + "[%d]" % (stage_id * 6 + 4 + offset)
-        const_param = param + "[%d]" % (stage_id * 6 + 5 + offset)
+        cold_param = param + "[%d]" % (stage_id * 6)
+        x_param = param + "[%d]" % (stage_id * 6 + 1)
+        kd_d_param = param + "[%d]" % (stage_id * 6 + 2)
+        logx_param = param + "[%d]" % (stage_id * 6 + 3)
+        x2_param = param + "[%d]" % (stage_id * 6 + 4)
+        const_param = param + "[%d]" % (stage_id * 6 + 5)
 
-        var_d = var + "[%d]" % (stage_id * 2 + offset)
+        var_d = var + "[%d]" % (stage_id * 2)
         if not self.allow_parallel:
             var_d = "1"
-        var_k = var + "[%d]" % (stage_id * 2 + 1 + offset)
+        var_k = var + "[%d]" % (stage_id * 2 + 1)
         var_x = ""
         if self.can_intra_parallel.compute:
             var_x = var_k + "*" + var_d
