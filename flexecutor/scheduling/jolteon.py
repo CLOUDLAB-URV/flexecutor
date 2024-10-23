@@ -126,20 +126,10 @@ class Jolteon(Scheduler):
 
         if obj_mode == "latency":
             for stage in critical_path:
-                s += (
-                    stage.perf_model.generate_func_code(
-                        obj_mode, var, param, parent_ids[stage.stage_id]
-                    )
-                    + " + "
-                )
+                s += stage.perf_model.generate_func_code(obj_mode) + " + "
         else:
             for stage in self._dag.stages:
-                s += (
-                    stage.perf_model.generate_func_code(
-                        obj_mode, var, param, parent_ids[stage.stage_id]
-                    )
-                    + " + "
-                )
+                s += stage.perf_model.generate_func_code(obj_mode) + " + "
         s = s[:-3]
         s += "\n\n"
 
@@ -152,36 +142,18 @@ class Jolteon(Scheduler):
 
         if cons_mode == "latency":
             for stage in critical_path:
-                s += (
-                    stage.perf_model.generate_func_code(
-                        cons_mode, var, param, parent_ids[stage.stage_id]
-                    )
-                    + " + "
-                )
+                s += stage.perf_model.generate_func_code(cons_mode) + " + "
             s = s[:-3]
             s += bound + "\n\n"
             if secondary_path is not None:
                 s += func2_def
                 for stage in secondary_path:
-                    s += (
-                        stage.perf_model.generate_func_code(
-                            cons_mode,
-                            var,
-                            param,
-                            parent_ids[stage.stage_id]
-                        )
-                        + " + "
-                    )
+                    s += stage.perf_model.generate_func_code(cons_mode) + " + "
                 s = s[:-3]
                 s += bound + "\n\n"
         else:
             for stage in self._dag.stages:
-                s += (
-                    stage.perf_model.generate_func_code(
-                        cons_mode, var, param, parent_ids[stage.stage_id]
-                    )
-                    + " + "
-                )
+                s += stage.perf_model.generate_func_code(cons_mode) + " + "
             s = s[:-3]
             s += bound + "\n\n"
             # The time of the secondary path should be less than or equal to the time of the critical path
@@ -195,10 +167,7 @@ class Jolteon(Scheduler):
                 for stage in c_s:
                     s += (
                         stage.perf_model.generate_func_code(
-                            "latency",
-                            var,
-                            param,
-                            parent_ids[stage.stage_id]
+                            "latency"
                         )
                         + " + "
                     )
@@ -206,10 +175,7 @@ class Jolteon(Scheduler):
                 for stage in s_c:
                     s += (
                         stage.perf_model.generate_func_code(
-                            "latency",
-                            var,
-                            param,
-                            parent_ids[stage.stage_id]
+                            "latency"
                         )
                         + " + "
                     )

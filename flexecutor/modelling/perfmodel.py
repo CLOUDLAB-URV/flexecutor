@@ -25,6 +25,7 @@ class PerfModel(ABC):
         # self.allow_parallel = True
 
         self.has_parent = stage.parents is not None and len(stage.parents) > 0
+        self.parent_id = int(next(iter(stage.parents)).stage_id) if self.has_parent else None
 
         self._model_name = model_name
         self._model_dst = model_dst

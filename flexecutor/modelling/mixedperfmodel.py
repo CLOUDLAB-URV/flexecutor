@@ -479,13 +479,11 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
         return coeffs_list
 
-    def generate_func_code(
-        self, mode, var, param, parent_id=-1
-    ) -> str:
-        # assert isinstance(parent_id, int)
-        parent_id = int(parent_id)
+    def generate_func_code(self, mode) -> str:
+        var = "x"
+        param = "p"
+
         assert mode in ["latency", "cost"]
-        assert isinstance(var, str) and isinstance(param, str)
 
         # 6 param indices and 2 var indices for each stage
         # 0: cold, 1: x, 2: kd/d, 3: log(x)/x, 4: 1/x**2, 5: const
@@ -521,8 +519,8 @@ class MixedPerfModel(PerfModel, GetAndSet):
             s += const_param
         else:
             s += x_param + "/" + var_k + " + "
-            if self.parent_relevant and parent_id >= 0:
-                var_pd = var + "[%d]" % (parent_id * 2)  # parent d
+            if self.parent_relevant and self.parent_id:
+                var_pd = var + "[%d]" % (self.parent_id * 2)  # parent d
                 s += kd_d_param + "*" + var_pd + " + "
             s += logx_param + "*" + log_method + "(" + var_k + ")" + "/" + var_k + " + "
             s += x2_param + "/" + var_k + "**2" + " + "
