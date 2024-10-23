@@ -42,7 +42,7 @@ class GetAndSet:
 
 
 @dataclass
-class ParamsAvg(GetAndSet):
+class ModelParams(GetAndSet):
     """
     The average parameters of the performance model
     - cold: array with the coefficients of the cold start phase
@@ -63,7 +63,7 @@ class ParamsAvg(GetAndSet):
         self.cold = np.array([])
 
 
-class CovarianceAvg(ParamsAvg):
+class ModelCovariance(ModelParams):
     """
     The covariance of the average parameters of the performance model
     - cold: covariance of the cold start phase
@@ -218,8 +218,8 @@ class MixedPerfModel(PerfModel, GetAndSet):
         self.can_intra_parallel = CanIntraParallel()
         self.parent_relevant = False
 
-        self.params_avg = ParamsAvg()
-        self.cov_avg = CovarianceAvg()
+        self.params_avg = ModelParams()
+        self.cov_avg = ModelCovariance()
 
         self.y_s = np.array([])
         self.y_r = np.array([])
@@ -232,6 +232,32 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
         self.coeffs = MixedModelCoefficients()
 
+    def _set_coeff_by_params(self, coeff, params, make_error=False):
+        # IMPORTANT: Jolteon contains 1 huge error in its pkysus/Jolteon src repo
+        # In not parallel: compute and write const times aren't considered in sampling
+        # make_error is a trick to adapt to that
+        # Please, remove it when the time arrives
+        coeff.cold = params.cold
+        coeff.logx += params.compute[1]
+        coeff.x2 += params.compute[2]
+        if self.allow_parallel:
+            for phase in ["read", "compute", "write"]:
+                if self.can_intra_parallel.get(phase):
+                    coeff.kd_d += params.get(phase)[0]
+                else:
+                    coeff.x += params.get(phase)[0]
+            coeff.const += params.read[1] + params.compute[3] + params.write[1]
+        else:
+            for phase in ["read", "compute", "write"]:
+                coeff.x += params.get(phase)[0]
+            if self.parent_relevant:
+                coeff.kd_d += params.read[1]
+                coeff.const += params.read[2]
+            else:
+                coeff.const += params.read[1]
+            if not make_error:
+                coeff.const += params.compute[3] + params.write[1]
+
     @overrides
     def train(self, stage_profile_data: Dict) -> None:
         # STEP 1: Populate the data
@@ -240,8 +266,8 @@ class MixedPerfModel(PerfModel, GetAndSet):
         # STEP 2: Calculate the average parameters and covariance
         self._calc_params_and_covariances()
 
-        # STEP 3: Compute the coefficients
-        self._calc_coefficients()
+        # STEP 3: Compute the average coefficients
+        self._set_coeff_by_params(self.coeffs, self.params_avg)
 
         # STEP 4: Print the accuracy of the model
         self._evaluate_model()
@@ -285,31 +311,6 @@ class MixedPerfModel(PerfModel, GetAndSet):
             "%",
         )
         print()
-
-    def _calc_coefficients(self):
-        self.coeffs.cold = self.params_avg.cold
-        self.coeffs.logx += self.params_avg.compute[1]
-        self.coeffs.x2 += self.params_avg.compute[2]
-        if self.allow_parallel:
-            for phase in ["read", "compute", "write"]:
-                if self.can_intra_parallel.get(phase):
-                    self.coeffs.kd_d += self.params_avg.get(phase)[0]
-                else:
-                    self.coeffs.x += self.params_avg.get(phase)[0]
-            self.coeffs.const += (
-                self.params_avg.read[1]
-                + self.params_avg.compute[3]
-                + self.params_avg.write[1]
-            )
-        else:
-            for phase in ["read", "compute", "write"]:
-                self.coeffs.x += self.params_avg.get(phase)[0]
-            if self.parent_relevant:
-                self.coeffs.kd_d += self.params_avg.read[1]
-                self.coeffs.const += self.params_avg.read[2]
-            else:
-                self.coeffs.const += self.params_avg.read[1]
-            self.coeffs.const += self.params_avg.compute[3] + self.params_avg.write[1]
 
     def _calc_params_and_covariances(self):
         rw_parallel_choices = [
@@ -449,11 +450,11 @@ class MixedPerfModel(PerfModel, GetAndSet):
             ]
         )
 
-    def sample_offline(self, num_samples=10000):
+    def sample_offline(self, num_samples=10000) -> list[MixedModelCoefficients]:
         # seed_val = int(time.time())
         seed_val = 0
-
         rng = np.random.default_rng(seed=seed_val)
+
         cold_samples = rng.choice(self.params_avg.cold, num_samples)
         read_samples = rng.multivariate_normal(
             self.params_avg.read, self.cov_avg.read, num_samples
@@ -465,56 +466,33 @@ class MixedPerfModel(PerfModel, GetAndSet):
             self.params_avg.write, self.cov_avg.write, num_samples
         )
 
-        # Organize into coefficient form
-        coeffs = np.zeros((num_samples, 6))
-        coeffs[:, 0] = cold_samples
-        if self.allow_parallel:
-            if self.can_intra_parallel.read:
-                coeffs[:, 2] += read_samples.T[0]  # 1/(kd)
-            else:
-                coeffs[:, 1] += read_samples.T[0]  # 1/d
-            if self.can_intra_parallel.compute:
-                coeffs[:, 2] += compute_samples.T[0]
-            else:
-                coeffs[:, 1] += compute_samples.T[0]
-            if self.can_intra_parallel.write:
-                coeffs[:, 2] += write_samples.T[0]
-            else:
-                coeffs[:, 1] += write_samples.T[0]
-            coeffs[:, 3] += compute_samples.T[1]  # log(x)/x
-            coeffs[:, 4] += compute_samples.T[2]  # 1/x**2
-            coeffs[:, 5] += (
-                read_samples.T[1] + compute_samples.T[3] + write_samples.T[1]
-            )
-        else:
-            coeffs[:, 1] += (
-                read_samples.T[0] + compute_samples.T[0] + write_samples.T[0]
-            )
-            if self.parent_relevant:
-                coeffs[:, 2] += read_samples.T[1]
-                coeffs[:, 5] += read_samples.T[2]
-            else:
-                coeffs[:, 5] += read_samples.T[1]
-            coeffs[:, 3] += compute_samples.T[1]
-            coeffs[:, 4] += compute_samples.T[2]
+        params_list = [ModelParams() for _ in range(num_samples)]
+        coeffs_list = [MixedModelCoefficients() for _ in range(num_samples)]
 
-        return coeffs
+        for i in range(num_samples):
+            params_list[i].read = read_samples[i]
+            params_list[i].compute = compute_samples[i]
+            params_list[i].write = write_samples[i]
+            params_list[i].cold = cold_samples[i]
+
+            self._set_coeff_by_params(coeffs_list[i], params_list[i], make_error=True)
+
+        return coeffs_list
 
     def generate_func_code(
-        self, mode, var, param, parent_id=-1, solver_type="scipy"
+        self, mode, var, param, parent_id=-1
     ) -> str:
         # assert isinstance(parent_id, int)
         parent_id = int(parent_id)
         assert mode in ["latency", "cost"]
         assert isinstance(var, str) and isinstance(param, str)
-        assert solver_type == "scipy"
 
         # 6 param indices and 2 var indices for each stage
         # 0: cold, 1: x, 2: kd/d, 3: log(x)/x, 4: 1/x**2, 5: const
         # 0: var d, 1: var k
 
         s = ""
-        offset = 0 if solver_type == "scipy" else 1
+        offset = 0
         stage_id = int(self._stage_id)
         cold_param = param + "[%d]" % (stage_id * 6 + offset)
         x_param = param + "[%d]" % (stage_id * 6 + 1 + offset)

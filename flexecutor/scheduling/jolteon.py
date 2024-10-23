@@ -4,6 +4,7 @@ from typing import Callable
 import numpy as np
 from scipy.optimize import NonlinearConstraint
 
+from modelling.mixedperfmodel import MixedModelCoefficients
 from modelling.perfmodel import PerfModelEnum
 from scheduling.orion import MyQueue
 from scheduling.scheduler import Scheduler
@@ -24,20 +25,24 @@ class Jolteon(Scheduler):
         num_samples = 2715
         bound_type = "latency"
         # noInspection PyUnresolvedReferences
-        samples = np.concatenate(
-            [
-                stage.perf_model.sample_offline(num_samples)
-                for stage in self._dag.stages
-            ],
-            axis=1,
-        )
+        samples = [
+            stage.perf_model.sample_offline(num_samples) for stage in self._dag.stages
+        ]
+        new_samples = np.empty([2715, 0])
+        for i in samples:
+            stage_samples = np.empty([0, 6])
+            for j in i:
+                sample = [j.cold, j.x, j.kd_d, j.logx, j.x2, j.const]
+                # add sample row to stage_samples
+                stage_samples = np.vstack([stage_samples, sample])
+            new_samples = np.hstack([new_samples, stage_samples])
+
         self._generate_func_code(
             "jolteon_func.py",
             # FIXME: allow parametrization
             list(self._dag.stages),
             None,
             bound_type,
-            "scipy",
         )
 
         from flexecutor.scheduling.jolteon_func import objective_func, constraint_func
@@ -52,7 +57,7 @@ class Jolteon(Scheduler):
             constraint_func,
             40,
             parameters.tolist(),
-            samples.tolist(),
+            new_samples.tolist(),
             self.cpu_search_space,
             self.workers_search_space,
         )
@@ -92,13 +97,11 @@ class Jolteon(Scheduler):
         critical_path,
         secondary_path=None,
         cons_mode="latency",
-        solver_type="scipy",
     ):
         assert isinstance(file_name, str) and file_name.endswith(".py")
         assert isinstance(critical_path, list)
         assert secondary_path is None or isinstance(secondary_path, list)
         assert cons_mode in ["latency", "cost"]
-        assert solver_type == "scipy"
         code_dir = os.path.dirname(os.path.abspath(__file__))
         code_path = os.path.join(code_dir, file_name)
         obj_mode = "cost" if cons_mode == "latency" else "latency"
@@ -115,25 +118,17 @@ class Jolteon(Scheduler):
                         break
 
         s = "import numpy as np\n\n"
-        if solver_type == "pyomo":
-            s += "import pyomo.environ as pyo\n"
-            s += "from pyomo.environ import *\n\n"
 
         # Generate objective function
         var = "x"
         param = "p"
-        if solver_type == "scipy":
-            s += "def objective_func(x, p):\n" + "    return "
-        else:
-            s += "def objective_func(model):\n" + "    return "
-            var = "model.x"
-            param = "model.p"
+        s += "def objective_func(x, p):\n" + "    return "
 
         if obj_mode == "latency":
             for stage in critical_path:
                 s += (
                     stage.perf_model.generate_func_code(
-                        obj_mode, var, param, parent_ids[stage.stage_id], solver_type
+                        obj_mode, var, param, parent_ids[stage.stage_id]
                     )
                     + " + "
                 )
@@ -141,7 +136,7 @@ class Jolteon(Scheduler):
             for stage in self._dag.stages:
                 s += (
                     stage.perf_model.generate_func_code(
-                        obj_mode, var, param, parent_ids[stage.stage_id], solver_type
+                        obj_mode, var, param, parent_ids[stage.stage_id]
                     )
                     + " + "
                 )
@@ -151,20 +146,15 @@ class Jolteon(Scheduler):
         # Generate constraints
         bound = " - b"
         func2_def = "def constraint_func_2(x, p, b):\n" + "    return "
-        if solver_type == "scipy":
-            s += "def constraint_func(x, p, b):\n" + "    return "
-            if cons_mode == "cost":
-                func2_def = "def constraint_func_2(x, p):\n" + "    return "
-        else:
-            s += "def constraint_func(model):\n" + "    return "
-            bound = " - model.b <= 0"
-            func2_def = "def constraint_func_2(model):\n" + "    return "
+        s += "def constraint_func(x, p, b):\n" + "    return "
+        if cons_mode == "cost":
+            func2_def = "def constraint_func_2(x, p):\n" + "    return "
 
         if cons_mode == "latency":
             for stage in critical_path:
                 s += (
                     stage.perf_model.generate_func_code(
-                        cons_mode, var, param, parent_ids[stage.stage_id], solver_type
+                        cons_mode, var, param, parent_ids[stage.stage_id]
                     )
                     + " + "
                 )
@@ -178,8 +168,7 @@ class Jolteon(Scheduler):
                             cons_mode,
                             var,
                             param,
-                            parent_ids[stage.stage_id],
-                            solver_type,
+                            parent_ids[stage.stage_id]
                         )
                         + " + "
                     )
@@ -189,7 +178,7 @@ class Jolteon(Scheduler):
             for stage in self._dag.stages:
                 s += (
                     stage.perf_model.generate_func_code(
-                        cons_mode, var, param, parent_ids[stage.stage_id], solver_type
+                        cons_mode, var, param, parent_ids[stage.stage_id]
                     )
                     + " + "
                 )
@@ -209,8 +198,7 @@ class Jolteon(Scheduler):
                             "latency",
                             var,
                             param,
-                            parent_ids[stage.stage_id],
-                            solver_type,
+                            parent_ids[stage.stage_id]
                         )
                         + " + "
                     )
@@ -221,14 +209,11 @@ class Jolteon(Scheduler):
                             "latency",
                             var,
                             param,
-                            parent_ids[stage.stage_id],
-                            solver_type,
+                            parent_ids[stage.stage_id]
                         )
                         + " + "
                     )
                 s = s[:-3] + ")"
-                if solver_type == "pyomo":
-                    s += " <= 0"
                 s += "\n\n"
 
         with open(code_path, "w") as f:
