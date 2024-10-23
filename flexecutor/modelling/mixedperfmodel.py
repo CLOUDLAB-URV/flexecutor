@@ -312,14 +312,14 @@ class MixedPerfModel(PerfModel, GetAndSet):
             self.coeffs.const += self.params_avg.compute[3] + self.params_avg.write[1]
 
     def _calc_params_and_covariances(self):
-        read_write_choices = [
+        rw_parallel_choices = [
             {"var": "d", "func": io_func, "dims": 2},
             {"var": "kd", "func": io_func, "dims": 2},
         ]
         parallel_heuristic = {
             "read": {
                 "data": self.y_r,
-                "choices": read_write_choices,
+                "choices": rw_parallel_choices,
             },
             "compute": {
                 "data": self.y_c,
@@ -330,7 +330,7 @@ class MixedPerfModel(PerfModel, GetAndSet):
             },
             "write": {
                 "data": self.y_w,
-                "choices": read_write_choices,
+                "choices": rw_parallel_choices,
             },
         }
         not_parallel_heuristic = {
@@ -365,11 +365,7 @@ class MixedPerfModel(PerfModel, GetAndSet):
         )
 
         def choice_is_allowed(var):
-            try:
-                var["restriction"]
-            except KeyError:
-                return True
-            return var["restriction"]
+            return "restriction" not in var or var["restriction"]
 
         for phase, items in heuristic.items():
             err_dict = {}
@@ -385,8 +381,6 @@ class MixedPerfModel(PerfModel, GetAndSet):
                 s_err = np.mean(np.abs(err))
                 if choice_is_allowed(choice):
                     err_dict[choice["var"]] = s_err
-                else:
-                    print("Discarding choice", choice["var"], "for phase", phase)
             best_choice = min(err_dict, key=err_dict.get)
             avg_data = next(x for x in items["choices"] if (x["var"] == best_choice))
             self.params_avg.set(phase, avg_data["params_avg"])
