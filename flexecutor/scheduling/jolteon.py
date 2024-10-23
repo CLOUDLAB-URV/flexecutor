@@ -108,58 +108,51 @@ class Jolteon(Scheduler):
 
         code = "import numpy as np\n\n"
 
-        def _create_func_code(signature, objective, stages) -> str:
-            s = signature
-            s += "\n    return "
+        def _create_func_code(signature, objective, stages, bound=None) -> str:
+            fn = signature
+            fn += ":\n    return "
             for stage in stages:
-                s += stage.perf_model.generate_func_code(objective) + " + "
-            s = s.removesuffix(" + ")
-            s += "\n\n"
-            return s
+                fn += stage.perf_model.generate_func_code(objective) + " + "
+            fn = fn.removesuffix(" + ")
+            fn += bound if bound is not None else ""
+            fn += "\n\n"
+            return fn
 
         # Generate objective function
         obj_stages = critical_path if obj_mode == "latency" else self._dag.stages
-        obj_header = "def objective_func(x, p):"
+        obj_header = "def objective_func(x, p)"
         code += _create_func_code(obj_header, obj_mode, obj_stages)
 
-        # Generate constraints
-        bound = " - b"
-        func2_def = "def constraint_func_2(x, p, b):\n" + "    return "
-        code += "def constraint_func(x, p, b):\n" + "    return "
-        if cons_mode == "cost":
-            func2_def = "def constraint_func_2(x, p):\n" + "    return "
+        # Generate constraint function(s)
+        bound_value = " - b"
+        cons_header = "def constraint_func(x, p, b)"
 
         if cons_mode == "latency":
-            for stage in critical_path:
-                code += stage.perf_model.generate_func_code(cons_mode) + " + "
-            code = code[:-3]
-            code += bound + "\n\n"
+            cons2_header = "def constraint_func_2(x, p, b)"
+            code += _create_func_code(
+                cons_header, cons_mode, critical_path, bound_value
+            )
             if secondary_path is not None:
-                code += func2_def
-                for stage in secondary_path:
-                    code += stage.perf_model.generate_func_code(cons_mode) + " + "
-                code = code[:-3]
-                code += bound + "\n\n"
+                code += _create_func_code(
+                    cons2_header, cons_mode, secondary_path, bound_value
+                )
         else:
-            for stage in self._dag.stages:
-                code += stage.perf_model.generate_func_code(cons_mode) + " + "
-            code = code[:-3]
-            code += bound + "\n\n"
+            cons2_header = "def constraint_func_2(x, p)"
+            code += _create_func_code(
+                cons_header, cons_mode, self._dag.stages, bound_value
+            )
             # The time of the secondary path should be less than or equal to the time of the critical path
             if secondary_path is not None:
-                code += func2_def
-                critical_set = set(critical_path)
-                secondary_set = set(secondary_path)
-                c_s = critical_set - secondary_set
-                s_c = secondary_set - critical_set
+                c_s = set(critical_path) - set(secondary_path)
+                s_c = set(secondary_path) - set(critical_path)
                 assert len(c_s) > 0 and len(s_c) > 0
-                for stage in c_s:
-                    code += stage.perf_model.generate_func_code("latency") + " + "
-                code = code[:-3] + " - ("
-                for stage in s_c:
-                    code += stage.perf_model.generate_func_code("latency") + " + "
-                code = code[:-3] + ")"
-                code += "\n\n"
+                bound_value = "("
+                for s in s_c:
+                    bound_value += (
+                        f"{s.perf_model.generate_func_code('latency')} + "
+                    )
+                bound_value = bound_value.removesuffix(" + ") + ")"
+                code += _create_func_code(cons2_header, cons_mode, c_s, bound_value)
 
         with open(code_path, "w") as f:
             f.write(code)
