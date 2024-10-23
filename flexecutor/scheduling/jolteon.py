@@ -106,73 +106,63 @@ class Jolteon(Scheduler):
         code_path = os.path.join(code_dir, file_name)
         obj_mode = "cost" if cons_mode == "latency" else "latency"
 
-        s = "import numpy as np\n\n"
+        code = "import numpy as np\n\n"
+
+        def _create_func_code(signature, objective, stages) -> str:
+            s = signature
+            s += "\n    return "
+            for stage in stages:
+                s += stage.perf_model.generate_func_code(objective) + " + "
+            s = s.removesuffix(" + ")
+            s += "\n\n"
+            return s
 
         # Generate objective function
-        var = "x"
-        param = "p"
-        s += "def objective_func(x, p):\n" + "    return "
-
-        if obj_mode == "latency":
-            for stage in critical_path:
-                s += stage.perf_model.generate_func_code(obj_mode) + " + "
-        else:
-            for stage in self._dag.stages:
-                s += stage.perf_model.generate_func_code(obj_mode) + " + "
-        s = s[:-3]
-        s += "\n\n"
+        obj_stages = critical_path if obj_mode == "latency" else self._dag.stages
+        obj_header = "def objective_func(x, p):"
+        code += _create_func_code(obj_header, obj_mode, obj_stages)
 
         # Generate constraints
         bound = " - b"
         func2_def = "def constraint_func_2(x, p, b):\n" + "    return "
-        s += "def constraint_func(x, p, b):\n" + "    return "
+        code += "def constraint_func(x, p, b):\n" + "    return "
         if cons_mode == "cost":
             func2_def = "def constraint_func_2(x, p):\n" + "    return "
 
         if cons_mode == "latency":
             for stage in critical_path:
-                s += stage.perf_model.generate_func_code(cons_mode) + " + "
-            s = s[:-3]
-            s += bound + "\n\n"
+                code += stage.perf_model.generate_func_code(cons_mode) + " + "
+            code = code[:-3]
+            code += bound + "\n\n"
             if secondary_path is not None:
-                s += func2_def
+                code += func2_def
                 for stage in secondary_path:
-                    s += stage.perf_model.generate_func_code(cons_mode) + " + "
-                s = s[:-3]
-                s += bound + "\n\n"
+                    code += stage.perf_model.generate_func_code(cons_mode) + " + "
+                code = code[:-3]
+                code += bound + "\n\n"
         else:
             for stage in self._dag.stages:
-                s += stage.perf_model.generate_func_code(cons_mode) + " + "
-            s = s[:-3]
-            s += bound + "\n\n"
+                code += stage.perf_model.generate_func_code(cons_mode) + " + "
+            code = code[:-3]
+            code += bound + "\n\n"
             # The time of the secondary path should be less than or equal to the time of the critical path
             if secondary_path is not None:
-                s += func2_def
+                code += func2_def
                 critical_set = set(critical_path)
                 secondary_set = set(secondary_path)
                 c_s = critical_set - secondary_set
                 s_c = secondary_set - critical_set
                 assert len(c_s) > 0 and len(s_c) > 0
                 for stage in c_s:
-                    s += (
-                        stage.perf_model.generate_func_code(
-                            "latency"
-                        )
-                        + " + "
-                    )
-                s = s[:-3] + " - ("
+                    code += stage.perf_model.generate_func_code("latency") + " + "
+                code = code[:-3] + " - ("
                 for stage in s_c:
-                    s += (
-                        stage.perf_model.generate_func_code(
-                            "latency"
-                        )
-                        + " + "
-                    )
-                s = s[:-3] + ")"
-                s += "\n\n"
+                    code += stage.perf_model.generate_func_code("latency") + " + "
+                code = code[:-3] + ")"
+                code += "\n\n"
 
         with open(code_path, "w") as f:
-            f.write(s)
+            f.write(code)
 
     def _round_config(self, num_workers, num_cpu):
         rounded_num_workers = []
