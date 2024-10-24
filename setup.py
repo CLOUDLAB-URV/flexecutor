@@ -11,6 +11,7 @@ install_requires = [
     "scipy",
     "numpy",
     "pandas",
+    "black"
 ]
 
 extras_require = {

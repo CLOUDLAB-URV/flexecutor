@@ -480,62 +480,39 @@ class MixedPerfModel(PerfModel, GetAndSet):
         return coeffs_list
 
     def generate_func_code(self, mode) -> str:
-        var = "x"
-        param = "p"
+        config_list = "config_list"
+        coeffs_list = "coeffs_list"
 
         assert mode in ["latency", "cost"]
 
-        # 2 var indices for each stage
-        # 0: var d, 1: var k
-
-        s = ""
         stage_id = int(self._stage_id)
-        # cold_param = f"param[{stage_id}].cold"
-        # x_param = f"param[{stage_id}].x"
-        # kd_d_param = f"param[{stage_id}].kd_d"
-        # logx_param = f"param[{stage_id}].logx"
-        # x2_param = f"param[{stage_id}].x2"
-        # const_param = f"param[{stage_id}].const"
-        cold_param = param + '[%d]'%(stage_id*6)
-        x_param = param + '[%d]'%(stage_id*6 + 1)
-        kd_d_param = param + '[%d]'%(stage_id*6 + 2)
-        logx_param = param + '[%d]'%(stage_id*6 + 3)
-        x2_param = param + '[%d]'%(stage_id*6 + 4)
-        const_param = param + '[%d]'%(stage_id*6 + 5)
+        cold_param = f"{coeffs_list}[{stage_id}].cold"
+        x_param = f"{coeffs_list}[{stage_id}].x"
+        kd_d_param = f"{coeffs_list}[{stage_id}].kd_d"
+        logx_param = f"{coeffs_list}[{stage_id}].logx"
+        x2_param = f"{coeffs_list}[{stage_id}].x2"
+        const_param = f"{coeffs_list}[{stage_id}].const"
 
-        var_d = var + "[%d]" % (stage_id * 2)
-        if not self.allow_parallel:
-            var_d = "1"
-        var_k = var + "[%d]" % (stage_id * 2 + 1)
-        var_x = ""
-        if self.can_intra_parallel.compute:
-            var_x = var_k + "*" + var_d
-        else:
-            var_x = var_d
-        var_x = "(" + var_x + ")"
-
-        log_method = "np.log"
+        var_d = f"{config_list}[{stage_id}].workers" if self.allow_parallel else "1"
+        var_k = f"{config_list}[{stage_id}].cpu"
+        var_x = f"({var_k} * {var_d})" if self.can_intra_parallel.compute else var_d
 
         if self.allow_parallel:
-            s += x_param + "/" + var_d + " + "
-            s += kd_d_param + "/" + "(" + var_k + "*" + var_d + ")" + " + "
-            s += logx_param + "*" + log_method + var_x + "/" + var_x + " + "
-            s += x2_param + "/" + var_x + "**2" + " + "
-            s += const_param
+            code = (
+                f"{x_param}/{var_d} + {kd_d_param}/({var_k}*{var_d}) + {logx_param}*np.log({var_x})/{var_x} + "
+                f"{x2_param}/{var_x}**2 + {const_param}"
+            )
         else:
-            s += x_param + "/" + var_k + " + "
+            code = f"{x_param}/{var_k} + "
             if self.parent_relevant and self.parent_id:
-                var_pd = var + "[%d]" % (self.parent_id * 2)  # parent d
-                s += kd_d_param + "*" + var_pd + " + "
-            s += logx_param + "*" + log_method + "(" + var_k + ")" + "/" + var_k + " + "
-            s += x2_param + "/" + var_k + "**2" + " + "
-            s += const_param
+                code += f"{kd_d_param}*{config_list}[{self.parent_id * 2}] + "
+            code += f"{logx_param}*np.log({var_k})/{var_k} + {x2_param}/{var_k}**2 + {const_param}"
         if mode == "latency":
-            s = cold_param + " + " + s
+            code = f"{cold_param} + {code}"
         else:
             # 1792 / 1024 * 0.0000000167 * 1000 = 0.000029225
             # 1000 is to convert from ms to s
             # We multiply 1e5 to the cost to make it more readable
             # s = cold_param + ' / 2 + ' + s
-            s = "(" + s + ") * " + var_k + " * " + var_d + " * 2.9225 + 0.02 * " + var_d
-        return s
+            code = f"({code}) * {var_k} * {var_d} * 2.9225 + 0.02 * {var_d}"
+        return code

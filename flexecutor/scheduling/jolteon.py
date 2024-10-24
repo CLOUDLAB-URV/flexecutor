@@ -1,6 +1,7 @@
 import os
 from typing import Callable
 
+import black
 import numpy as np
 from scipy.optimize import NonlinearConstraint
 
@@ -116,15 +117,15 @@ class Jolteon(Scheduler):
 
         # Generate objective function
         obj_stages = critical_path if obj_mode == "latency" else self._dag.stages
-        obj_header = "def objective_func(x, p)"
+        obj_header = "def objective_func(config_list, coeffs_list)"
         code += _create_func_code(obj_header, obj_mode, obj_stages)
 
         # Generate constraint function(s)
         bound_value = " - b"
-        cons_header = "def constraint_func(x, p, b)"
+        cons_header = "def constraint_func(config_list, coeffs_list, b)"
 
         if cons_mode == "latency":
-            cons2_header = "def constraint_func_2(x, p, b)"
+            cons2_header = "def constraint_func_2(config_list, coeffs_list, b)"
             code += _create_func_code(
                 cons_header, cons_mode, critical_path, bound_value
             )
@@ -133,7 +134,7 @@ class Jolteon(Scheduler):
                     cons2_header, cons_mode, secondary_path, bound_value
                 )
         else:
-            cons2_header = "def constraint_func_2(x, p)"
+            cons2_header = "def constraint_func_2(config_list, coeffs_list)"
             code += _create_func_code(
                 cons_header, cons_mode, self._dag.stages, bound_value
             )
@@ -148,6 +149,7 @@ class Jolteon(Scheduler):
                 bound_value = bound_value.removesuffix(" + ") + ")"
                 code += _create_func_code(cons2_header, cons_mode, c_s, bound_value)
 
+        code = black.format_str(code, mode=black.FileMode())
         with open(code_path, "w") as f:
             f.write(code)
 
