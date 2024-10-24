@@ -485,18 +485,23 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
         assert mode in ["latency", "cost"]
 
-        # 6 param indices and 2 var indices for each stage
-        # 0: cold, 1: x, 2: kd/d, 3: log(x)/x, 4: 1/x**2, 5: const
+        # 2 var indices for each stage
         # 0: var d, 1: var k
 
         s = ""
         stage_id = int(self._stage_id)
-        cold_param = param + "[%d]" % (stage_id * 6)
-        x_param = param + "[%d]" % (stage_id * 6 + 1)
-        kd_d_param = param + "[%d]" % (stage_id * 6 + 2)
-        logx_param = param + "[%d]" % (stage_id * 6 + 3)
-        x2_param = param + "[%d]" % (stage_id * 6 + 4)
-        const_param = param + "[%d]" % (stage_id * 6 + 5)
+        # cold_param = f"param[{stage_id}].cold"
+        # x_param = f"param[{stage_id}].x"
+        # kd_d_param = f"param[{stage_id}].kd_d"
+        # logx_param = f"param[{stage_id}].logx"
+        # x2_param = f"param[{stage_id}].x2"
+        # const_param = f"param[{stage_id}].const"
+        cold_param = param + '[%d]'%(stage_id*6)
+        x_param = param + '[%d]'%(stage_id*6 + 1)
+        kd_d_param = param + '[%d]'%(stage_id*6 + 2)
+        logx_param = param + '[%d]'%(stage_id*6 + 3)
+        x2_param = param + '[%d]'%(stage_id*6 + 4)
+        const_param = param + '[%d]'%(stage_id*6 + 5)
 
         var_d = var + "[%d]" % (stage_id * 2)
         if not self.allow_parallel:

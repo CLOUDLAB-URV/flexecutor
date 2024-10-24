@@ -4,7 +4,6 @@ from typing import Callable
 import numpy as np
 from scipy.optimize import NonlinearConstraint
 
-from modelling.mixedperfmodel import MixedModelCoefficients
 from modelling.perfmodel import PerfModelEnum
 from scheduling.orion import MyQueue
 from scheduling.scheduler import Scheduler
@@ -38,14 +37,13 @@ class Jolteon(Scheduler):
             new_samples = np.hstack([new_samples, stage_samples])
 
         self._generate_func_code(
-            "jolteon_func.py",
             # FIXME: allow parametrization
             list(self._dag.stages),
             None,
             bound_type,
         )
 
-        from flexecutor.scheduling.jolteon_func import objective_func, constraint_func
+        from flexecutor.scheduling.machine_learning_func import objective_func, constraint_func
 
         parameters = np.concatenate(
             [stage.perf_model.parameters() for stage in self._dag.stages]
@@ -93,17 +91,15 @@ class Jolteon(Scheduler):
 
     def _generate_func_code(
         self,
-        file_name,
         critical_path,
         secondary_path=None,
         cons_mode="latency",
     ):
-        assert isinstance(file_name, str) and file_name.endswith(".py")
         assert isinstance(critical_path, list)
         assert secondary_path is None or isinstance(secondary_path, list)
         assert cons_mode in ["latency", "cost"]
         code_dir = os.path.dirname(os.path.abspath(__file__))
-        code_path = os.path.join(code_dir, file_name)
+        code_path = os.path.join(code_dir, self._dag.dag_id + "_func.py")
         obj_mode = "cost" if cons_mode == "latency" else "latency"
 
         code = "import numpy as np\n\n"
@@ -148,9 +144,7 @@ class Jolteon(Scheduler):
                 assert len(c_s) > 0 and len(s_c) > 0
                 bound_value = "("
                 for s in s_c:
-                    bound_value += (
-                        f"{s.perf_model.generate_func_code('latency')} + "
-                    )
+                    bound_value += f"{s.perf_model.generate_func_code('latency')} + "
                 bound_value = bound_value.removesuffix(" + ") + ")"
                 code += _create_func_code(cons2_header, cons_mode, c_s, bound_value)
 

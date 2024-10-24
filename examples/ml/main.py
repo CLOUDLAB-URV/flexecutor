@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     @flexorchestrator(bucket="test-bucket")
     def main():
-        dag = DAG("machine-learning")
+        dag = DAG("machine_learning")
 
         data_training = FlexData("training-data")
         data_vectors_pca = FlexData("vectors-pca")
