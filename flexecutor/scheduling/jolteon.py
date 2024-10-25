@@ -1,14 +1,16 @@
 import os
-from typing import Callable
+from typing import Callable, Optional, Union
 
 import black
 import numpy as np
-from scipy.optimize import NonlinearConstraint
 
 from modelling.perfmodel import PerfModelEnum
 from scheduling.orion import MyQueue
 from scheduling.scheduler import Scheduler
 from workflow.dag import DAG
+
+workers_accessor = slice(0, None, 2)
+cpu_accessor = slice(1, None, 2)
 
 
 class Jolteon(Scheduler):
@@ -59,19 +61,6 @@ class Jolteon(Scheduler):
             [stage.perf_model.parameters() for stage in self._dag.stages]
         )
 
-        solver = PCPSolver(
-            self._dag,
-            objective_func,
-            constraint_func,
-            40,
-            parameters,
-            samples,
-            self.cpu_search_space,
-            self.workers_search_space,
-        )
-
-        # FIXME: these numbers are magic numbers in Jolteon (different per use case)
-        # Review if we can destroy this shit
         x_init = [1, 3, 16, 3, 8, 3, 1, 3]
         x_bound = [
             (1, 2),
@@ -84,15 +73,22 @@ class Jolteon(Scheduler):
             (0.5, 4.1),
         ]
 
-        res = solver.iter_solve(x_init, x_bound)
+        solver = PCPSolver(
+            self._dag,
+            objective_func,
+            constraint_func,
+            40,
+            bound_type,
+            parameters,
+            samples,
+            self.cpu_search_space,
+            self.workers_search_space,
+            x_init,
+            x_bound,
+        )
 
-        num_workers = res["x"][0::2]
-        num_cpu = res["x"][1::2]
-
-        solver.bound = 40
-
+        num_workers, num_cpu = solver.iter_solve()
         num_workers, num_cpu = self._round_config(num_workers, num_cpu)
-
         num_workers, num_cpu = solver.probe(num_workers, num_cpu)
 
         print(f"Num CPU: {num_cpu}")
@@ -174,7 +170,6 @@ def workers(stage):
     def _round_config(self, num_workers, num_cpu):
         rounded_num_workers = []
         rounded_num_cpu = []
-        # FIXME: check order in iteration
         for i, stage in enumerate(self._dag.stages):
             w = (
                 next(
@@ -200,12 +195,14 @@ class PCPSolver:
         objective_func: Callable,
         constraint_func: Callable,
         bound: float,
+        bound_type: str,
         objective_params: np.ndarray,
         constraint_params: np.ndarray,
         cpu_search_space: list,
         workers_search_space: list,
+        entry_point: Optional[list],
+        x_bounds: Union[list | tuple | None],
     ):
-        self.num_stages = len(dag.stages)
         self.num_X = 2 * len(dag.stages)
         self.objective = objective_func
         self.constraint = constraint_func
@@ -221,12 +218,17 @@ class PCPSolver:
         self.cpu_search_space = cpu_search_space
         self.workers_search_space = workers_search_space
 
+        self.x0 = entry_point if entry_point is not None else np.ones(self.num_X)
+        if isinstance(x_bounds, list):
+            self.x_bounds = x_bounds
+        else:
+            x_tuple = x_bounds if isinstance(x_bounds, tuple) else (0.5, None)
+            self.x_bounds = [x_tuple] * self.num_X
+
         # FIXME: please rethink if we need to extract the values of next variables to user-defined parameters site
 
         # User-defined risk level (epsilon) for constraint satisfaction (e.g., 0.01 or 0.05)
         self.risk = 0.05
-        # Approximated risk level (alpha), a parameter for the sample approximation problem
-        self.approx_risk = 0
         # Confidence error (delta) for the lower bound property of the ground-truth optimal
         # objective value or the feasibility of the solution or both,
         # depending on the relationship between epsilon and alpha, default to 0.01
@@ -235,176 +237,113 @@ class PCPSolver:
         # Used for solving
         self.ftol = self.risk * self.bound
 
-        self.bound_type = "latency"
-        self.need_probe = None
+        self.bound_type = bound_type
         self.probe_depth = 4
 
-        # Solver information for the sample approximation problem
-        self.solver_info = {"optlib": "scipy", "method": "SLSQP"}
-
-    def iter_solve(self, init_vals=None, x_bound=None):
+    def iter_solve(self) -> tuple[list, list]:
+        bound = self.bound
         while True:
-            res = self._solve(init_vals=init_vals, x_bound=x_bound)
-            if res["status"]:
+            import scipy.optimize as scipy_opt
+
+            minimize_result = scipy_opt.minimize(
+                lambda x: self.objective(x, self.obj_params),
+                self.x0,
+                method="SLSQP",
+                bounds=self.x_bounds,
+                constraints={
+                    "type": "ineq",
+                    "fun": lambda x: -self.constraint(x, self.cons_params, bound),
+                },
+                options={"ftol": self.ftol, "disp": False},
+            )
+
+            cons_val = np.array(
+                self.constraint(minimize_result.x, self.cons_params, bound)
+            )
+            ratio_not_satisfied = np.sum(cons_val > self.ftol) / len(cons_val)
+            if ratio_not_satisfied < self.risk or minimize_result.success:
                 break
-            else:
-                cons_val = np.array(res["cons_val"])
-                ratio_not_satisfied = np.sum(cons_val > self.ftol) / len(cons_val)
-                if ratio_not_satisfied < self.risk:
-                    break
-                else:
-                    print("bound:", self.bound, "ratio:", ratio_not_satisfied)
-                    self.bound += self.ftol * 4
+            print("bound:", bound, "ratio:", ratio_not_satisfied)
+            bound += self.ftol * 4
 
-        return res
+        return minimize_result.x[workers_accessor], minimize_result.x[cpu_accessor]
 
-    def _solve(self, init_vals=None, x_bound=None) -> dict:
-        import scipy.optimize as scipy_opt
+    def probe(self, num_workers, num_cpu):
+        def get_x_by_xpos(array):
+            result = np.zeros(self.num_X)
+            result[workers_accessor] = d_config[array[workers_accessor]]
+            result[cpu_accessor] = k_config[array[cpu_accessor]]
+            return result
 
-        assert self.solver_info["optlib"] == "scipy"
-        assert self.solver_info["method"] == "SLSQP"
-
-        x0 = init_vals if init_vals is not None else np.ones(self.num_X)
-
-        if isinstance(x_bound, list):
-            x_bounds = x_bound
-        else:
-            x_tuple = x_bound if isinstance(x_bound, tuple) else (0.5, None)
-            x_bounds = [[x_tuple, x_tuple]] * self.num_stages
-
-        nonlinear_constraints = NonlinearConstraint(
-            lambda x: self.constraint(x, self.cons_params, self.bound), -np.inf, 0
-        )
-
-        res = scipy_opt.minimize(
-            lambda x: self.objective(x, self.obj_params),
-            x0,
-            method=self.solver_info["method"],
-            bounds=x_bounds,
-            constraints=nonlinear_constraints,
-            options={"ftol": self.ftol, "disp": False},
-        )
-
-        solve_res = {}
-        solve_res["status"] = res.success
-        solve_res["obj_val"] = res.fun
-        solve_res["cons_val"] = self.constraint(res.x, self.cons_params, self.bound)
-        solve_res["x"] = res.x
-
-        return solve_res
-
-    def probe(self, d_init, k_init):
-        # assume init is within the feasible region
-        d_pos = []
-        k_pos = []
         d_config = np.array(self.workers_search_space)
         k_config = np.array(self.cpu_search_space)
-        for d in d_init:
-            mask = d_config == d
-            if np.any(mask):
-                j = np.where(mask)[0][0]
-                d_pos.append(j)
-        for k in k_init:
-            mask = k_config == k
-            if np.any(mask):
-                j = np.where(mask)[0][0]
-                k_pos.append(j)
-
-        d_pos = np.array(d_pos)
-        k_pos = np.array(k_pos)
         x_pos = np.zeros(self.num_X, dtype=int)
-        x_pos[0::2] = d_pos
-        x_pos[1::2] = k_pos
+        x_pos[workers_accessor] = [np.where(d_config == d)[0][0] for d in num_workers]
+        x_pos[cpu_accessor] = [np.where(k_config == k)[0][0] for k in num_cpu]
 
         searched = set()
 
-        need_pos = []
-        if self.need_probe is not None:
-            need_pos = [i for i in range(self.num_X) if self.need_probe[i]]
+        def bfs(_x_pos, max_depth=4):
+            queue = MyQueue()
+            searched.add(tuple(_x_pos))
+            queue.push((_x_pos, 0))
 
-        def bfs(x_pos, max_depth=4):
-            q = MyQueue()
-            searched.add(tuple(x_pos))
-            q.push([x_pos, 0])
-
-            best_pos = x_pos.copy()
-            best_x = np.zeros(self.num_X)
-            best_x[0::2] = d_config[best_pos[0::2]]
-            best_x[1::2] = k_config[best_pos[1::2]]
+            _best_pos = _x_pos.copy()
+            best_x = get_x_by_xpos(_best_pos)
             best_obj = self.objective(best_x, self.obj_params)
             best_cons = self.constraint(best_x, self.obj_params, self.bound)
 
             steps = [-1, 1]
 
-            while len(q) > 0:
-                p = q.pop()
+            while len(queue) > 0:
+                _x_pos, depth = queue.pop()
 
-                x = np.zeros(self.num_X)
-                x[0::2] = d_config[p[0][0::2]]
-                x[1::2] = k_config[p[0][1::2]]
-                cons = self.constraint(x, self.cons_params, self.bound)
-                cons = np.percentile(cons, 100 * (1 - self.risk))
-                obj = self.objective(x, self.obj_params)
-                # print('x:', x, 'obj:', obj, 'cons:', cons)
+                _x = get_x_by_xpos(_x_pos)
+                _cons = np.percentile(
+                    self.constraint(_x, self.cons_params, self.bound),
+                    100 * (1 - self.risk),
+                )
+                obj = self.objective(_x, self.obj_params)
 
-                if best_cons < 0:  # tight bound
-                    if cons < 0 and cons > best_cons and obj < best_obj:
-                        best_pos = p[0].copy()
-                        best_obj = obj
-                        best_cons = cons
-                else:  # find a feasible solution first
-                    if cons < best_cons:
-                        best_pos = p[0].copy()
-                        best_obj = obj
-                        best_cons = cons
+                if (best_cons < 0 and 0 > _cons > best_cons and obj < best_obj) or (
+                    best_cons > 0 and _cons < best_cons
+                ):
+                    _best_pos = _x.copy()
+                    best_obj = obj
+                    best_cons = _cons
 
-                if p[1] < max_depth:
+                if depth < max_depth:
                     for t in range(self.num_X):
-                        if len(need_pos) > 0 and t not in need_pos:
-                            continue
-                        if t % 2 == 0:  # d
-                            config = d_config
-                        else:  # k
-                            config = k_config
+                        config = d_config if t % 2 == 0 else k_config
                         for s in steps:
-                            new_x_pos = p[0].copy()
+                            new_x_pos = _x_pos.copy()
                             new_x_pos[t] += s
                             if (
                                 new_x_pos[t] < 0
                                 or new_x_pos[t] >= len(config)
                                 or (t % 2 == 0 and new_x_pos[t] == 0)
+                                or tuple(new_x_pos) in searched
                             ):
                                 continue
-                            if tuple(new_x_pos) in searched:
-                                continue
                             searched.add(tuple(new_x_pos))
-                            q.push([new_x_pos, p[1] + 1])
+                            queue.push((new_x_pos, depth + 1))
 
-            return best_pos
+            return _best_pos
 
-        x = np.zeros(self.num_X)
-        x[0::2] = d_config[x_pos[0::2]]
-        x[1::2] = k_config[x_pos[1::2]]
-        cons = self.constraint(x, self.cons_params, self.bound)
-        cons = np.percentile(cons, 100 * (1 - self.risk))
-        feasible = cons < 0
         old_x_pos = x_pos.copy()
-        while not feasible:  # find a feasible solution first
+        while True:
+            x = get_x_by_xpos(x_pos)
+            cons = np.percentile(
+                self.constraint(x, self.cons_params, self.bound), 100 * (1 - self.risk)
+            )
             x_pos = bfs(x_pos, self.probe_depth)
-            if x_pos.tolist() == old_x_pos.tolist():  # no improvement
+            if np.all(x_pos == old_x_pos) or cons < 0:
                 break
             old_x_pos = x_pos.copy()
-            x = np.zeros(self.num_X)
-            x[0::2] = d_config[x_pos[0::2]]
-            x[1::2] = k_config[x_pos[1::2]]
-            cons = self.constraint(x, self.obj_params, self.bound)
-            cons = self.constraint(x, self.cons_params, self.bound)
-            cons = np.percentile(cons, 100 * (1 - self.risk))
-            feasible = cons < 0
 
-        # find the best solution
+        # Find the best solution
         best_pos = bfs(x_pos, self.probe_depth)
-        best_d = d_config[best_pos[0::2]].tolist()
-        best_k = k_config[best_pos[1::2]].tolist()
+        best_workers = d_config[best_pos[workers_accessor]].tolist()
+        best_cpu = k_config[best_pos[cpu_accessor]].tolist()
 
-        return best_d, best_k
+        return best_workers, best_cpu
