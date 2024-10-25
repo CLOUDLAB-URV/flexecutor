@@ -1,5 +1,6 @@
+import importlib
 import os
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import black
 import numpy as np
@@ -23,7 +24,7 @@ class Jolteon(Scheduler):
         self.workers_search_space = [1, 4, 8, 16, 32]
 
     def schedule(self):
-        def get_sample_size(num_stages, risk, confidence_error):
+        def get_sampling_size(num_stages, risk, confidence_error):
             # Hoeffding's inequality
             # Is incongruently but maintained for compatibility with Jolteon
             # {0.5, 1, 1.5, 2, 3, 4} as the intra-function resource space, so the size is 8
@@ -35,7 +36,7 @@ class Jolteon(Scheduler):
                 )
             )
 
-        sample_size = get_sample_size(len(self._dag.stages), 0.05, 0.001)
+        sample_size = get_sampling_size(len(self._dag.stages), 0.05, 0.001)
         print(f"Sample size: {sample_size}")
 
         # FIXME: allow parametrization
@@ -52,15 +53,11 @@ class Jolteon(Scheduler):
             bound_type,
         )
 
-        from flexecutor.scheduling.machine_learning_func import (
-            objective_func,
-            constraint_func,
-        )
-
         parameters = np.array(
             [stage.perf_model.parameters() for stage in self._dag.stages]
         )
 
+        my_bound = 40
         x_init = [1, 3, 16, 3, 8, 3, 1, 3]
         x_bound = [
             (1, 2),
@@ -74,17 +71,15 @@ class Jolteon(Scheduler):
         ]
 
         solver = PCPSolver(
-            self._dag,
-            objective_func,
-            constraint_func,
-            40,
-            bound_type,
-            parameters,
-            samples,
-            self.cpu_search_space,
-            self.workers_search_space,
-            x_init,
-            x_bound,
+            dag=self._dag,
+            bound=my_bound,
+            bound_type=bound_type,
+            objective_params=parameters,
+            constraint_params=samples,
+            cpu_search_space=self.cpu_search_space,
+            workers_search_space=self.workers_search_space,
+            entry_point=x_init,
+            x_bounds=x_bound,
         )
 
         num_workers, num_cpu = solver.iter_solve()
@@ -192,8 +187,6 @@ class PCPSolver:
     def __init__(
         self,
         dag: DAG,
-        objective_func: Callable,
-        constraint_func: Callable,
         bound: float,
         bound_type: str,
         objective_params: np.ndarray,
@@ -204,8 +197,13 @@ class PCPSolver:
         x_bounds: Union[list | tuple | None],
     ):
         self.num_X = 2 * len(dag.stages)
-        self.objective = objective_func
-        self.constraint = constraint_func
+
+        module = importlib.import_module(f"flexecutor.scheduling.{dag.dag_id}_func")
+        constraint_func = getattr(module, "constraint_func")
+        objective_func = getattr(module, "objective_func")
+
+        self.objective_fn = objective_func
+        self.constraint_fn = constraint_func
         self.bound = bound
         self.obj_params = (
             objective_params  # 2-dim array --> shape: (num_stages, coeffs)
@@ -215,8 +213,8 @@ class PCPSolver:
         )  # 3-dim array --> shape: (num_stages, coeffs, samples)
 
         # used for probing
-        self.cpu_search_space = cpu_search_space
-        self.workers_search_space = workers_search_space
+        self.cpu_search_space = np.array(cpu_search_space)
+        self.workers_search_space = np.array(workers_search_space)
 
         self.x0 = entry_point if entry_point is not None else np.ones(self.num_X)
         if isinstance(x_bounds, list):
@@ -246,19 +244,19 @@ class PCPSolver:
             import scipy.optimize as scipy_opt
 
             minimize_result = scipy_opt.minimize(
-                lambda x: self.objective(x, self.obj_params),
+                lambda x: self.objective_fn(x, self.obj_params),
                 self.x0,
                 method="SLSQP",
                 bounds=self.x_bounds,
                 constraints={
                     "type": "ineq",
-                    "fun": lambda x: -self.constraint(x, self.cons_params, bound),
+                    "fun": lambda x: -self.constraint_fn(x, self.cons_params, bound),
                 },
                 options={"ftol": self.ftol, "disp": False},
             )
 
             cons_val = np.array(
-                self.constraint(minimize_result.x, self.cons_params, bound)
+                self.constraint_fn(minimize_result.x, self.cons_params, bound)
             )
             ratio_not_satisfied = np.sum(cons_val > self.ftol) / len(cons_val)
             if ratio_not_satisfied < self.risk or minimize_result.success:
@@ -271,15 +269,19 @@ class PCPSolver:
     def probe(self, num_workers, num_cpu):
         def get_x_by_xpos(array):
             result = np.zeros(self.num_X)
-            result[workers_accessor] = d_config[array[workers_accessor]]
-            result[cpu_accessor] = k_config[array[cpu_accessor]]
+            result[workers_accessor] = self.workers_search_space[
+                array[workers_accessor]
+            ]
+            result[cpu_accessor] = self.cpu_search_space[array[cpu_accessor]]
             return result
 
-        d_config = np.array(self.workers_search_space)
-        k_config = np.array(self.cpu_search_space)
         x_pos = np.zeros(self.num_X, dtype=int)
-        x_pos[workers_accessor] = [np.where(d_config == d)[0][0] for d in num_workers]
-        x_pos[cpu_accessor] = [np.where(k_config == k)[0][0] for k in num_cpu]
+        x_pos[workers_accessor] = [
+            np.where(self.workers_search_space == d)[0][0] for d in num_workers
+        ]
+        x_pos[cpu_accessor] = [
+            np.where(self.cpu_search_space == k)[0][0] for k in num_cpu
+        ]
 
         searched = set()
 
@@ -290,8 +292,8 @@ class PCPSolver:
 
             _best_pos = _x_pos.copy()
             best_x = get_x_by_xpos(_best_pos)
-            best_obj = self.objective(best_x, self.obj_params)
-            best_cons = self.constraint(best_x, self.obj_params, self.bound)
+            best_obj = self.objective_fn(best_x, self.obj_params)
+            best_cons = self.constraint_fn(best_x, self.obj_params, self.bound)
 
             steps = [-1, 1]
 
@@ -300,10 +302,10 @@ class PCPSolver:
 
                 _x = get_x_by_xpos(_x_pos)
                 _cons = np.percentile(
-                    self.constraint(_x, self.cons_params, self.bound),
+                    self.constraint_fn(_x, self.cons_params, self.bound),
                     100 * (1 - self.risk),
                 )
-                obj = self.objective(_x, self.obj_params)
+                obj = self.objective_fn(_x, self.obj_params)
 
                 if (best_cons < 0 and 0 > _cons > best_cons and obj < best_obj) or (
                     best_cons > 0 and _cons < best_cons
@@ -314,7 +316,11 @@ class PCPSolver:
 
                 if depth < max_depth:
                     for t in range(self.num_X):
-                        config = d_config if t % 2 == 0 else k_config
+                        config = (
+                            self.workers_search_space
+                            if t % 2 == 0
+                            else self.cpu_search_space
+                        )
                         for s in steps:
                             new_x_pos = _x_pos.copy()
                             new_x_pos[t] += s
@@ -334,7 +340,8 @@ class PCPSolver:
         while True:
             x = get_x_by_xpos(x_pos)
             cons = np.percentile(
-                self.constraint(x, self.cons_params, self.bound), 100 * (1 - self.risk)
+                self.constraint_fn(x, self.cons_params, self.bound),
+                100 * (1 - self.risk),
             )
             x_pos = bfs(x_pos, self.probe_depth)
             if np.all(x_pos == old_x_pos) or cons < 0:
@@ -343,7 +350,7 @@ class PCPSolver:
 
         # Find the best solution
         best_pos = bfs(x_pos, self.probe_depth)
-        best_workers = d_config[best_pos[workers_accessor]].tolist()
-        best_cpu = k_config[best_pos[cpu_accessor]].tolist()
+        best_workers = self.workers_search_space[best_pos[workers_accessor]].tolist()
+        best_cpu = self.cpu_search_space[best_pos[cpu_accessor]].tolist()
 
         return best_workers, best_cpu
