@@ -21,12 +21,26 @@ class Jolteon(Scheduler):
         self.workers_search_space = [1, 4, 8, 16, 32]
 
     def schedule(self):
+        def get_sample_size(num_stages, risk, confidence_error):
+            # Hoeffding's inequality
+            # Is incongruently but maintained for compatibility with Jolteon
+            # {0.5, 1, 1.5, 2, 3, 4} as the intra-function resource space, so the size is 8
+            # {4, 8, 16, 32} as the parallelism space, so the size is 4
+            search_space_size = (7 * 4) ** (num_stages // 2)  # num_X / 2 stages
+            return int(
+                np.ceil(
+                    1 / (2 * risk**2) * np.log(search_space_size / confidence_error)
+                )
+            )
+
+        sample_size = get_sample_size(len(self._dag.stages), 0.05, 0.001)
+        print(f"Sample size: {sample_size}")
+
         # FIXME: allow parametrization
-        num_samples = 2715
         bound_type = "latency"
         # noInspection PyUnresolvedReferences
         samples = np.array(
-            [stage.perf_model.sample_offline(num_samples) for stage in self._dag.stages]
+            [stage.perf_model.sample_offline(sample_size) for stage in self._dag.stages]
         )
 
         self._generate_func_code(
