@@ -25,28 +25,23 @@ class Jolteon(Scheduler):
         num_samples = 2715
         bound_type = "latency"
         # noInspection PyUnresolvedReferences
-        samples = [
-            stage.perf_model.sample_offline(num_samples) for stage in self._dag.stages
-        ]
-        new_samples = np.empty([2715, 0])
-        for i in samples:
-            stage_samples = np.empty([0, 6])
-            for j in i:
-                sample = [j.cold, j.x, j.kd_d, j.logx, j.x2, j.const]
-                # add sample row to stage_samples
-                stage_samples = np.vstack([stage_samples, sample])
-            new_samples = np.hstack([new_samples, stage_samples])
+        samples = np.array(
+            [stage.perf_model.sample_offline(num_samples) for stage in self._dag.stages]
+        )
 
         self._generate_func_code(
             # FIXME: allow parametrization
-            list(self._dag.stages),
+            self._dag.stages,
             None,
             bound_type,
         )
 
-        from flexecutor.scheduling.machine_learning_func import objective_func, constraint_func
+        from flexecutor.scheduling.machine_learning_func import (
+            objective_func,
+            constraint_func,
+        )
 
-        parameters = np.concatenate(
+        parameters = np.array(
             [stage.perf_model.parameters() for stage in self._dag.stages]
         )
 
@@ -55,8 +50,8 @@ class Jolteon(Scheduler):
             objective_func,
             constraint_func,
             40,
-            parameters.tolist(),
-            new_samples.tolist(),
+            parameters,
+            samples,
             self.cpu_search_space,
             self.workers_search_space,
         )
@@ -103,11 +98,20 @@ class Jolteon(Scheduler):
         code_path = os.path.join(code_dir, self._dag.dag_id + "_func.py")
         obj_mode = "cost" if cons_mode == "latency" else "latency"
 
-        code = "import numpy as np\n\n"
+        code = """
+import numpy as np
+
+def cpu(stage):
+    return stage * 2 + 1
+
+def workers(stage):
+    return stage * 2
+"""
 
         def _create_func_code(signature, objective, stages, bound=None) -> str:
-            fn = signature
-            fn += ":\n    return "
+            fn = signature + ":"
+            fn += "\n   cold, x, kd_d, logx, x2, const = 0, 1, 2, 3, 4, 5"
+            fn += "\n   return "
             for stage in stages:
                 fn += stage.perf_model.generate_func_code(objective) + " + "
             fn = fn.removesuffix(" + ")
@@ -182,18 +186,22 @@ class PCPSolver:
         objective_func: Callable,
         constraint_func: Callable,
         bound: float,
-        objective_params: list,
-        constraint_params: list,
+        objective_params: np.ndarray,
+        constraint_params: np.ndarray,
         cpu_search_space: list,
         workers_search_space: list,
     ):
-
+        self.num_stages = len(dag.stages)
         self.num_X = 2 * len(dag.stages)
         self.objective = objective_func
         self.constraint = constraint_func
         self.bound = bound
-        self.obj_params = objective_params
-        self.cons_params = constraint_params
+        self.obj_params = (
+            objective_params  # 2-dim array --> shape: (num_stages, coeffs)
+        )
+        self.cons_params = np.transpose(
+            constraint_params, (0, 2, 1)
+        )  # 3-dim array --> shape: (num_stages, coeffs, samples)
 
         # used for probing
         self.cpu_search_space = cpu_search_space
@@ -242,42 +250,23 @@ class PCPSolver:
         assert self.solver_info["optlib"] == "scipy"
         assert self.solver_info["method"] == "SLSQP"
 
-        x0 = np.ones(self.num_X) * 2  # initial guess
-        if init_vals is not None:
-            if isinstance(init_vals, int) or isinstance(init_vals, float):
-                x0 = np.ones(self.num_X) * init_vals
-            elif isinstance(init_vals, list) and len(init_vals) == self.num_X:
-                # ssert all(isinstaance(x, int) or isinstance(x, float) for x in init_vals)
-                x0 = np.array(init_vals)
-            elif isinstance(init_vals, np.ndarray) and init_vals.shape == (self.num_X,):
-                x0 = init_vals
+        x0 = init_vals if init_vals is not None else np.ones(self.num_X)
 
-        X_bounds = [
-            (0.5, None) for _ in range(self.num_X)
-        ]  # optional bounds for each x
-        if x_bound is not None:
-            if isinstance(x_bound, tuple) and len(x_bound) == 2:
-                X_bounds = [x_bound for _ in range(self.num_X)]
-            elif isinstance(x_bound, list) and len(x_bound) == self.num_X:
-                X_bounds = x_bound
-            elif isinstance(x_bound, list) and len(x_bound) == 2:
-                # [0] is for parallelism, [1] is for intra-function resource
-                X_bounds = []
-                for _ in range(self.num_X // 2):
-                    X_bounds.append(x_bound[0])
-                    X_bounds.append(x_bound[1])
+        if isinstance(x_bound, list):
+            x_bounds = x_bound
+        else:
+            x_tuple = x_bound if isinstance(x_bound, tuple) else (0.5, None)
+            x_bounds = [[x_tuple, x_tuple]] * self.num_stages
 
-        obj_params = np.array(self.obj_params)
-        cons_params = np.array(self.cons_params).T
         nonlinear_constraints = NonlinearConstraint(
-            lambda x: self.constraint(x, cons_params, self.bound), -np.inf, 0
+            lambda x: self.constraint(x, self.cons_params, self.bound), -np.inf, 0
         )
 
         res = scipy_opt.minimize(
-            lambda x: self.objective(x, obj_params),
+            lambda x: self.objective(x, self.obj_params),
             x0,
             method=self.solver_info["method"],
-            bounds=X_bounds,
+            bounds=x_bounds,
             constraints=nonlinear_constraints,
             options={"ftol": self.ftol, "disp": False},
         )
@@ -285,7 +274,7 @@ class PCPSolver:
         solve_res = {}
         solve_res["status"] = res.success
         solve_res["obj_val"] = res.fun
-        solve_res["cons_val"] = self.constraint(res.x, cons_params, self.bound)
+        solve_res["cons_val"] = self.constraint(res.x, self.cons_params, self.bound)
         solve_res["x"] = res.x
 
         return solve_res
@@ -313,8 +302,6 @@ class PCPSolver:
         x_pos[0::2] = d_pos
         x_pos[1::2] = k_pos
 
-        cons_params = np.array(self.cons_params).T
-
         searched = set()
 
         need_pos = []
@@ -341,7 +328,7 @@ class PCPSolver:
                 x = np.zeros(self.num_X)
                 x[0::2] = d_config[p[0][0::2]]
                 x[1::2] = k_config[p[0][1::2]]
-                cons = self.constraint(x, cons_params, self.bound)
+                cons = self.constraint(x, self.cons_params, self.bound)
                 cons = np.percentile(cons, 100 * (1 - self.risk))
                 obj = self.objective(x, self.obj_params)
                 # print('x:', x, 'obj:', obj, 'cons:', cons)
@@ -384,7 +371,7 @@ class PCPSolver:
         x = np.zeros(self.num_X)
         x[0::2] = d_config[x_pos[0::2]]
         x[1::2] = k_config[x_pos[1::2]]
-        cons = self.constraint(x, cons_params, self.bound)
+        cons = self.constraint(x, self.cons_params, self.bound)
         cons = np.percentile(cons, 100 * (1 - self.risk))
         feasible = cons < 0
         old_x_pos = x_pos.copy()
@@ -397,7 +384,7 @@ class PCPSolver:
             x[0::2] = d_config[x_pos[0::2]]
             x[1::2] = k_config[x_pos[1::2]]
             cons = self.constraint(x, self.obj_params, self.bound)
-            cons = self.constraint(x, cons_params, self.bound)
+            cons = self.constraint(x, self.cons_params, self.bound)
             cons = np.percentile(cons, 100 * (1 - self.risk))
             feasible = cons < 0
 

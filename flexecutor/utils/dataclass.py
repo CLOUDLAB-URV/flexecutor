@@ -9,12 +9,15 @@ class StageConfig:
     """
 
     cpu: float
-    memory: float
     workers: int
+    memory: float = 0
 
     @property
     def key(self) -> tuple[float, float, int]:
         return self.cpu, self.memory, self.workers
+
+    def __array__(self):
+        return [self.workers, self.cpu]
 
 
 @dataclass

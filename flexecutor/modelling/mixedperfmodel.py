@@ -102,6 +102,9 @@ class MixedModelCoefficients(GetAndSet):
         self.x2 = 0
         self.const = 0
 
+    def __array__(self):
+        return np.array([self.cold, self.x, self.kd_d, self.logx, self.x2, self.const])
+
 
 @dataclass
 class CanIntraParallel(GetAndSet):
@@ -436,21 +439,10 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
     @overrides
     def parameters(self):
-        cold_percent = 60
-        cold_coeff = np.percentile(self.params_avg.cold, cold_percent)
+        self.coeffs.cold = np.percentile(self.params_avg.cold, 60)
+        return np.array(self.coeffs)
 
-        return np.array(
-            [
-                cold_coeff,
-                self.coeffs.x,
-                self.coeffs.kd_d,
-                self.coeffs.logx,
-                self.coeffs.x2,
-                self.coeffs.const,
-            ]
-        )
-
-    def sample_offline(self, num_samples=10000) -> list[MixedModelCoefficients]:
+    def sample_offline(self, num_samples=10000) -> np.ndarray:
         # seed_val = int(time.time())
         seed_val = 0
         rng = np.random.default_rng(seed=seed_val)
@@ -477,7 +469,7 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
             self._set_coeff_by_params(coeffs_list[i], params_list[i], make_error=True)
 
-        return coeffs_list
+        return np.array([np.array(coeffs_list[i]) for i in range(num_samples)])
 
     def generate_func_code(self, mode) -> str:
         config_list = "config_list"
@@ -486,16 +478,16 @@ class MixedPerfModel(PerfModel, GetAndSet):
         assert mode in ["latency", "cost"]
 
         stage_id = int(self._stage_id)
-        cold_param = f"{coeffs_list}[{stage_id}].cold"
-        x_param = f"{coeffs_list}[{stage_id}].x"
-        kd_d_param = f"{coeffs_list}[{stage_id}].kd_d"
-        logx_param = f"{coeffs_list}[{stage_id}].logx"
-        x2_param = f"{coeffs_list}[{stage_id}].x2"
-        const_param = f"{coeffs_list}[{stage_id}].const"
+        cold_param = f"{coeffs_list}[{stage_id}][cold]"
+        x_param = f"{coeffs_list}[{stage_id}][x]"
+        kd_d_param = f"{coeffs_list}[{stage_id}][kd_d]"
+        logx_param = f"{coeffs_list}[{stage_id}][logx]"
+        x2_param = f"{coeffs_list}[{stage_id}][x2]"
+        const_param = f"{coeffs_list}[{stage_id}][const]"
 
-        var_d = f"{config_list}[{stage_id}].workers" if self.allow_parallel else "1"
-        var_k = f"{config_list}[{stage_id}].cpu"
-        var_x = f"({var_k} * {var_d})" if self.can_intra_parallel.compute else var_d
+        var_d = f"{config_list}[workers({stage_id})]" if self.allow_parallel else "1"
+        var_k = f"{config_list}[cpu({stage_id})]"
+        var_x = f"({var_k} * {var_d})" if self.can_intra_parallel.compute else f"({var_d})"
 
         if self.allow_parallel:
             code = (
@@ -504,8 +496,8 @@ class MixedPerfModel(PerfModel, GetAndSet):
             )
         else:
             code = f"{x_param}/{var_k} + "
-            if self.parent_relevant and self.parent_id:
-                code += f"{kd_d_param}*{config_list}[{self.parent_id * 2}] + "
+            if self.parent_relevant:
+                code += f"{kd_d_param}*{config_list}[workers({self.parent_id})] + "
             code += f"{logx_param}*np.log({var_k})/{var_k} + {x2_param}/{var_k}**2 + {const_param}"
         if mode == "latency":
             code = f"{cold_param} + {code}"
