@@ -43,22 +43,36 @@ class Jolteon(Scheduler):
         self.cons_params = None  # 3-dim array --> shape: (num_stages, coeffs, samples)
 
         # Used for probing
-        self.cpu_search_space = np.array([0.6, 1, 1.5, 2, 2.5, 3, 4])
-        self.workers_search_space = np.array([1, 4, 8, 16, 32])
+        # self.cpu_search_space = np.array([0.6, 1, 1.5, 2, 2.5, 3, 4])  # machine_learning
+        self.cpu_search_space = np.array([1, 1.5, 2, 2.5, 3, 4, 5])  # video
+        self.workers_search_space = np.array(
+            [1, 4, 8, 16, 32]
+        )  # machine_learning & video
 
-        entry_point = [1, 3, 16, 3, 8, 3, 1, 3]
+        # entry_point = [1, 3, 16, 3, 8, 3, 1, 3]  # machine_learning
+        entry_point = [16, 2, 8, 2, 8, 2, 8, 2]  # video
         self.x0 = entry_point if entry_point is not None else np.ones(self.num_X)
 
+        # x_bounds = [
+        #     (1, 2),
+        #     (0.5, 4.1),
+        #     (4, 32),
+        #     (0.5, 4.1),
+        #     (4, 32),
+        #     (0.5, 4.1),
+        #     (1, 2),
+        #     (0.5, 4.1),
+        # ] # machine_learning
         x_bounds = [
-            (1, 2),
-            (0.5, 4.1),
             (4, 32),
-            (0.5, 4.1),
+            (1, 5.1),
             (4, 32),
-            (0.5, 4.1),
-            (1, 2),
-            (0.5, 4.1),
-        ]
+            (1, 5.1),
+            (4, 32),
+            (1, 5.1),
+            (4, 32),
+            (1, 5.1),
+        ]  # video
         if isinstance(x_bounds, list):
             self.x_bounds = x_bounds
         else:
@@ -275,7 +289,7 @@ def workers(stage):
                 if (best_cons < 0 and 0 > _cons > best_cons and obj < best_obj) or (
                     best_cons > 0 and _cons < best_cons
                 ):
-                    _best_pos = _x.copy()
+                    _best_pos = _x_pos.copy()
                     best_obj = obj
                     best_cons = _cons
 
