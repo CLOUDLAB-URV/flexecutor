@@ -9,16 +9,11 @@ from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
 from workflow.stage import Stage
 
 
-def coldstart_func(x, a, b):
+def phase_func(x, a, b):
     return a / x + b
 
 
-def io_func(x, a, b):
-    return a / x + b
-
-
-def comp_func(x, a, b):
-    return a / x + b
+coldstart_func = io_func = comp_func = phase_func
 
 
 class AnaPerfModel(PerfModel):
@@ -67,11 +62,7 @@ class AnaPerfModel(PerfModel):
                 key in config_data for key in FunctionTimes.profile_keys()
             ), f"Each configuration's data must contain {FunctionTimes.profile_keys()} keys."
 
-        print(f"Training Analytical performance model for {self._stage_name}")
-        # cold_arr = np.array(
-        #     [data["cold_start"] for _, data in stage_profile_data.items()]
-        # )
-        # self._cold_params = np.mean(cold_arr)
+        # print(f"Training Analytical performance model for {self._stage_name}")
 
         size2points_coldstart = {}
         size2points_read = {}
@@ -81,46 +72,36 @@ class AnaPerfModel(PerfModel):
         for config_tuple, data in stage_profile_data.items():
             num_vcpu, memory, num_func = config_tuple
             # adapt to parallel mode
-            # if the stage does not allow more than one function, ignore num_func
-            if self.allow_parallel:
-                config_key = self._config_to_xparam(num_vcpu, memory, num_func)
-            else:
-                config_key = self._config_to_xparam(num_vcpu, memory, 1)
+            # if the stage does not allow more than one function, ignore num_func and set to 1
+            num_vcpu = num_vcpu if self.allow_parallel else 1
+            config_key = self._config_to_xparam(num_vcpu, memory, num_func)
 
-            # collect data for cold_start
-            if config_key not in size2points_coldstart:
-                size2points_coldstart[config_key] = []
-            size2points_coldstart[config_key].extend(data["cold_start"])
+            for size2points, phase in zip(
+                [
+                    size2points_coldstart,
+                    size2points_read,
+                    size2points_comp,
+                    size2points_write,
+                ],
+                ["cold_start", "read", "compute", "write"],
+            ):
+                if config_key not in size2points:
+                    size2points[config_key] = []
+                size2points[config_key].extend(data[phase])
 
-            # collect data for read step
-            if config_key not in size2points_read:
-                size2points_read[config_key] = []
-            size2points_read[config_key].extend(data["read"])
+        for size2points in [
+            size2points_coldstart,
+            size2points_read,
+            size2points_comp,
+            size2points_write,
+        ]:
+            for config in size2points:
+                size2points[config] = np.mean(size2points[config])
 
-            # collect data for comp step
-            if config_key not in size2points_comp:
-                size2points_comp[config_key] = []
-            size2points_comp[config_key].extend(data["compute"])
-
-            # collect data for write step
-            if config_key not in size2points_write:
-                size2points_write[config_key] = []
-            size2points_write[config_key].extend(data["write"])
-
-        # average the data
-        for config in size2points_coldstart:
-            size2points_coldstart[config] = np.mean(size2points_coldstart[config])
-        for config in size2points_read:
-            size2points_read[config] = np.mean(size2points_read[config])
-        for config in size2points_comp:
-            size2points_comp[config] = np.mean(size2points_comp[config])
-        for config in size2points_write:
-            size2points_write[config] = np.mean(size2points_write[config])
-
-        print(size2points_coldstart)
-        print(size2points_read)
-        print(size2points_comp)
-        print(size2points_write)
+        # print(size2points_coldstart)
+        # print(size2points_read)
+        # print(size2points_comp)
+        # print(size2points_write)
 
         def fit_params(data, func):
             assert isinstance(data, dict)
@@ -142,24 +123,24 @@ class AnaPerfModel(PerfModel):
             return params.tolist()
 
         # Fit the parameters
-        print("Fitting parameters...")
+        # print("Fitting parameters...")
         self._cold_params = fit_params(size2points_coldstart, coldstart_func)
         self._read_params = fit_params(size2points_read, io_func)
         self._comp_params = fit_params(size2points_comp, comp_func)
         self._write_params = fit_params(size2points_write, io_func)
 
-        print(
-            f"COLD START: alpha parameter = {self._cold_params[0]}, beta parameter = {self._cold_params[1]}"
-        )
-        print(
-            f"READ STEP: alpha parameter = {self._read_params[0]}, beta parameter = {self._read_params[1]}"
-        )
-        print(
-            f"COMPUTE STEP: alpha parameter = {self._comp_params[0]}, beta parameter = {self._comp_params[1]}"
-        )
-        print(
-            f"WRITE_STEP: alpha parameter = {self._write_params[0]}, beta parameter = {self._write_params[1]}"
-        )
+        # print(
+        #     f"COLD START: alpha parameter = {self._cold_params[0]}, beta parameter = {self._cold_params[1]}"
+        # )
+        # print(
+        #     f"READ STEP: alpha parameter = {self._read_params[0]}, beta parameter = {self._read_params[1]}"
+        # )
+        # print(
+        #     f"COMPUTE STEP: alpha parameter = {self._comp_params[0]}, beta parameter = {self._comp_params[1]}"
+        # )
+        # print(
+        #     f"WRITE_STEP: alpha parameter = {self._write_params[0]}, beta parameter = {self._write_params[1]}"
+        # )
 
     @property
     @overrides
@@ -212,41 +193,3 @@ class AnaPerfModel(PerfModel):
             write=predicted_write_time,
             cold_start=predicted_cold_time,
         )
-
-    # def optimize(self, config: ConfigBounds) -> StageConfig:
-    #     # TODO: implement this
-    #     """Dummy response in AnaPerfModel"""
-    #     return StageConfig(cpu=1, memory=2048, workers=8)
-
-    # def fit_polynomial(self, x, y, degree):
-    #     coeffs = np.polyfit(x, y, degree)
-    #     return np.poly1d(coeffs)
-
-    # def visualize(self, step="compute", degree=2):
-    #     assert step in ["read", "compute", "write"]
-    #     data = self.profiling_results
-    #     config_labels = ["num_vcpu", "runtime_memory", "num_workers", "chunk_size"]
-
-    #     for label in config_labels:
-    #         x = np.array([res["config"][config_labels.index(label)] for res in data])
-    #         y = np.array([res[f"avg_{step}_time"] for res in data])
-
-    #         if len(x) == 0 or len(y) == 0:
-    #             print(f"Warning: No data to plot for {step} step with {label}")
-    #             continue
-
-    #         # Polynomial fitting
-    #         poly = self.fit_polynomial(x, y, degree)
-    #         x_fit = np.linspace(min(x), max(x), 100)
-    #         y_fit = poly(x_fit)
-
-    #         plt.figure()
-    #         plt.scatter(x, y, label="Observed")
-    #         plt.plot(x_fit, y_fit, "r-", label="Fitted")
-    #         plt.xlabel(f"Config ({label})")
-    #         plt.ylabel(f"{step.capitalize()} Time")
-    #         plt.title(f"{step.capitalize()} Time vs {label.capitalize()}")
-    #         plt.legend()
-    #         plt.grid(True)
-    #         plt.savefig(f"{step}_time_vs_{label}.png")
-    #         plt.show()
