@@ -117,6 +117,14 @@ class Jolteon(Scheduler):
         num_workers, num_cpu = self._round_config(num_workers, num_cpu)
         num_workers, num_cpu = self._probe(num_workers, num_cpu)
 
+        # STEP 6: Set the resource configuration for each stage
+        for stage in self._dag.stages:
+            stage.resource_config = StageConfig(
+                workers=num_workers[stage.stage_idx],
+                cpu=num_cpu[stage.stage_idx],
+                memory=num_cpu[stage.stage_idx] * 1769,
+            )
+
         print(f"Num CPU: {num_cpu}")
         print(f"Num Func: {num_workers}")
         print("Jolteon PCPSolver finished as expected!")
