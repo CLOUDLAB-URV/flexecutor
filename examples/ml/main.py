@@ -26,7 +26,7 @@ if __name__ == "__main__":
         data_accuracies = FlexData("accuracies", suffix=".txt")
 
         stage0 = Stage(
-            stage_id="0",
+            stage_id="stage0",
             func=pca,
             inputs=[data_training],
             outputs=[data_vectors_pca, data_training_transform],
@@ -35,21 +35,21 @@ if __name__ == "__main__":
         )
 
         stage1 = Stage(
-            stage_id="1",
+            stage_id="stage1",
             func=train_with_multiprocessing,
             inputs=[data_training_transform],
             outputs=[data_models],
         )
 
         stage2 = Stage(
-            stage_id="2",
+            stage_id="stage2",
             func=aggregate,
             inputs=[data_training_transform, data_models],
             outputs=[data_forests, data_predictions],
         )
 
         stage3 = Stage(
-            stage_id="3",
+            stage_id="stage3",
             func=test,
             inputs=[data_predictions, data_training_transform],
             outputs=[data_accuracies],

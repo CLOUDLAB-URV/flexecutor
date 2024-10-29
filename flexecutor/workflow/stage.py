@@ -40,6 +40,7 @@ class Stage:
             params = {}
         self._stage_unique_id = None
         self._stage_id = stage_id
+        self._stage_idx = None
         self._inputs = inputs
         self._outputs = outputs
         self._params = params
@@ -84,6 +85,14 @@ class Stage:
     def dag_id(self, value: str):
         self._dag_id = value
         self._stage_unique_id = f"{self._dag_id}-{self._stage_id}"
+
+    @property
+    def stage_idx(self) -> int:
+        return self._stage_idx
+
+    @stage_idx.setter
+    def stage_idx(self, value: int):
+        self._stage_idx = value
 
     @property
     def perf_model(self) -> PerfModel:

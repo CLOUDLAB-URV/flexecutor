@@ -12,6 +12,7 @@ class DAG:
     def __init__(self, dag_id):
         self._dag_id = dag_id
         self._stages = list()
+        self._stage_counter = 0
 
     def __iter__(self):
         return iter(self.stages)
@@ -57,6 +58,8 @@ class DAG:
         :raises ValueError: if the stage is already in the DAG
         """
         stage.dag_id = self.dag_id
+        stage.stage_idx = self._stage_counter
+        self._stage_counter += 1
 
         if stage.stage_id in {t.stage_id for t in self.stages}:
             raise ValueError(

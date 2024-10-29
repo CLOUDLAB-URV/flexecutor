@@ -27,25 +27,25 @@ if __name__ == "__main__":
         data_classification = FlexData("classification", suffix=".json")
 
         stage0 = Stage(
-            stage_id="0",
+            stage_id="stage0",
             func=split_videos,
             inputs=[data_videos],
             outputs=[data_video_chunks],
         )
         stage1 = Stage(
-            stage_id="1",
+            stage_id="stage1",
             func=extract_frames,
             inputs=[data_video_chunks],
             outputs=[data_mainframes],
         )
         stage2 = Stage(
-            stage_id="2",
+            stage_id="stage2",
             func=sharpening_filter,
             inputs=[data_mainframes],
             outputs=[data_filtered_frames],
         )
         stage3 = Stage(
-            stage_id="3",
+            stage_id="stage3",
             func=classify_images,
             inputs=[data_filtered_frames],
             outputs=[data_classification],

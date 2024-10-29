@@ -477,16 +477,16 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
         assert mode in ["latency", "cost"]
 
-        stage_id = int(self._stage_id)
-        cold_param = f"{coeffs_list}[{stage_id}][cold]"
-        x_param = f"{coeffs_list}[{stage_id}][x]"
-        kd_d_param = f"{coeffs_list}[{stage_id}][kd_d]"
-        logx_param = f"{coeffs_list}[{stage_id}][logx]"
-        x2_param = f"{coeffs_list}[{stage_id}][x2]"
-        const_param = f"{coeffs_list}[{stage_id}][const]"
+        stage_idx = int(self._stage_idx)
+        cold_param = f"{coeffs_list}[{stage_idx}][cold]"
+        x_param = f"{coeffs_list}[{stage_idx}][x]"
+        kd_d_param = f"{coeffs_list}[{stage_idx}][kd_d]"
+        logx_param = f"{coeffs_list}[{stage_idx}][logx]"
+        x2_param = f"{coeffs_list}[{stage_idx}][x2]"
+        const_param = f"{coeffs_list}[{stage_idx}][const]"
 
-        var_d = f"{config_list}[workers({stage_id})]" if self.allow_parallel else "1"
-        var_k = f"{config_list}[cpu({stage_id})]"
+        var_d = f"{config_list}[workers({stage_idx})]" if self.allow_parallel else "1"
+        var_k = f"{config_list}[cpu({stage_idx})]"
         var_x = f"({var_k} * {var_d})" if self.can_intra_parallel.compute else f"({var_d})"
 
         if self.allow_parallel:
@@ -497,7 +497,7 @@ class MixedPerfModel(PerfModel, GetAndSet):
         else:
             code = f"{x_param}/{var_k} + "
             if self.parent_relevant:
-                code += f"{kd_d_param}*{config_list}[workers({self.parent_id})] + "
+                code += f"{kd_d_param}*{config_list}[workers({self.parent_idx})] + "
             code += f"{logx_param}*np.log({var_k})/{var_k} + {x2_param}/{var_k}**2 + {const_param}"
         if mode == "latency":
             code = f"{cold_param} + {code}"

@@ -20,12 +20,13 @@ class PerfModel(ABC):
 
         self._stage_name = stage.stage_unique_id
         self._stage_id = stage.stage_id
+        self._stage_idx = stage.stage_idx
 
         self.allow_parallel = stage.max_concurrency > 1
         # self.allow_parallel = True
 
         self.has_parent = stage.parents is not None and len(stage.parents) > 0
-        self.parent_id = max([int(parent.stage_id) for parent in stage.parents]) if self.has_parent else None
+        self.parent_idx = max([int(parent.stage_idx) for parent in stage.parents]) if self.has_parent else None
         self._model_name = model_name
         self._model_dst = model_dst
         self._model_type = model_type
