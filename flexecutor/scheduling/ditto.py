@@ -118,39 +118,6 @@ class Ditto(Scheduler):
         self.virtual_stages = {}
         self.roots = []
         self.leafs = []
-        for stage in self._dag.stages:
-            param_a, _ = stage.perf_model.parameters()
-            # Fit for not allow_parallel stages, whose "a" is negative
-            param_a = abs(param_a)
-            new_stage = VirtualStage(param_a, stage.stage_id)
-            self.virtual_stages[stage.stage_id] = new_stage
-            if stage in self._dag.root_stages:
-                self.roots.append(new_stage)
-            if stage in self._dag.leaf_stages:
-                self.leafs.append(new_stage)
-
-        # Build the virtual DAG
-        for stage in self._dag.stages:
-            idx = stage.stage_id
-            for p in stage.parents:
-                self.virtual_stages[idx].add_parent(self.virtual_stages[p.stage_id])
-
-            for c in stage.children:
-                self.virtual_stages[idx].add_child(self.virtual_stages[c.stage_id])
-
-        # Tune the virtual DAG, delete the redundant edges
-        for stage_id, stage in self.virtual_stages.items():
-            maintain_list = []
-            for idx, c in enumerate(stage.children):
-                if stage.max_distance(c) == 1:
-                    maintain_list.append(idx)
-
-            new_children = [stage.children[idx] for idx in maintain_list]
-            for idx, c in enumerate(stage.children):
-                if idx in maintain_list:
-                    continue
-                c.parents.remove(stage)
-            stage.children = new_children
 
     def _assign(self, v_stage: VirtualStage, degree: float):
         assert degree > 0
@@ -239,6 +206,40 @@ class Ditto(Scheduler):
         self._assign(final_stage, 1)
 
     def schedule(self):
+        for stage in self._dag.stages:
+            param_a, _ = stage.perf_model.parameters
+            # Fit for not allow_parallel stages, whose "a" is negative
+            param_a = abs(param_a)
+            new_stage = VirtualStage(param_a, stage.stage_id)
+            self.virtual_stages[stage.stage_id] = new_stage
+            if stage in self._dag.root_stages:
+                self.roots.append(new_stage)
+            if stage in self._dag.leaf_stages:
+                self.leafs.append(new_stage)
+
+        # Build the virtual DAG
+        for stage in self._dag.stages:
+            idx = stage.stage_id
+            for p in stage.parents:
+                self.virtual_stages[idx].add_parent(self.virtual_stages[p.stage_id])
+
+            for c in stage.children:
+                self.virtual_stages[idx].add_child(self.virtual_stages[c.stage_id])
+
+        # Tune the virtual DAG, delete the redundant edges
+        for stage_id, stage in self.virtual_stages.items():
+            maintain_list = []
+            for idx, c in enumerate(stage.children):
+                if stage.max_distance(c) == 1:
+                    maintain_list.append(idx)
+
+            new_children = [stage.children[idx] for idx in maintain_list]
+            for idx, c in enumerate(stage.children):
+                if idx in maintain_list:
+                    continue
+                c.parents.remove(stage)
+            stage.children = new_children
+
         # FIXME: parametrize the objective
         obj = "latency"
 
