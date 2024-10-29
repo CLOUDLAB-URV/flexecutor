@@ -1,1 +1,0 @@
-from .bruteforcesolver import BruteforceSolver

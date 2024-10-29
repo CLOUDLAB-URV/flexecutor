@@ -17,7 +17,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
-from flexecutor.optimization import BruteforceSolver
+from scheduling.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class DAGExecutor:
         self,
         dag: DAG,
         executor: FunctionExecutor | None = None,
+        scheduler: Optional[Scheduler] = None,
     ):
         self._dag = dag
         self._processor = ThreadPoolProcessor(executor)
@@ -56,6 +57,8 @@ class DAGExecutor:
         self._finished_stages: Set[Stage] = set()
         self._executor = executor
         self._executor_id = get_executor_id()
+
+        self._scheduler = scheduler
 
     def _get_asset_path(self, stage: Stage, asset_type: AssetType):
         dir_name, file_extension = asset_type.value
@@ -221,7 +224,9 @@ class DAGExecutor:
 
         if num_workers is not None:
             for stage in self._dag.stages:
-                stage.resource_config = StageConfig(cpu=1, memory=1024, workers=num_workers)
+                stage.resource_config = StageConfig(
+                    cpu=1, memory=1024, workers=num_workers
+                )
 
         self._futures = dict()
 
@@ -254,19 +259,18 @@ class DAGExecutor:
 
         return self._futures
 
-    def optimize(
-        self,
-        dag_critical_path=List[str],
-        config_bounds: ConfigBounds = None,
-    ):
+    def optimize(self):
         """
         Sets the optimal configuration for each stage.
         """
 
         print(f"Optimizing DAG {self._dag.dag_id}")
 
-        solver = BruteforceSolver("bruteforce")
-        solver.solve(self._dag, dag_critical_path, config_bounds)
+        if self._scheduler is None:
+            raise ValueError("Scheduler not defined")
+
+        self.train()
+        self._scheduler.schedule()
 
     def shutdown(self):
         """

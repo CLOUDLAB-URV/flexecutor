@@ -62,12 +62,9 @@ if __name__ == "__main__":
 
         dag.add_stages([stage0, stage1, stage2, stage3])
 
-        executor = DAGExecutor(dag, executor=FunctionExecutor(log_level="INFO"))
-        # results = executor.execute(num_workers=6)
-        # print(results["stage1"].get_timings())
-
         entry_point = [
-            StageConfig(workers=workers, cpu=cpu) for workers, cpu in zip([1, 16, 8, 1], [3] * 4)
+            StageConfig(workers=workers, cpu=cpu)
+            for workers, cpu in zip([1, 16, 8, 1], [3] * 4)
         ]
         x_bounds = [
             StageConfig(workers=workers, cpu=cpu)
@@ -76,18 +73,20 @@ if __name__ == "__main__":
             )
         ]
 
-        scheduler = Jolteon(
+        executor = DAGExecutor(
             dag,
-            bound=40,
-            bound_type="latency",
-            cpu_search_space=[0.6, 1, 1.5, 2, 2.5, 3, 4],
-            entry_point=entry_point,
-            x_bounds=x_bounds,
+            executor=FunctionExecutor(log_level="INFO"),
+            scheduler=Jolteon(
+                dag,
+                bound=40,
+                bound_type="latency",
+                cpu_search_space=[0.6, 1, 1.5, 2, 2.5, 3, 4],
+                entry_point=entry_point,
+                x_bounds=x_bounds,
+            ),
         )
 
-        executor.train()
-        scheduler.schedule()
-
+        executor.optimize()
         executor.shutdown()
 
     main()
