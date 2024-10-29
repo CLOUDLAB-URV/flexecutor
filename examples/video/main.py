@@ -12,6 +12,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from scheduling.jolteon import Jolteon
+from utils.dataclass import StageConfig
 
 if __name__ == "__main__":
 
@@ -59,7 +60,19 @@ if __name__ == "__main__":
         # results = executor.execute(num_workers=6)
         # print(results["stage1"].get_timings())
 
-        scheduler = Jolteon(dag, total_parallelism=10, cpu_per_worker=1)
+        entry_point = [
+            StageConfig(workers=workers, cpu=cpu) for workers, cpu in zip([16, 8, 8, 8], [2] * 4)
+        ]
+        x_bounds = [
+            StageConfig(workers=workers, cpu=cpu) for workers, cpu in zip([4, 1] * 4, [32, 5.1] * 4)
+        ]
+        scheduler = Jolteon(
+            dag,
+            bound=20,
+            bound_type="latency",
+            entry_point=entry_point,
+            x_bounds=x_bounds,
+        )
 
         executor.train()
         scheduler.schedule()

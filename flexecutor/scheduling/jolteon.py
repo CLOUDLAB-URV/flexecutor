@@ -1,4 +1,6 @@
 import types
+from itertools import chain
+from typing import Optional, Union
 
 import black
 import numpy as np
@@ -6,6 +8,7 @@ import numpy as np
 from modelling.perfmodel import PerfModelEnum
 from scheduling.orion import MyQueue
 from scheduling.scheduler import Scheduler
+from utils.dataclass import StageConfig
 
 workers_accessor = slice(0, None, 2)
 cpu_accessor = slice(1, None, 2)
@@ -24,68 +27,61 @@ def _get_sampling_size(num_stages, risk, confidence_error):
 
 class Jolteon(Scheduler):
 
-    def __init__(self, dag, total_parallelism: int, cpu_per_worker: float):
+    def __init__(
+        self,
+        dag,
+        bound: float,
+        bound_type: str = "latency",
+        probe_depth: int = 4,
+        cpu_search_space: Optional[list] = None,
+        workers_search_space: Optional[list] = None,
+        entry_point: Optional[list[StageConfig]] = None,
+        x_bounds: Optional[Union[list[StageConfig] | StageConfig]] = None,
+        risk: float = 0.05,
+        confidence_error: float = 0.001,
+    ):
+        assert bound_type in ["latency", "cost"]
+
         super().__init__(dag, PerfModelEnum.MIXED)
-        self.total_parallelism = total_parallelism
-        self.cpu_per_worker = cpu_per_worker
 
         self.num_X = 2 * len(dag.stages)
         self.objective_fn = None
         self.constraint_fn = None
 
-        # FIXME: please parametrise as needed
-
-        self.bound = 40
-        self.bound_type = "latency"  # "latency" or "cost"
-        self.probe_depth = 4
+        self.bound = bound
+        self.bound_type = bound_type  # "latency" or "cost"
+        self.probe_depth = probe_depth
 
         self.obj_params = None  # 2-dim array --> shape: (num_stages, coeffs)
         self.cons_params = None  # 3-dim array --> shape: (num_stages, coeffs, samples)
 
         # Used for probing
-        # self.cpu_search_space = np.array([0.6, 1, 1.5, 2, 2.5, 3, 4])  # machine_learning
-        self.cpu_search_space = np.array([1, 1.5, 2, 2.5, 3, 4, 5])  # video
-        self.workers_search_space = np.array(
-            [1, 4, 8, 16, 32]
-        )  # machine_learning & video
+        self.cpu_search_space = np.array(cpu_search_space or [1, 1.5, 2, 2.5, 3, 4, 5])
+        self.workers_search_space = np.array(workers_search_space or [1, 4, 8, 16, 32])
 
-        # entry_point = [1, 3, 16, 3, 8, 3, 1, 3]  # machine_learning
-        entry_point = [16, 2, 8, 2, 8, 2, 8, 2]  # video
-        self.x0 = entry_point if entry_point is not None else np.ones(self.num_X)
+        self.x0 = (
+            list(chain.from_iterable([(i.workers, i.cpu) for i in entry_point]))
+            if entry_point is not None
+            else np.ones(self.num_X)
+        )
 
-        # x_bounds = [
-        #     (1, 2),
-        #     (0.5, 4.1),
-        #     (4, 32),
-        #     (0.5, 4.1),
-        #     (4, 32),
-        #     (0.5, 4.1),
-        #     (1, 2),
-        #     (0.5, 4.1),
-        # ] # machine_learning
-        x_bounds = [
-            (4, 32),
-            (1, 5.1),
-            (4, 32),
-            (1, 5.1),
-            (4, 32),
-            (1, 5.1),
-            (4, 32),
-            (1, 5.1),
-        ]  # video
         if isinstance(x_bounds, list):
-            self.x_bounds = x_bounds
+            self.x_bounds = [(i.workers, i.cpu) for i in x_bounds]
         else:
-            x_tuple = x_bounds if isinstance(x_bounds, tuple) else (0.5, None)
+            x_tuple = (
+                (x_bounds.workers, x_bounds.cpu)
+                if isinstance(x_bounds, StageConfig)
+                else (0.5, None)
+            )
             self.x_bounds = [x_tuple] * self.num_X
 
         # User-defined risk level (epsilon) for constraint satisfaction (e.g., 0.01 or 0.05)
-        self.risk = 0.05
+        self.risk = risk
 
         # Confidence error (delta) for the lower bound property of the ground-truth optimal
         # objective value or the feasibility of the solution or both,
         # depending on the relationship between epsilon and alpha, default to 0.01
-        self.confidence_error = 0.001
+        self.confidence_error = confidence_error
 
         # Function tolerance for the optimization solver
         self.fn_tol = self.risk * self.bound
