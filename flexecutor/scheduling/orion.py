@@ -104,14 +104,16 @@ class Orion(Scheduler):
         else:
             raise ValueError("Invalid mode")
 
-        # Setting resource config for each stage
+        resource_config_list = []
         for index, (stage_id, num_workers) in enumerate(num_workers_dict.items()):
             stage = self._dag.get_stage_by_id(stage_id)
-            stage.resource_config = StageConfig(
+            resource_config = StageConfig(
                 workers=num_workers,
                 cpu=self.max_cpu_per_worker,
                 memory=workers_size_list[index],
             )
+            resource_config_list.append(resource_config)
+        return resource_config_list
 
     def _bfs_simple_queue(self):
         latency = 50

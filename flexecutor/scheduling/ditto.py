@@ -267,7 +267,7 @@ class Ditto(Scheduler):
             num_workers = 1 if num_workers == 0 else num_workers
             num_workers_dict[stage.stage_id] = num_workers
 
-        # Setting the number of workers for each stage
+        resource_config_list = []
         for stage_id, num_workers in num_workers_dict.items():
             stage = self._dag.get_stage_by_id(stage_id)
             # FIXME: resolve that. Currently using fixed ratio of Lambda
@@ -276,4 +276,5 @@ class Ditto(Scheduler):
                 cpu=self.cpu_per_worker,
                 memory=self.cpu_per_worker * 1769,
             )
-            stage.resource_config = resource_config
+            resource_config_list.append(resource_config)
+        return resource_config_list

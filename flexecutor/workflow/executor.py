@@ -269,7 +269,15 @@ class DAGExecutor:
             raise ValueError("Scheduler not defined")
 
         self.train()
-        self._scheduler.schedule()
+        resource_config_list = self._scheduler.schedule()
+
+        for stage, resource_config in zip(self._dag.stages, resource_config_list):
+            stage.resource_config = resource_config
+            print(
+                f"··· STAGE #{stage.stage_idx} ···"
+                f"\tworkers: {stage.resource_config.workers}"
+                f"\tcpu: {stage.resource_config.cpu}"
+            )
 
     def shutdown(self):
         """

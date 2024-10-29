@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 from modelling.perfmodel import PerfModelEnum
+from utils.dataclass import StageConfig
 from workflow.dag import DAG
 
 
@@ -13,7 +14,7 @@ class Scheduler(ABC):
             perf_model.init_from_dag(self._dag)
 
     @abstractmethod
-    def schedule(self):
+    def schedule(self) -> list[StageConfig]:
         """
         This method purpose is to calculate and set the resource configuration of the
         different stages in the DAG.

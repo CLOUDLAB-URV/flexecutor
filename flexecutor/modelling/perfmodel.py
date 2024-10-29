@@ -75,20 +75,21 @@ class PerfModel(ABC):
 
     @classmethod
     def instance(cls, model_type: PerfModelEnum, stage):
-        if model_type == PerfModelEnum.ANALYTIC:
+        model_type = model_type.value
+        if model_type == PerfModelEnum.ANALYTIC.value:
             from flexecutor.modelling.anaperfmodel import AnaPerfModel
 
             return AnaPerfModel(stage)
-        elif model_type == PerfModelEnum.GENETIC:
+        elif model_type == PerfModelEnum.GENETIC.value:
             from flexecutor.modelling.gaperfmodel import GAPerfModel
 
             return GAPerfModel(stage)
-        elif model_type == PerfModelEnum.DISTRIBUTION:
+        elif model_type == PerfModelEnum.DISTRIBUTION.value:
             from flexecutor.modelling.distperfmodel import DistPerfModel
 
             return DistPerfModel(stage)
 
-        elif model_type.value == PerfModelEnum.MIXED.value:
+        elif model_type == PerfModelEnum.MIXED.value:
             from flexecutor.modelling.mixedperfmodel import MixedPerfModel
 
             return MixedPerfModel(stage)
