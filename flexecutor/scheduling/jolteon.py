@@ -9,6 +9,7 @@ from modelling.perfmodel import PerfModelEnum
 from scheduling.orion import MyQueue
 from scheduling.scheduler import Scheduler
 from utils.dataclass import StageConfig
+from workflow.stage import Stage
 
 workers_accessor = slice(0, None, 2)
 cpu_accessor = slice(1, None, 2)
@@ -39,6 +40,8 @@ class Jolteon(Scheduler):
         x_bounds: Optional[Union[list[StageConfig] | StageConfig]] = None,
         risk: float = 0.05,
         confidence_error: float = 0.001,
+        critical_path: Optional[list[Stage]] = None,
+        secondary_path: Optional[list[Stage]] = None,
     ):
         assert bound_type in ["latency", "cost"]
 
@@ -86,6 +89,10 @@ class Jolteon(Scheduler):
         # Function tolerance for the optimization solver
         self.fn_tol = self.risk * self.bound
 
+        # Used for objective and constraint function generation
+        self.critical_path = critical_path or self._dag.stages
+        self.secondary_path = secondary_path
+
     def schedule(self):
         # STEP 1: Use Hoeffding's inequality to determine the sampling size
         sample_size = _get_sampling_size(
@@ -103,11 +110,7 @@ class Jolteon(Scheduler):
         ).transpose((0, 2, 1))
 
         # STEP 4: Generate the objective and constraint functions
-        self._generate_func_code(
-            # FIXME: allow parametrization
-            self._dag.stages,
-            None,
-        )
+        self._generate_func_code()
 
         # STEP 5: Solve the optimization problem (gradient-based descent + probing)
         num_workers, num_cpu = self._iter_solve()
@@ -118,11 +121,12 @@ class Jolteon(Scheduler):
         print(f"Num Func: {num_workers}")
         print("Jolteon PCPSolver finished as expected!")
 
-    def _generate_func_code(self, critical_path, secondary_path=None):
-        assert isinstance(critical_path, list)
-        assert secondary_path is None or isinstance(secondary_path, list)
+    def _generate_func_code(self):
         obj_mode = "cost" if self.bound_type == "latency" else "latency"
         cons_mode = self.bound_type
+
+        critical_path = self.critical_path
+        secondary_path = self.secondary_path
 
         code = """
 import numpy as np

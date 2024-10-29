@@ -31,15 +31,14 @@ if __name__ == "__main__":
     def main():
         dag = DAG("mini-dag")
 
-        # FIXME: make stage_id be a string with letters
         stage1 = Stage(
-            "0",
+            "stage0",
             func=word_count,
             inputs=[flex_data_txt],
             outputs=[flex_data_word_count],
         )
         stage2 = Stage(
-            "1",
+            "stage1",
             func=sum_counts,
             inputs=[flex_data_word_count],
             outputs=[flex_data_reduce_count],
