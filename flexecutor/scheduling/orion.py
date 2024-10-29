@@ -61,7 +61,7 @@ class Orion(Scheduler):
         self.memory_step = memory_step
         # FIXME: Note that AWS Lambda effects are present here
         self.max_memory = 1792 * max_cpu_per_worker
-        self.stage_workers = {}
+        self.stage_workers = {k.stage_id: 1 for k in self._dag.stages}
 
     def schedule(self):
         # Calculate the input size of each stage.
@@ -96,7 +96,6 @@ class Orion(Scheduler):
         mode = "simple"  # | "priority"
 
         # FIXME: convert workers_size_list to a dict "stage_id: memory"
-        workers_size_list = None
         if mode == "simple":
             workers_size_list = self._bfs_simple_queue()
         elif mode == "priority":
@@ -106,7 +105,6 @@ class Orion(Scheduler):
 
         resource_config_list = []
         for index, (stage_id, num_workers) in enumerate(num_workers_dict.items()):
-            stage = self._dag.get_stage_by_id(stage_id)
             resource_config = StageConfig(
                 workers=num_workers,
                 cpu=self.max_cpu_per_worker,

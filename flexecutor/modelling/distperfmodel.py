@@ -9,10 +9,7 @@ from workflow.stage import Stage
 
 class Distribution:
     def __init__(self, init_list, init_prob=None):
-        assert isinstance(init_list, list)
-        assert isinstance(init_prob, list) or init_prob is None
-        if len(init_list) == 0:
-            raise ValueError("Empty list")
+
         init_list.sort()
         self.data = np.array(init_list)
         if init_prob is None:
@@ -25,7 +22,7 @@ class Distribution:
 
     def combine(self, dist, com_type="in-series"):
         assert isinstance(dist, Distribution)
-        assert isinstance(com_type, int)
+        assert com_type in ["in-series", "parallel"]
 
         if com_type == "in-series":
             new_data = []
@@ -170,6 +167,9 @@ class DistPerfModel(PerfModel):
         Distributions only contain total stage duration values
         @param stage_profile_data:
         """
+        # FIXME: for compatibility with Jolteon
+        accessor = slice(1, None), 1
+
         for config_tuple, data in stage_profile_data.items():
             _, memory, workers = config_tuple
             config_latencies = (
@@ -178,10 +178,11 @@ class DistPerfModel(PerfModel):
                 + np.array(data["write"])
                 + np.array(data["cold_start"])
             )
+            config_latencies = config_latencies[accessor]
             # In Jolteon impl, cpu key is calculated via memory*workers/1769
             # TODO: consider that in the future this will change
             stage_size = round(memory * workers / 1769, 1)
-            self.distributions[stage_size] = Distribution(list(config_latencies))
+            self.distributions[stage_size] = Distribution(config_latencies)
             self.max_stage_size = max(self.distributions.keys())
 
     def calculate(self, stage_size) -> Distribution:
@@ -193,7 +194,7 @@ class DistPerfModel(PerfModel):
         sub_dist = None
 
         for sub_model in self.up_models:
-            dist = sub_model.calculate()
+            dist = sub_model.calculate(stage_size)
             if sub_dist is None:
                 sub_dist = dist
             else:
