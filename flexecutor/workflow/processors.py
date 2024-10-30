@@ -78,6 +78,8 @@ class ThreadPoolProcessor:
         map_iterdata = []
         num_workers = min(stage.resource_config.workers, stage.max_concurrency)
 
+        # FIXME: big overhead; please only query object storage once
+
         for flex_data in stage.inputs:
             if flex_data.chunker:
                 flex_data.scan_keys()
