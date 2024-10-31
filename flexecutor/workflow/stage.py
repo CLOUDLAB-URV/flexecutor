@@ -3,9 +3,12 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Set, List, Optional, Callable
 
+from lithops import FunctionExecutor
+
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.storage.storage import FlexData
 from flexecutor.utils.dataclass import StageConfig
+from flexecutor.workflow.stagefuture import StageFuture
 
 
 class StageState(Enum):
@@ -200,3 +203,17 @@ class Stage:
         """Overload the << operator for lists of operator."""
         self.add_child(other)
         return self
+
+    def execute(self) -> StageFuture:
+        """
+        Execute the stage: it declares DAGExecutor and then execute the stage
+        """
+        from flexecutor.workflow.executor import DAGExecutor
+        from flexecutor.workflow.dag import DAG
+
+        dag = DAG("single-stage-dag")
+        dag.add_stage(self)
+        executor = DAGExecutor(executor=FunctionExecutor(), dag=dag)
+        result = executor.execute()
+        executor.shutdown()
+        return list(result.values())[0]

@@ -70,7 +70,7 @@ class DAGExecutor:
         new_profile_data: List[FunctionTimes],
         resource_config: StageConfig,
     ) -> None:
-        config_key = str(resource_config.key)
+        config_key = resource_config.key
         if config_key not in profile_data:
             profile_data[config_key] = {}
         for key in FunctionTimes.profile_keys():
@@ -221,6 +221,9 @@ class DAGExecutor:
         # Before the execution, get the optimal configurations for all stages in the DAG
         # FIXME: actually optimize, hardcoded for now
 
+        # self.train()
+        # FIXME: the optimal config seems to be an array, why is that?
+        # self.optimize(ConfigBounds(*[(1, 6), (512, 4096), (1, 3)]))
         if num_workers is not None:
             for stage in self._dag.stages:
                 stage.resource_config = StageConfig(

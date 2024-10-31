@@ -50,7 +50,6 @@ def setup_logging(level):
 
 
 def load_profiling_results(file: str) -> dict:
-    file = os.path.join(get_my_exec_path(), file)
     if not os.path.exists(file):
         return {}
     with open(file, "r") as f:
@@ -59,7 +58,7 @@ def load_profiling_results(file: str) -> dict:
             # Convert string keys back to tuples
             data = {ast.literal_eval(k): v for k, v in data.items()}
         except (json.JSONDecodeError, ValueError, SyntaxError):
-            return {}
+            raise ValueError(f"Error loading profiling results from {file}")
     return data
 
 
@@ -70,6 +69,7 @@ def save_profiling_results(file: str, profile_data: dict):
 
 
 FLEXECUTOR_EXEC_PATH = "FLEXECUTOR_EXEC_PATH"
+BUCKET_NAME = "FLEX_BUCKET"
 
 
 def get_my_exec_path():
@@ -79,7 +79,7 @@ def get_my_exec_path():
 
     :return: the path where the flexorchestrator script is located
     """
-    return os.environ.get(FLEXECUTOR_EXEC_PATH, None)
+    return os.environ.get(FLEXECUTOR_EXEC_PATH) or os.getcwd()
 
 
 def flexorchestrator(bucket=""):
@@ -98,12 +98,15 @@ def flexorchestrator(bucket=""):
             key = FLEXECUTOR_EXEC_PATH
             frame = inspect.currentframe()
             caller_frame = frame.f_back
-            caller_file = caller_frame.f_globals["__file__"]
+            if "__file__" in caller_frame.f_globals:
+                caller_file = caller_frame.f_globals["__file__"]
+            elif "__session__" in caller_frame.f_globals:
+                caller_file = caller_frame.f_globals["__session__"]
+            else:
+                caller_file = ""
             value = os.path.dirname(os.path.abspath(caller_file))
             os.environ[key] = value
-            # Set the bucket
-            key = "FLEX_BUCKET"
-            os.environ[key] = bucket
+            os.environ[BUCKET_NAME] = bucket
             try:
                 result = func(*args, **kwargs)
             finally:

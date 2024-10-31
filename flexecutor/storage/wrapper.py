@@ -27,7 +27,7 @@ def worker_wrapper(func: Callable[..., Any]):
             "compute": before_write - after_read,
             "write": after_write - before_write,
         }
-        times["total"] = float(np.mean(list(times.values())))
+        times["total"] = float(np.sum(list(times.values())))
         func_times = FunctionTimes(**times)
         return result, func_times
 
