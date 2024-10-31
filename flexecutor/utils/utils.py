@@ -50,7 +50,6 @@ def setup_logging(level):
 
 
 def load_profiling_results(file: str) -> dict:
-    file = os.path.join(get_my_exec_path(), file)
     if not os.path.exists(file):
         return {}
     with open(file, "r") as f:
@@ -59,7 +58,7 @@ def load_profiling_results(file: str) -> dict:
             # Convert string keys back to tuples
             data = {ast.literal_eval(k): v for k, v in data.items()}
         except (json.JSONDecodeError, ValueError, SyntaxError):
-            return {}
+            raise ValueError(f"Error loading profiling results from {file}")
     return data
 
 

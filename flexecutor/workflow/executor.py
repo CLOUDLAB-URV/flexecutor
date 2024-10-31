@@ -68,7 +68,7 @@ class DAGExecutor:
         new_profile_data: List[FunctionTimes],
         resource_config: StageConfig,
     ) -> None:
-        config_key = str(resource_config.key)
+        config_key = resource_config.key
         if config_key not in profile_data:
             profile_data[config_key] = {}
         for key in FunctionTimes.profile_keys():

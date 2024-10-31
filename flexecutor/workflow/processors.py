@@ -81,17 +81,15 @@ class ThreadPoolProcessor:
         # FIXME: big overhead; please only query object storage once
 
         for flex_data in stage.inputs:
+            flex_data.scan_keys()
+            flex_data.set_local_paths()
             if flex_data.chunker:
-                flex_data.scan_keys()
-                flex_data.set_local_paths()
                 flex_data.chunker.chunk(flex_data, num_workers)
 
         for worker_id in range(num_workers):
             copy_inputs = [deepcopy(item) for item in stage.inputs]
             copy_outputs = [deepcopy(item) for item in stage.outputs]
             for input_item in copy_inputs:
-                input_item.scan_keys()
-                input_item.set_local_paths()
                 input_item.set_file_indexes(worker_id, num_workers)
             ctx = InternalStageContext(
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
