@@ -404,15 +404,16 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
             # Only taken the first item in each round & discarding the first exec (erase cold start effects)
             # FIXME: check if more data improve results
-            number_items = len(data["cold_start"]) - 1
+            skip_first_pos = 1
+            number_items = len(data["cold_start"]) - skip_first_pos
             self.y_r = np.concatenate(
-                [self.y_r, [item[0] for item in data["read"][1:]]]
+                [self.y_r, [item[0] for item in data["read"][skip_first_pos:]]]
             )
             self.y_c = np.concatenate(
-                [self.y_c, [item[0] for item in data["compute"][1:]]]
+                [self.y_c, [item[0] for item in data["compute"][skip_first_pos:]]]
             )
             self.y_w = np.concatenate(
-                [self.y_w, [item[0] for item in data["write"][1:]]]
+                [self.y_w, [item[0] for item in data["write"][skip_first_pos:]]]
             )
             self.d = np.concatenate([self.d, [num_func] * number_items])
             self.k = np.concatenate([self.k, [num_vcpu] * number_items])
@@ -421,7 +422,7 @@ class MixedPerfModel(PerfModel, GetAndSet):
             )
             self.k_d = np.concatenate([self.k_d, [[num_vcpu, num_func]] * number_items])
             self.y_s = np.concatenate(
-                [self.y_s, [item[0] for item in data["cold_start"][1:]]]
+                [self.y_s, [item[0] for item in data["cold_start"][skip_first_pos:]]]
             )
         self.params_avg.cold = self.y_s
         self.k_d = self.k_d.reshape(-1, 2).T
