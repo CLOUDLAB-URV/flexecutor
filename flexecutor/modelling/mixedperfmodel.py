@@ -404,7 +404,7 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
             # Only taken the first item in each round & discarding the first exec (erase cold start effects)
             # FIXME: check if more data improve results
-            skip_first_pos = 1
+            skip_first_pos = 0
             number_items = len(data["cold_start"]) - skip_first_pos
             self.y_r = np.concatenate(
                 [self.y_r, [item[0] for item in data["read"][skip_first_pos:]]]

@@ -193,6 +193,7 @@ def workers(stage):
 
         code = black.format_str(code, mode=black.FileMode())
 
+        # import os
         # code_dir = os.path.dirname(os.path.abspath(__file__))
         # code_path = os.path.join(code_dir, self._dag.dag_id + "_func.py")
         # with open(code_path, "w") as f:
