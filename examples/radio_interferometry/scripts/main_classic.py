@@ -1,4 +1,8 @@
+from flexecutor.storage.chunker import Chunker
+from flexecutor.utils.enums import ChunkerTypeEnum
 from lithops import FunctionExecutor
+
+from dataplug.formats.astronomics.ms import MS, ms_partitioning_strategy
 
 from examples.radio_interferometry.functions import (
     imaging,
@@ -17,7 +21,7 @@ if __name__ == "__main__":
     @flexorchestrator(bucket="test-bucket")
     def main():
         rebinning_parameters = {
-            "msin": FlexInput(prefix="partitions", custom_data_id="partitions"),
+            "msin": FlexInput(prefix="partitions-nozip", custom_data_id="partitions", chunker=Chunker(ChunkerTypeEnum.DYNAMIC, chunking_strategy=ms_partitioning_strategy, cloud_object_format=MS)),
             "steps": "[aoflag, avg, count]",
             "aoflag.type": "aoflagger",
             "aoflag.strategy": FlexInput(
@@ -203,10 +207,10 @@ if __name__ == "__main__":
         executor = DAGExecutor(
             dag,
             executor=FunctionExecutor(
-                log_level="INFO", **{"runtime_memory": 2048, "runtime_cpu": 4}
+                log_level="DEBUG", **{"runtime_memory": 2048, "runtime_cpu": 4}
             ),
         )
-        results = executor.execute()
+        results = executor.execute(num_workers=1) #num workers?
 
         i = 1
         for result in results.values():

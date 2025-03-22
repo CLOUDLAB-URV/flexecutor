@@ -67,8 +67,14 @@ def before_exec_dp3(
 
     if dp3_type == "rebinning":
         parameters["msout"] = msout_path
-        ms_zip = ctx.get_input_paths(parameters["msin"].id)[0]
-        parameters["msin"] = unzip(Path(ms_zip))
+        if ctx.is_dynamic_chunker(parameters["msin"].id):
+            file = ctx.get_input_paths(parameters["msin"].id)[0]
+            path = Path(file).read_text().strip()
+            print("MS path: ", path)
+            parameters["msin"] = path
+        else:
+            ms_zip = ctx.get_input_paths(parameters["msin"].id)[0]
+            parameters["msin"] = unzip(Path(ms_zip))
         [parameters["aoflag.strategy"]] = ctx.get_input_paths(
             parameters["aoflag.strategy"].id
         )
@@ -76,7 +82,19 @@ def before_exec_dp3(
     elif dp3_type == "calibration":
         ms_zip = ctx.get_input_paths(parameters["msin"].id)[0]
         msin_path = unzip(Path(ms_zip))
-        [step2a_zip] = ctx.get_input_paths(parameters["cal.sourcedb"].id)
+        
+        input_paths = ctx.get_input_paths(parameters["cal.sourcedb"].id)
+        
+        if not input_paths:
+            raise FileNotFoundError(f"No se encontró el archivo: {parameters['cal.sourcedb'].id} en {input_paths}")
+        
+        if len(input_paths) > 1:
+            raise ValueError(f"Se encontraron múltiples archivos para {parameters['cal.sourcedb'].id}: {input_paths}")
+        
+        [step2a_zip] = input_paths
+        
+        #[step2a_zip] = ctx.get_input_paths(parameters["cal.sourcedb"].id)
+        
         step2a_path = unzip(Path(step2a_zip))
         h5_path = "/tmp/cal.h5"
         parameters["msin"] = msin_path
@@ -131,6 +149,8 @@ def exec_dp3(parameters):
     with open(parameters["log_output"], "w") as log_file:
         proc = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE, text=True)
         stdout, stderr = proc.communicate()
+        print(stdout)
+        print(stderr)
         log_file.write(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
 
 

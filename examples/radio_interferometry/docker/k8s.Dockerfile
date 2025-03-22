@@ -4,9 +4,13 @@ FROM python:3.10-slim-buster
 # Python 3.8, needed for COMPss
 # FROM python:3.8-slim-buster
 
+ARG CACHEBUST=2025-21-03
+RUN echo "CACHEBUST=$CACHEBUST"
+
+
 # Install initial dependencies
 RUN apt-get update && apt-get install -y \
-    zip redis-server curl \
+    zip redis-server curl git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,7 +36,17 @@ RUN pip install --upgrade setuptools six pip \
     psutil \
     scipy \
     wrapt \
-    python-casacore
+    python-casacore \
+    casatablebrowser \
+    git+https://github.com/Oct-HI/dataplug.git@astronomics_test \
+    lithops \
+    overrides \
+    deap \
+    pandas \
+    black \
+    S3path \
+    networkx \
+    lithops[kubernetes]
 
 # Install additional system dependencies
 RUN apt-get update \

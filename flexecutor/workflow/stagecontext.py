@@ -46,25 +46,39 @@ class InternalStageContext:
         # TODO: parallelize download?
         for input_id, flex_data in self.inputs.items():
             os.makedirs(flex_data.local_base_path, exist_ok=True)
-            if (
-                len(flex_data.keys) >= self.num_workers
-                or flex_data.read_strategy is StrategyEnum.BROADCAST
-                or flex_data.has_chunker_type(ChunkerTypeEnum.STATIC)
-            ):  # More files than workers and scattering
-                start_index, end_index = flex_data.file_indexes
-                for index in range(start_index, end_index):
-                    storage.download_file(
-                        flex_data.bucket,
-                        flex_data.keys[index],
-                        flex_data.local_paths[index],
-                    )
-            else:  # Dynamic partitioning
+            # if (
+            #     len(flex_data.keys) >= self.num_workers
+            #     or flex_data.read_strategy is StrategyEnum.BROADCAST
+            #     or flex_data.has_chunker_type(ChunkerTypeEnum.STATIC)
+            # ):  # More files than workers and scattering
+            #     start_index, end_index = flex_data.file_indexes
+            #     for index in range(start_index, end_index):
+            #         storage.download_file(
+            #             flex_data.bucket,
+            #             flex_data.keys[index],
+            #             flex_data.local_paths[index],
+            #         )
+            # else:  # Dynamic partitioning
+            #     chunker = flex_data.chunker
+            #     output = chunker.data_slices[self.worker_id].get()
+            #     filename = f"{flex_data.local_base_path}_worker_{self.worker_id}"
+            #     with open(filename, "wb") as f:
+            #         f.write(output.encode("utf-8"))
+            #     flex_data.set_local_paths([filename])
+            if flex_data.has_chunker_type(ChunkerTypeEnum.DYNAMIC):
                 chunker = flex_data.chunker
                 output = chunker.data_slices[self.worker_id].get()
                 filename = f"{flex_data.local_base_path}_worker_{self.worker_id}"
                 with open(filename, "wb") as f:
                     f.write(output.encode("utf-8"))
                 flex_data.set_local_paths([filename])
+            else:
+                for index in range(len(flex_data.keys)):
+                    storage.download_file(
+                        flex_data.bucket,
+                        flex_data.keys[index],
+                        flex_data.local_paths[index],
+                    )
 
     def upload_files(self):
         storage = Storage()
@@ -93,3 +107,6 @@ class StageContext:
 
     def next_output_path(self, param: str) -> str:
         return self._context.next_output_path(param)
+    
+    def is_dynamic_chunker(self, input_id: str) -> bool:
+        return self._context.inputs[input_id].has_chunker_type(ChunkerTypeEnum.DYNAMIC)
