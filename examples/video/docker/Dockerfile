@@ -1,19 +1,22 @@
-FROM public.ecr.aws/lambda/python:3.10
+FROM python:3.10-slim-bookworm
 
-RUN yum install -y gcc gcc-c++ make wget cmake unzip
-
-RUN yum install -y libEGL libGL libX11 libXext libXfixes libdrm
-
-# install epel-release
-RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-RUN rpm --import http://li.nux.ro/download/nux/RPM-GPG-KEY-nux.ro
-RUN rpm -Uvh http://li.nux.ro/download/nux/dextop/el7/x86_64/nux-dextop-release-0-1.el7.nux.noarch.rpm
-
-RUN yum install -y libwayland-client
-
-RUN wget http://mirror.centos.org/centos/7/os/x86_64/Packages/libva-1.8.3-1.el7.x86_64.rpm && rpm -i libva-1.8.3-1.el7.x86_64.rpm
-
-RUN yum install -y ffmpeg
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    cmake \
+    unzip \
+    tar \
+    xz-utils \
+    libegl1 \
+    libgl1 \
+    libx11-6 \
+    libxext6 \
+    libxfixes3 \
+    libdrm2 \
+    libwayland-client0 \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 ARG FUNCTION_DIR="/function"
 
@@ -37,9 +40,19 @@ RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
         ps-mem \
         tblib \
         psutil \
-        moviepy \
+        "moviepy<2" \
         Pillow \
-        opencv-python
+        opencv-python \
+        # TODO: avoid to install flexecutor dependencies \
+        # -----
+        deap \
+        boto3 \
+        cloudpickle \
+        scipy \
+        numpy \
+        pandas
+        # -----
+
 
 # Set working directory to function root directory
 WORKDIR ${FUNCTION_DIR}

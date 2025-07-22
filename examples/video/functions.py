@@ -1,21 +1,19 @@
 import json
 from pathlib import Path
 
-import cv2
 import numpy as np
-from imageai.Detection import ObjectDetection
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from PIL import Image
 
 from flexecutor import StageContext
 
 
 def split_videos(ctx: StageContext):
+    from moviepy.editor import VideoFileClip
+
     video_paths = ctx.get_input_paths("videos")
     chunk_size = 10
 
     for index, video_path in enumerate(video_paths):
-        vc = VideoFileClip(video_path, verbose=False)
+        vc = VideoFileClip(video_path)
         video_len = int(vc.duration)
         start_size = 0
         while start_size < video_len:
@@ -23,7 +21,8 @@ def split_videos(ctx: StageContext):
             chunk_path = f"{ctx.next_output_path('video-chunks')}"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
-                chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"]
+                chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"],
+                temp_audiofile='/tmp/temp-audio.mp4'
             )
             del clip_vc
             start_size += chunk_size
@@ -31,6 +30,9 @@ def split_videos(ctx: StageContext):
 
 
 def extract_frames(ctx: StageContext):
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+    from PIL import Image
+
     def calculate_average_pixel_value(image):
         # Convert image to grayscale image
         gray_image = np.mean(image, axis=2).astype(np.uint8)
@@ -43,7 +45,7 @@ def extract_frames(ctx: StageContext):
     for index, chunk_path in enumerate(chunk_paths):
         best_frame = None
         best_metric = float("-inf")
-        video_clip = VideoFileClip(chunk_path, verbose=False)
+        video_clip = VideoFileClip(chunk_path)
 
         for frame in video_clip.iter_frames(fps=0.5, dtype="uint8"):
             frame_metric = calculate_average_pixel_value(frame)
@@ -58,6 +60,8 @@ def extract_frames(ctx: StageContext):
 
 
 def sharpening_filter(ctx: StageContext):
+    import cv2
+
     frame_paths = ctx.get_input_paths("mainframes")
     for index, frame_path in enumerate(frame_paths):
         image = cv2.imread(frame_path)
@@ -67,11 +71,15 @@ def sharpening_filter(ctx: StageContext):
 
 
 def classify_images(ctx: StageContext):
+    from imageai.Detection import ObjectDetection
+
     frame_paths = ctx.get_input_paths("filtered-frames")
 
     detector = ObjectDetection()
     detector.setModelTypeAsTinyYOLOv3()
-    detector.setModelPath(str(Path(__file__).parent / "tiny-yolov3.pt"))
+    folder = Path("/function")
+    # folder = Path(__file__).parent
+    detector.setModelPath(str(folder / "tiny-yolov3.pt"))
     detector.loadModel()
 
     for index, frame_path in enumerate(frame_paths):
