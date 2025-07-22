@@ -45,16 +45,7 @@ RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
         tensorflow-cpu \
         imageai \
         opencv-python \
-        awslambdaric \
-        # TODO: avoid to install flexecutor dependencies
-        # -----
-        deap \
-        boto3 \
-        cloudpickle \
-        scipy \
-        numpy \
-        pandas
-        # -----
+        awslambdaric
 
 # Set working directory to function root directory
 WORKDIR ${FUNCTION_DIR}

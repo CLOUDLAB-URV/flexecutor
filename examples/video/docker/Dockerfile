@@ -42,16 +42,7 @@ RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
         psutil \
         "moviepy<2" \
         Pillow \
-        opencv-python \
-        # TODO: avoid to install flexecutor dependencies \
-        # -----
-        deap \
-        boto3 \
-        cloudpickle \
-        scipy \
-        numpy \
-        pandas
-        # -----
+        opencv-python
 
 
 # Set working directory to function root directory
