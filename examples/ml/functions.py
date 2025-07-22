@@ -1,4 +1,4 @@
-import multiprocessing as mp
+from joblib import Parallel, delayed
 
 import lightgbm as lgb
 import numpy as np
@@ -101,33 +101,29 @@ def train(
 
 
 def train_with_multiprocessing(ctx: StageContext):
-    # TODO: make that number of processes launched in training can be defined by user
     task_id = 0
-    num_process = 12
+    num_process = 1
     param = {"feature_fraction": 1, "max_depth": 8, "num_of_trees": 30, "chance": 1}
 
     [training_data_path] = ctx.get_input_paths("training-data-transform")
 
-    with mp.Pool(processes=num_process) as pool:
-        results = pool.starmap(
-            train,
-            [
-                (
-                    ctx,
-                    task_id,
-                    i,
-                    param["feature_fraction"],
-                    param["max_depth"],
-                    param["num_of_trees"],
-                    param["chance"],
-                    training_data_path,
-                )
-                for i in range(num_process)
-            ],
+    results = Parallel(n_jobs=num_process, backend="threading")(
+        delayed(train)(
+            ctx,
+            task_id,
+            i,
+            param["feature_fraction"],
+            param["max_depth"],
+            param["num_of_trees"],
+            param["chance"],
+            training_data_path,
         )
-        for result in results:
-            model_path = ctx.next_output_path("models")
-            result.save_model(model_path)
+        for i in range(num_process)
+    )
+
+    for result in results:
+        model_path = ctx.next_output_path("models")
+        result.save_model(model_path)
 
 
 def calc_accuracy(y_pred, y_train):
