@@ -24,7 +24,6 @@ if __name__ == "__main__":
             func=compute_pagerank,
             inputs=[data_graphs],
             outputs=[data_pagerank],
-            max_concurrency=1,      # TODO: Probably unnecessary, there's a possibility that pararallelism will introduce overhead.
         )
 
         stage_community = Stage(
@@ -50,7 +49,7 @@ if __name__ == "__main__":
             executor=FunctionExecutor(log_level="INFO"),
         )
 
-        executor.execute(num_workers=1)
+        executor.execute()
         executor.shutdown()
 
     main()
