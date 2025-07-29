@@ -1,10 +1,21 @@
-FROM public.ecr.aws/lambda/python:3.10
+FROM python:3.10-slim-bookworm
 
-RUN yum install -y gcc gcc-c++ make wget cmake unzip
-
-RUN yum install -y libEGL libGL libX11 libXext libXfixes libdrm
-
-RUN yum install -y tkinter && yum install -y python3-tkinter
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    wget \
+    cmake \
+    unzip \
+    libegl1 \
+    libgl1 \
+    libx11-6 \
+    libxext6 \
+    libxfixes3 \
+    libdrm2 \
+    python3-tk \
+    tk \
+    libglib2.0-0
 
 ARG FUNCTION_DIR="/function"
 

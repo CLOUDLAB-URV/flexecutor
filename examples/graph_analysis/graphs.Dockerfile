@@ -1,21 +1,14 @@
-FROM python:3.10-slim-bookworm
+FROM python:3.10-slim
 
+# Dependencies for graph analysis
 RUN apt-get update && apt-get install -y \
     build-essential \
-    wget \
+    python3-dev \
+    libatlas-base-dev \
+    g++ \
     cmake \
     unzip \
-    tar \
-    xz-utils \
-    libegl1 \
-    libgl1 \
-    libx11-6 \
-    libxext6 \
-    libxfixes3 \
-    libdrm2 \
-    libwayland-client0 \
-    ffmpeg \
-    git \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 ARG FUNCTION_DIR="/function"
@@ -23,36 +16,31 @@ ARG FUNCTION_DIR="/function"
 # Copy function code
 RUN mkdir -p ${FUNCTION_DIR}
 
-# Update pip
-RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
-    && pip install --upgrade --no-cache-dir --ignore-installed \
+#Update pip
+RUN pip install --upgrade --ignore-installed pip wheel setuptools six \
+    && pip install --no-cache-dir --ignore-installed \
         awslambdaric \
+        lithops \
         boto3 \
-        redis \
-        httplib2 \
-        requests \
-        numpy \
-        scipy \
-        pandas \
-        pika \
-        kafka-python \
         cloudpickle \
-        ps-mem \
-        tblib \
+        networkx \
+        python-louvain \
+        numpy \
+        matplotlib \
         psutil \
-        "moviepy<2" \
-        Pillow \
-        opencv-python
-
+        tblib \
+        deap \
+        lightgbm \
+        scipy
 
 # Set working directory to function root directory
 WORKDIR ${FUNCTION_DIR}
 
-# Add Lithops
+# Add Lithops  
 COPY lithops_lambda.zip ${FUNCTION_DIR}
 RUN unzip lithops_lambda.zip \
     && rm lithops_lambda.zip \
-    && mkdir handler \
+    && mkdir -p handler \
     && touch handler/__init__.py \
     && mv entry_point.py handler/
 
