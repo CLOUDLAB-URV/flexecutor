@@ -45,7 +45,8 @@ RUN pip install --upgrade --ignore-installed pip wheel six setuptools \
         tensorflow-cpu \
         imageai \
         opencv-python \
-        awslambdaric
+        awslambdaric \
+        moviepy==1.0.3
 
 # Set working directory to function root directory
 WORKDIR ${FUNCTION_DIR}
