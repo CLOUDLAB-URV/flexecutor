@@ -6,7 +6,6 @@ from overrides import overrides
 
 from flexecutor.modelling.perfmodel import PerfModel
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig, ConfigBounds
-from workflow.stage import Stage
 
 
 def phase_func(x, a, b):
@@ -26,7 +25,7 @@ class AnaPerfModel(PerfModel):
     Adapted from https://github.com/pkusys/Jolteon/blob/main/workflow/perf_model_analytic.py
     """
 
-    def __init__(self, stage: Stage) -> None:
+    def __init__(self, stage) -> None:
         super().__init__("analytic", stage)
 
         # Init in train, list with size three
