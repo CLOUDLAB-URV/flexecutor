@@ -1,8 +1,9 @@
 import boto3
 
-if __name__ == "__main__":
+
+def clean_ml_data():
     s3 = boto3.client('s3')
-    bucket_name = 'octavio-flexecutor-bucket'
+    bucket_name = 'flexecutor-data'
 
     prefixes = ['vectors-pca/', 'training-data-transform/', 'models/', 'forests/', 'predictions/', 'accuracies/']
     for prefix in prefixes:
@@ -13,3 +14,7 @@ if __name__ == "__main__":
                 s3.delete_objects(Bucket=bucket_name, Delete={'Objects': objects})
 
     print("Clean up (video) completed.")
+
+
+if __name__ == "__main__":
+    clean_ml_data()

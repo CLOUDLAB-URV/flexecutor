@@ -1,7 +1,7 @@
 import logging
 import os
 from enum import Enum
-from typing import Dict, Set, List, Optional
+from typing import Dict, Set, List, Optional, Callable
 
 from lithops import FunctionExecutor
 from lithops.utils import get_executor_id
@@ -87,6 +87,7 @@ class DAGExecutor:
         # TODO: add a profile id (also on training) to allow having different
         # trained models, mostly for different backends (k8s, lambda, etc.)
         config_space: List[Dict[str, StageConfig]],
+        callback: Optional[Callable] = None,
         num_reps: int = 1,
     ) -> None:
 
@@ -150,6 +151,9 @@ class DAGExecutor:
                         logger.error(
                             f"Error processing stage {stage.stage_id}: {future.error()}"
                         )
+
+                if callback:
+                    callback()
 
         logger.info("Profiling completed for all configurations")
 
@@ -279,7 +283,7 @@ class DAGExecutor:
             print(
                 f"··· STAGE #{stage.stage_idx} ···"
                 f"\tworkers: {stage.resource_config.workers}"
-                f"\tcpu: {stage.resource_config.cpu}"
+                f"\tmemory: {stage.resource_config.memory}MB"
             )
 
     def shutdown(self):

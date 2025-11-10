@@ -1,4 +1,4 @@
-FROM python:3.10-slim-bookworm
+FROM python:3.10-slim-trixie
 
 RUN apt-get update \
     # Install aws-lambda-cpp build dependencies

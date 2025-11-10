@@ -108,7 +108,7 @@ def distance(stage0: VirtualStage, stage1: VirtualStage):
 
 
 class Ditto(Scheduler):
-    def __init__(self, dag, total_parallelism: int, cpu_per_worker: float):
+    def __init__(self, dag, total_parallelism: int, cpu_per_worker: float, objective: str):
         super().__init__(dag, PerfModelEnum.ANALYTIC)
         self.total_parallelism = total_parallelism
         self.cpu_per_worker = cpu_per_worker
@@ -118,6 +118,10 @@ class Ditto(Scheduler):
         self.virtual_stages = {}
         self.roots = []
         self.leafs = []
+
+        if objective not in ["latency", "cost"]:
+            raise ValueError("Invalid objective. Should be 'latency' or 'cost'")
+        self.objective = objective
 
     def _assign(self, v_stage: VirtualStage, degree: float):
         assert degree > 0
@@ -146,7 +150,7 @@ class Ditto(Scheduler):
         param_a_dict = {}
         # Assume each function under Ditto has the same memory size
         for stage in self._dag.stages:
-            param_a, _ = stage.perf_model.parameters()
+            param_a, _ = stage.perf_model.parameters
             param_a = math.sqrt(abs(param_a))
             param_a_dict[stage.stage_id] = param_a
         sum_a = sum(param_a_dict.values())
@@ -240,13 +244,10 @@ class Ditto(Scheduler):
                 c.parents.remove(stage)
             stage.children = new_children
 
-        # FIXME: parametrize the objective
-        obj = "latency"
-
         # Scheduling using Ditto algorithm
-        if obj == "latency":
+        if self.objective == "latency":
             self._schedule_for_latency()
-        elif obj == "cost":
+        elif self.objective == "cost":
             self._schedule_for_cost()
         else:
             raise ValueError("Invalid objective")

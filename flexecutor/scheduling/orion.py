@@ -53,14 +53,14 @@ class MyPriorityQueue:
 
 class Orion(Scheduler):
     def __init__(
-        self, dag, total_parallelism: int, max_cpu_per_worker: float, memory_step: int
+        self, dag, total_parallelism: int, latency: int, memory_step: int = 256
     ):
         super().__init__(dag, PerfModelEnum.DISTRIBUTION)
         self.total_parallelism = total_parallelism
-        self.max_cpu_per_worker = max_cpu_per_worker
+        self.latency = latency
         self.memory_step = memory_step
         # FIXME: Note that AWS Lambda effects are present here
-        self.max_memory = 1792 * max_cpu_per_worker
+        self.max_memory = 1769 * 6
         self.stage_workers = {k.stage_id: 1 for k in self._dag.stages}
 
     def schedule(self):
@@ -93,7 +93,7 @@ class Orion(Scheduler):
 
         # Setting the right size for each stage
         # FIXME: parametrize fixed vars
-        mode = "simple"  # | "priority"
+        mode = "priority"  # | "priority"
 
         # FIXME: convert workers_size_list to a dict "stage_id: memory"
         if mode == "simple":
@@ -107,15 +107,14 @@ class Orion(Scheduler):
         for index, (stage_id, num_workers) in enumerate(num_workers_dict.items()):
             resource_config = StageConfig(
                 workers=num_workers,
-                cpu=self.max_cpu_per_worker,
+                cpu=workers_size_list[index] / 1769,
                 memory=workers_size_list[index],
             )
             resource_config_list.append(resource_config)
         return resource_config_list
 
     def _bfs_simple_queue(self):
-        latency = 50
-        confidence = 0.9
+        confidence = 0.99
 
         config_list = [self.memory_step for _ in self._dag.stages]
 
@@ -126,7 +125,7 @@ class Orion(Scheduler):
         searched.add(tuple(config_list))
 
         dist = self._get_distribution(config_list)
-        if dist.probability(latency) >= confidence:
+        if dist.probability(self.latency) >= confidence:
             return config_list
 
         while len(search_space) > 0:
@@ -148,7 +147,7 @@ class Orion(Scheduler):
                     searched.add(t)
 
                     dist = self._get_distribution(new_val)
-                    if dist.probability(latency) >= confidence:
+                    if dist.probability(self.latency) >= confidence:
                         return new_val
             else:  # Fast search for large workflow
                 new_val = val.copy()
@@ -163,15 +162,14 @@ class Orion(Scheduler):
                 searched.add(t)
 
                 dist = self._get_distribution(new_val)
-                if dist.probability(latency) >= confidence:
+                if dist.probability(self.latency) >= confidence:
                     return new_val
 
         config_list = [self.max_memory for _ in self._dag.stages]
         return config_list
 
     def _bfs_priority_queue(self):
-        latency = 0.5
-        confidence = 0.9
+        confidence = 0.99
 
         config_list = [self.memory_step for _ in self._dag.stages]
 
@@ -182,7 +180,7 @@ class Orion(Scheduler):
         searched.add(tuple(config_list))
 
         dist = self._get_distribution(config_list)
-        if dist.probability(latency) >= confidence:
+        if dist.probability(self.latency) >= confidence:
             return config_list
 
         while len(search_space) > 0:
@@ -207,7 +205,7 @@ class Orion(Scheduler):
                 searched.add(t)
 
                 dist = self._get_distribution(new_val)
-                if dist.probability(latency) >= confidence:
+                if dist.probability(self.latency) >= confidence:
                     return new_val
 
     def _get_distribution(self, config_list: List[float]):
@@ -242,6 +240,6 @@ class Orion(Scheduler):
         cost = 0
         for idx, stage in enumerate(self._dag.stages):
             # noinspection PyUnresolvedReferences
-            tmp_dist = stage.perf_model.interpolate(self.stage_workers[stage.stage_id])
+            tmp_dist = stage.perf_model._interpolate(self.stage_workers[stage.stage_id])
             cost += tmp_dist.tail_value(confidence) * stage_sizes[stage.stage_id]
         return cost
