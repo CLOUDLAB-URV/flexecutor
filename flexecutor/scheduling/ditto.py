@@ -108,7 +108,9 @@ def distance(stage0: VirtualStage, stage1: VirtualStage):
 
 
 class Ditto(Scheduler):
-    def __init__(self, dag, total_parallelism: int, cpu_per_worker: float, objective: str):
+    def __init__(
+        self, dag, total_parallelism: int, cpu_per_worker: float, objective: str
+    ):
         super().__init__(dag, PerfModelEnum.ANALYTIC)
         self.total_parallelism = total_parallelism
         self.cpu_per_worker = cpu_per_worker

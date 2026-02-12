@@ -1,4 +1,3 @@
-from lithops import FunctionExecutor
 from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
@@ -9,8 +8,8 @@ from functions import compute_pagerank, community_detection, dijkstra_analysis
 
 if __name__ == "__main__":
     # TODO: Since this pipeline will be used to benchmark and test performance, we assume that any pagerank will work for the dijkstra analysis.
-    # Future versions of this pipeline may include naming conventions or metadata to ensure that pagerank files correspond to their graphs. 
-    @flexorchestrator(bucket="your-bucket-name") # Replace with your bucket name           
+    # Future versions of this pipeline may include naming conventions or metadata to ensure that pagerank files correspond to their graphs.
+    @flexorchestrator(bucket="your-bucket-name")  # Replace with your bucket name
     def main():
         dag = DAG("graph-analysis")
 
@@ -30,24 +29,21 @@ if __name__ == "__main__":
             stage_id="community",
             func=community_detection,
             inputs=[data_graphs],
-            outputs=[data_communities]
+            outputs=[data_communities],
         )
 
         stage_dijkstra = Stage(
             stage_id="dijkstra",
             func=dijkstra_analysis,
             inputs=[data_graphs, data_pagerank],
-            outputs=[data_dijkstra]
+            outputs=[data_dijkstra],
         )
 
         stage_pagerank >> stage_dijkstra
 
         dag.add_stages([stage_pagerank, stage_community, stage_dijkstra])
 
-        executor = DAGExecutor(
-            dag,
-            executor=FunctionExecutor(log_level="INFO"),
-        )
+        executor = DAGExecutor(dag)
 
         executor.execute()
         executor.shutdown()

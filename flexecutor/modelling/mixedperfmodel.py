@@ -488,7 +488,9 @@ class MixedPerfModel(PerfModel, GetAndSet):
 
         var_d = f"{config_list}[workers({stage_idx})]" if self.allow_parallel else "1"
         var_k = f"{config_list}[cpu({stage_idx})]"
-        var_x = f"({var_k} * {var_d})" if self.can_intra_parallel.compute else f"({var_d})"
+        var_x = (
+            f"({var_k} * {var_d})" if self.can_intra_parallel.compute else f"({var_d})"
+        )
 
         if self.allow_parallel:
             code = (

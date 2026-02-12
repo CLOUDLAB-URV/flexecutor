@@ -36,8 +36,10 @@ class FlexData:
         self.local_paths = []
 
     def __repr__(self):
-        return (f"FlexData(prefix={self.prefix}, bucket={self.bucket}, strategy={self.read_strategy}, "
-                f"chunker={self.chunker}, local_base_path={self.local_base_path}, file_indexes={self.file_indexes})")
+        return (
+            f"FlexData(prefix={self.prefix}, bucket={self.bucket}, strategy={self.read_strategy}, "
+            f"chunker={self.chunker}, local_base_path={self.local_base_path}, file_indexes={self.file_indexes})"
+        )
 
     @property
     def id(self):
@@ -52,13 +54,16 @@ class FlexData:
 
     def scan_keys(self):
         objects = Storage().list_objects(self.bucket, prefix=self.prefix)
-        if self.chunker and self.chunker.chunker_type is ChunkerTypeEnum.DYNAMIC and self.chunker.cloud_object_format.is_folder:
+        if (
+            self.chunker
+            and self.chunker.chunker_type is ChunkerTypeEnum.DYNAMIC
+            and self.chunker.cloud_object_format.is_folder
+        ):
             # get common string between all objects
             common_prefix = os.path.commonprefix([obj["Key"] for obj in objects])
             self.keys = [common_prefix]
         else:
             self.keys = [obj["Key"] for obj in objects if obj["Key"][-1] != "/"]
-
 
     def set_local_paths(self, override_local_paths: Optional[list[str]] = None):
         if (

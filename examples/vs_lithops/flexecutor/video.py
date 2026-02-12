@@ -1,5 +1,3 @@
-from lithops import FunctionExecutor
-
 from examples.video.functions import (
     split_videos,
     extract_frames,
@@ -38,8 +36,11 @@ def split_videos(ctx: StageContext):
             chunk_path = f"{ctx.next_output_path('video-chunks')}"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
-                chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"],
-                temp_audiofile='/tmp/temp-audio.mp4'
+                chunk_path,
+                codec="libx264",
+                logger=None,
+                ffmpeg_params=["-f", "mp4"],
+                temp_audiofile="/tmp/temp-audio.mp4",
             )
             del clip_vc
             start_size += chunk_size
@@ -111,20 +112,22 @@ def classify_images(ctx: StageContext):
         with open(tmp_filename, "w") as json_file:
             json_file.write(json_data)
 
+
 import time
 import boto3
 
+
 def clean():
-    s3 = boto3.client('s3')
-    bucket_name = 'octavio-flexecutor-bucket'
-    prefixes = ['video-chunks/', 'mainframes/', 'filtered-frames/', 'classification/']
+    s3 = boto3.client("s3")
+    bucket_name = "octavio-flexecutor-bucket"
+    prefixes = ["video-chunks/", "mainframes/", "filtered-frames/", "classification/"]
 
     for prefix in prefixes:
-        paginator = s3.get_paginator('list_objects_v2')
+        paginator = s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
-            if 'Contents' in page:
-                objects = [{'Key': obj['Key']} for obj in page['Contents']]
-                s3.delete_objects(Bucket=bucket_name, Delete={'Objects': objects})
+            if "Contents" in page:
+                objects = [{"Key": obj["Key"]} for obj in page["Contents"]]
+                s3.delete_objects(Bucket=bucket_name, Delete={"Objects": objects})
 
     print("Clean up (video) completed.")
 
@@ -135,7 +138,6 @@ if __name__ == "__main__":
     def main():
         for i in range(10):
             t0 = time.time()
-            fexec = FunctionExecutor(log_level="DEBUG")
 
             dag = DAG("video")
 
@@ -185,7 +187,6 @@ if __name__ == "__main__":
             ]
             executor = DAGExecutor(
                 dag,
-                executor=fexec,
                 scheduler=Jolteon(
                     dag,
                     bound=20,
@@ -196,22 +197,6 @@ if __name__ == "__main__":
             )
 
             executor.execute(num_workers=4)
-
-            t1 = time.time()
-            stats = [f.stats for f in fexec.futures]
-            # add to each stat the total time
-            for stat in stats:
-                stat['total_time'] = t1 - t0
-                stat['init_timestamp'] = t0
-                stat['end_timestamp'] = t1
-            # Save stats to a JSON file
-            with open(f'run_{i}.json', 'w') as f:
-                json.dump(stats, f, indent=4)
-            clean()
-
-            del fexec
             del dag
-
-
 
     main()

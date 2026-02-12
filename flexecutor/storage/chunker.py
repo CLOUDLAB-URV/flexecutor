@@ -70,9 +70,10 @@ class Chunker:
         flex_data.prefix = chunker_ctx.prefix_output
 
     def _dynamic_chunking(self, flex_data, num_workers):
+        # TODO: parametrise dataplug dynamic target
         if self.cloud_object_format.is_folder:
             # only first level
-            files = [f"s3://{flex_data.bucket}/partitions-nozip/partition_1.ms"]
+            files = [f"s3://{flex_data.bucket}/msfile/partition_2.ms"]
         else:
             files = [f"s3://{flex_data.bucket}/{file}" for file in flex_data.keys]
 
@@ -87,7 +88,7 @@ class Chunker:
 
         # Create the cloud objects and partition them
         for file, num_chunks_file in zip(files, chunk_list):
-            #3 preprocessing for 1 file??
+            # 3 preprocessing for 1 file??
             cloud_object = CloudObject.from_s3(
                 self.cloud_object_format,
                 file,
@@ -102,7 +103,9 @@ class Chunker:
             )
             cloud_object.preprocess()
             self.data_slices.extend(
-                cloud_object.partition(self.chunking_strategy, num_chunks=num_chunks_file)
+                cloud_object.partition(
+                    self.chunking_strategy, num_chunks=num_chunks_file
+                )
             )
 
 

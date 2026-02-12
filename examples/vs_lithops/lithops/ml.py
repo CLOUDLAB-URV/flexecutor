@@ -64,8 +64,10 @@ def pca(training_keys):
     values, vectors = eig(va)
     pa = vectors.T.dot(ca.T)
 
-    vectors_pca_path =f"{'/tmp/vectors_pca_' + uuid.uuid4()[0:8]}.mp4"
-    training_data_transform = f"{'/tmp/training_data_transform_' + uuid.uuid4()[0:8]}.mp4"
+    vectors_pca_path = f"{'/tmp/vectors_pca_' + uuid.uuid4()[0:8]}.mp4"
+    training_data_transform = (
+        f"{'/tmp/training_data_transform_' + uuid.uuid4()[0:8]}.mp4"
+    )
     np.savetxt(vectors_pca_path, vectors, delimiter="\t")
     first_n_a = pa.T[:, 0:100].real
     train_labels = train_labels.reshape(train_labels.shape[0], 1)
@@ -73,8 +75,14 @@ def pca(training_keys):
     np.savetxt(training_data_transform, first_n_a_label, delimiter="\t")
 
     write_start = time.time()
-    storage.upload_file(vectors_pca_path, bucket, "vectors-pca/" + os.path.basename(vectors_pca_path))
-    storage.upload_file(training_data_transform, bucket, "training-data-transform/" + os.path.basename(training_data_transform))
+    storage.upload_file(
+        vectors_pca_path, bucket, "vectors-pca/" + os.path.basename(vectors_pca_path)
+    )
+    storage.upload_file(
+        training_data_transform,
+        bucket,
+        "training-data-transform/" + os.path.basename(training_data_transform),
+    )
     write_end = time.time()
 
     read = read_end - read_init
@@ -165,7 +173,9 @@ def train_with_multiprocessing(training_data_keys):
     for result in results:
         model_path = f"{'/tmp/model_' + uuid.uuid4()[0:8]}.txt"
         result.save_model(model_path)
-        storage.upload_file(model_path, bucket, "models/" + os.path.basename(model_path))
+        storage.upload_file(
+            model_path, bucket, "models/" + os.path.basename(model_path)
+        )
     write_end = time.time()
 
     read = read_end - read_init
@@ -228,7 +238,9 @@ def aggregate(transform_keys, model_keys):
     write_start = time.time()
     prediction_path = f"{'/tmp/predictions_' + uuid.uuid4()[0:8]}.txt"
     np.savetxt(prediction_path, y_pred, delimiter="\t")
-    storage.upload_file(prediction_path, bucket, "predictions/" + os.path.basename(prediction_path))
+    storage.upload_file(
+        prediction_path, bucket, "predictions/" + os.path.basename(prediction_path)
+    )
     write_end = time.time()
 
     read = read_end - read_init
@@ -236,6 +248,7 @@ def aggregate(transform_keys, model_keys):
     compute = write_start - read_end
 
     return (read, compute, write)
+
 
 def test(prediction_keys, transform_keys):
     storage = Storage()
@@ -249,8 +262,7 @@ def test(prediction_keys, transform_keys):
         storage.download_file(bucket, item, path)
 
     predictions = [
-        np.genfromtxt(prediction_path, delimiter="\t")
-        for prediction_path in data_paths
+        np.genfromtxt(prediction_path, delimiter="\t") for prediction_path in data_paths
     ]
     transform_paths = []
     os.makedirs("/tmp/training-data-transform", exist_ok=True)
@@ -271,7 +283,9 @@ def test(prediction_keys, transform_keys):
     accuracy_path = f"{'/tmp/accuracy_' + uuid.uuid4()[0:8]}.txt"
     with open(accuracy_path, "w") as f:
         f.write("My accuracy is: " + str(acc))
-    storage.upload_file(accuracy_path, bucket, "accuracies/" + os.path.basename(accuracy_path))
+    storage.upload_file(
+        accuracy_path, bucket, "accuracies/" + os.path.basename(accuracy_path)
+    )
     write_end = time.time()
 
     read = read_end - read_init
@@ -287,8 +301,10 @@ def explicit_scatter(prefix):
     keys = [obj["Key"] for obj in objects if obj["Key"][-1] != "/"]
 
     # split keys in list of length num_workers (no def fucntion)
-    iterdata = [keys[i: i + len(keys)//num_workers]
-                for i in range(0, len(keys), len(keys)//num_workers)]
+    iterdata = [
+        keys[i : i + len(keys) // num_workers]
+        for i in range(0, len(keys), len(keys) // num_workers)
+    ]
 
     return iterdata
 

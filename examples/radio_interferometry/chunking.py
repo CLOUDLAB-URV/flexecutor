@@ -5,8 +5,6 @@ from pathlib import PosixPath, Path
 
 import numpy as np
 from casacore.tables import table
-from lithops import FunctionExecutor
-
 from examples.radio_interferometry.utils import get_dir_size, my_zip, unzip
 from examples.radio_interferometry.utils import FlexInput, FlexOutput
 from flexecutor import StageContext
@@ -42,7 +40,7 @@ def create_partition(i, start_row, end_row, ms, msout, logger):
         f"Creating partition {i} with rows from {start_row} to {end_row - 1}..."
     )
     partition = ms.selectrows(list(range(start_row, end_row)))
-    partition_path = PosixPath(msout.removesuffix('.zip'))
+    partition_path = PosixPath(msout.removesuffix(".zip"))
     partition.copy(str(partition_path), deep=True)
     partition.close()
 
@@ -140,12 +138,7 @@ if __name__ == "__main__":
         )
 
         dag.add_stage(chunking_stage)
-        executor = DAGExecutor(
-            dag,
-            executor=FunctionExecutor(
-                log_level="INFO", **{"runtime_memory": 2048, "runtime_cpu": 4}
-            ),
-        )
+        executor = DAGExecutor(dag)
         results = executor.execute()
         print(results["chunking"].get_timings())
 

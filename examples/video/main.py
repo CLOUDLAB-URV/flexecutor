@@ -1,5 +1,4 @@
-from lithops import FunctionExecutor
-
+from examples.video.clean import clean_video_data
 from examples.video.functions import (
     split_videos,
     extract_frames,
@@ -16,7 +15,7 @@ from utils.dataclass import StageConfig
 
 if __name__ == "__main__":
 
-    @flexorchestrator(bucket="test-bucket")
+    @flexorchestrator(bucket="flexecutor-data")
     def main():
         dag = DAG("video")
 
@@ -66,7 +65,6 @@ if __name__ == "__main__":
         ]
         executor = DAGExecutor(
             dag,
-            executor=FunctionExecutor(log_level="INFO"),
             scheduler=Jolteon(
                 dag,
                 bound=20,
@@ -76,7 +74,22 @@ if __name__ == "__main__":
             ),
         )
 
-        executor.optimize()
+        # executor.optimize()
+        # executor.execute(num_workers=8)
+
+        executor.profile(
+            config_space=[
+                {
+                    "stage0": StageConfig(cpu=1, memory=2048, workers=4),
+                    "stage1": StageConfig(cpu=1, memory=2048, workers=4),
+                    "stage2": StageConfig(cpu=1, memory=2048, workers=4),
+                    "stage3": StageConfig(cpu=1, memory=2048, workers=4),
+                },
+            ],
+            callback=clean_video_data,
+            num_reps=2,
+        )
+
         executor.shutdown()
 
     main()

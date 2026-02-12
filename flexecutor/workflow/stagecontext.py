@@ -107,6 +107,6 @@ class StageContext:
 
     def next_output_path(self, param: str) -> str:
         return self._context.next_output_path(param)
-    
+
     def is_dynamic_chunker(self, input_id: str) -> bool:
         return self._context.inputs[input_id].has_chunker_type(ChunkerTypeEnum.DYNAMIC)

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
-from modelling.perfmodel import PerfModelEnum
-from utils.dataclass import StageConfig
-from workflow.dag import DAG
+from flexecutor.modelling.perfmodel import PerfModelEnum
+from flexecutor.utils.dataclass import StageConfig
+from flexecutor.workflow.dag import DAG
 
 
 class Scheduler(ABC):

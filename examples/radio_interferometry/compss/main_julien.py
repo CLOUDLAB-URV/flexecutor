@@ -1,8 +1,7 @@
 from examples.radio_interferometry.functions import dp3, imaging
-from examples.radio_interferometry.utils import filter_io_params
-from flexecutor.storage.storage import FlexInput, FlexOutput, StrategyEnum
+from examples.radio_interferometry.utils import filter_io_params, FlexInput, FlexOutput
+from flexecutor.storage.storage import StrategyEnum
 from flexecutor.workflow.stage import Stage
-
 
 cal_rebinning_parameters = {
     "msin": FlexInput(prefix="partitions-CAL"),

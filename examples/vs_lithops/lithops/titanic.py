@@ -68,8 +68,10 @@ if __name__ == "__main__":
         keys = [obj["Key"] for obj in objects if obj["Key"][-1] != "/"]
 
         # split keys in list of length num_workers (no def fucntion)
-        iterdata = [keys[i: i + len(keys)//num_workers]
-                    for i in range(0, len(keys), len(keys)//num_workers)]
+        iterdata = [
+            keys[i : i + len(keys) // num_workers]
+            for i in range(0, len(keys), len(keys) // num_workers)
+        ]
         fexec.map(train_model, iterdata)
         fexec.wait()
         profilings = fexec.get_result()

@@ -1,5 +1,3 @@
-from lithops import FunctionExecutor
-
 from examples.ml.functions import pca, train_with_multiprocessing, aggregate, test
 from flexecutor.storage.storage import FlexData, StrategyEnum
 from flexecutor.utils.utils import flexorchestrator
@@ -8,8 +6,6 @@ from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
 from scheduling.jolteon import Jolteon
 from utils.dataclass import StageConfig
-
-
 
 if __name__ == "__main__":
 
@@ -77,7 +73,6 @@ if __name__ == "__main__":
 
         executor = DAGExecutor(
             dag,
-            executor=FunctionExecutor(log_level="INFO"),
             scheduler=Jolteon(
                 dag,
                 bound=40,

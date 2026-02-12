@@ -19,9 +19,10 @@ class ThreadPoolProcessor:
     Processor that uses a thread pool to execute stages
     """
 
-    def __init__(self, executor: FunctionExecutor, max_threadpool_concurrency=256):
+    def __init__(self, log_level="DEBUG", max_threadpool_concurrency=256):
         super().__init__()
-        self._executor = executor
+        self._executor = None
+        self.log_level = log_level
         self._max_concurrency = max_threadpool_concurrency
         self._pool = ThreadPoolExecutor(max_workers=max_threadpool_concurrency)
 
@@ -95,6 +96,13 @@ class ThreadPoolProcessor:
                 worker_id, num_workers, copy_inputs, copy_outputs, stage.params
             )
             map_iterdata.append(ctx)
+
+        if self._executor:
+            self._executor.clean()
+
+        self._executor = FunctionExecutor(
+            log_level=self.log_level, **{"runtime_cpu": stage.resource_config.cpu}
+        )
 
         future = self._executor.map(
             map_function=worker_wrapper(stage.map_func),

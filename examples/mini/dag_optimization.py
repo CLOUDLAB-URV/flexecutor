@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from lithops import FunctionExecutor
-
 from functions.word_count import (
     word_count,
     sum_counts,
@@ -49,7 +47,7 @@ if __name__ == "__main__":
 
         dag.add_stages([stage1, stage2])
 
-        executor = DAGExecutor(dag, executor=FunctionExecutor(runtime_cpus=1))
+        executor = DAGExecutor(dag)
         config_bounds = ConfigBounds(
             cpu=(0.5, 4.5), memory=(1024, 4096), workers=(1, 10)
         )

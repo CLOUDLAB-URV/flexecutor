@@ -13,7 +13,10 @@ def chunking_static_csv(ctx: ChunkerContext) -> None:
     remaining = len(df) % ctx.get_num_workers()
     for i in range(remaining):
         chunk_sizes[i % ctx.get_num_workers()] += 1
-    chunks = [df.iloc[sum(chunk_sizes[:i]):sum(chunk_sizes[:i + 1])] for i in range(ctx.get_num_workers())]
+    chunks = [
+        df.iloc[sum(chunk_sizes[:i]) : sum(chunk_sizes[: i + 1])]
+        for i in range(ctx.get_num_workers())
+    ]
     for worker_id, chunk in enumerate(chunks):
         chunk.to_csv(ctx.next_chunk_path(), index=False)
 

@@ -231,12 +231,7 @@ if __name__ == "__main__":
                 imaging_stage,
             ]
         )
-        executor = DAGExecutor(
-            dag,
-            executor=FunctionExecutor(
-                log_level="INFO", **{"runtime_memory": 2048, "runtime_cpu": 4}
-            ),
-        )
+        executor = DAGExecutor(dag)
         results = executor.execute()
 
         i = 1

@@ -3,9 +3,6 @@ import os
 from enum import Enum
 from typing import Dict, Set, List, Optional, Callable
 
-from lithops import FunctionExecutor
-from lithops.utils import get_executor_id
-
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig
 from flexecutor.utils.utils import (
     load_profiling_results,
@@ -16,7 +13,7 @@ from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.processors import ThreadPoolProcessor
 from flexecutor.workflow.stage import Stage, StageState
 from flexecutor.workflow.stagefuture import StageFuture
-from scheduling.scheduler import Scheduler
+from flexecutor.scheduling.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +39,11 @@ class DAGExecutor:
     def __init__(
         self,
         dag: DAG,
-        executor: FunctionExecutor | None = None,
         scheduler: Optional[Scheduler] = None,
     ):
         self._dag = dag
-        self._processor = ThreadPoolProcessor(executor)
+
+        self._processor = ThreadPoolProcessor()
 
         self._futures: Dict[str, StageFuture] = dict()
         self._num_final_stages = 0
@@ -54,8 +51,6 @@ class DAGExecutor:
         self._dependence_free_stages: List[Stage] = list()
         self._running_stages: List[Stage] = list()
         self._finished_stages: Set[Stage] = set()
-        self._executor = executor
-        self._executor_id = get_executor_id()
 
         self._scheduler = scheduler
 
@@ -113,6 +108,7 @@ class DAGExecutor:
             logger.info(f"Starting iteration {iteration + 1} of {num_reps}")
 
             for config_combination in config_space:
+
                 config_description = ", ".join(
                     f"{stage_id} config: {config}"
                     for stage_id, config in config_combination.items()
@@ -231,7 +227,7 @@ class DAGExecutor:
         if num_workers is not None:
             for stage in self._dag.stages:
                 stage.resource_config = StageConfig(
-                    cpu=1, memory=1024, workers=num_workers
+                    cpu=1, memory=2048, workers=num_workers
                 )
 
         self._futures = dict()

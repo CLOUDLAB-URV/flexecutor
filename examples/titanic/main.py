@@ -1,6 +1,5 @@
 from dataplug.formats.generic.csv import CSV
 from dataplug.formats.generic.csv import partition_num_chunks as chunking_dynamic_csv
-from lithops import FunctionExecutor
 
 from examples.titanic.functions import train_model
 from flexecutor.storage.chunker import Chunker
@@ -50,7 +49,7 @@ if __name__ == "__main__":
         )
 
         dag.add_stage(stage)
-        executor = DAGExecutor(dag, executor=FunctionExecutor())
+        executor = DAGExecutor(dag)
         results = executor.execute(num_workers=7)
         print(results["stage"].get_timings())
 

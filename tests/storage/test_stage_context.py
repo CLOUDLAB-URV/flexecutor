@@ -40,7 +40,9 @@ class TestStageContext(unittest.TestCase):
         self.assertEqual(self.internal_context.worker_id, 0)
         self.assertEqual(self.internal_context.num_workers, 1)
         self.assertEqual(self.internal_context.inputs["input123"], self.q)
-        self.assertEqual(self.internal_context.outputs["output123"], self.flex_data_output)
+        self.assertEqual(
+            self.internal_context.outputs["output123"], self.flex_data_output
+        )
         self.assertEqual(self.internal_context._params, self.params)
         print("Initialization test passed")
 

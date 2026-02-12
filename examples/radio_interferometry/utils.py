@@ -30,9 +30,7 @@ def my_zip(ms: Path, dst: Path) -> Path:
     print(f"Starting zipping process for: {ms}")
 
     if dst.exists() and dst.is_dir():
-        print(
-            f"Cannot create a zip file as a directory with the name {dst} exists."
-        )
+        print(f"Cannot create a zip file as a directory with the name {dst} exists.")
         raise IsADirectoryError(
             f"Cannot create a zip file as a directory with the name {dst} exists."
         )
@@ -114,4 +112,3 @@ class FlexInput(FlexData):
 class FlexOutput(FlexData):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-

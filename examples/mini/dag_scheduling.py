@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from lithops import FunctionExecutor
-
 from functions.word_count import (
     word_count,
     sum_counts,
@@ -49,7 +47,7 @@ if __name__ == "__main__":
 
         dag.add_stages([stage1, stage2])
 
-        executor = DAGExecutor(dag, executor=FunctionExecutor())
+        executor = DAGExecutor(dag)
         scheduler = Jolteon(dag, total_parallelism=10, cpu_per_worker=1)
 
         executor.train()

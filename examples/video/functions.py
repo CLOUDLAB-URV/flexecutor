@@ -21,8 +21,11 @@ def split_videos(ctx: StageContext):
             chunk_path = f"{ctx.next_output_path('video-chunks')}"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
-                chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"],
-                temp_audiofile='/tmp/temp-audio.mp4'
+                chunk_path,
+                codec="libx264",
+                logger=None,
+                ffmpeg_params=["-f", "mp4"],
+                temp_audiofile="/tmp/temp-audio.mp4",
             )
             del clip_vc
             start_size += chunk_size

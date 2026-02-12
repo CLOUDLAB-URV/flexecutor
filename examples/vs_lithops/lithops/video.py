@@ -54,11 +54,18 @@ def split_videos(keys):
             chunk_path = f"{'/tmp/video_' + str(uuid.uuid4())[:8]}.mp4"
             clip_vc = vc.subclip(start_size, end_size)
             clip_vc.write_videofile(
-                chunk_path, codec="libx264", logger=None, ffmpeg_params=["-f", "mp4"],
-                temp_audiofile='/tmp/temp-audio.mp4'
+                chunk_path,
+                codec="libx264",
+                logger=None,
+                ffmpeg_params=["-f", "mp4"],
+                temp_audiofile="/tmp/temp-audio.mp4",
             )
-            storage.upload_file(chunk_path, bucket, output_prefix +
-                                f"video_{index}_part_{start_size}_{end_size}_{str(uuid.uuid4())[:8]}.mp4")
+            storage.upload_file(
+                chunk_path,
+                bucket,
+                output_prefix
+                + f"video_{index}_part_{start_size}_{end_size}_{str(uuid.uuid4())[:8]}.mp4",
+            )
             del clip_vc
             start_size += chunk_size
         vc.close()
@@ -109,9 +116,7 @@ def extract_frames(keys):
         uid = str(uuid.uuid4())[:8]
         frame_path = f"/tmp/mainframe_{uid}.jpg"
         pil_image.save(frame_path)
-        storage.upload_file(
-            frame_path, bucket, "mainframes/" + f"mainframe_{uid}.jpg"
-        )
+        storage.upload_file(frame_path, bucket, "mainframes/" + f"mainframe_{uid}.jpg")
         video_clip.close()
 
     compute_end = time.time()
@@ -144,8 +149,7 @@ def sharpening_filter(keys):
         output_path = f"/tmp/filtered_frame_{uid}.jpg"
         cv2.imwrite(output_path, sharpened_image)
         storage.upload_file(
-            output_path, bucket, "filtered-frames/" +
-            f"filtered_frame_{uid}.jpg"
+            output_path, bucket, "filtered-frames/" + f"filtered_frame_{uid}.jpg"
         )
 
     compute_end = time.time()
@@ -158,6 +162,7 @@ def sharpening_filter(keys):
 def classify_images(keys):
 
     from imageai.Detection import ObjectDetection
+
     storage = Storage()
 
     read_init = time.time()
@@ -191,8 +196,7 @@ def classify_images(keys):
         with open(tmp_filename, "w") as json_file:
             json_file.write(json_data)
         storage.upload_file(
-            tmp_filename, bucket, "classification/" +
-            f"classification_{uid}.json"
+            tmp_filename, bucket, "classification/" + f"classification_{uid}.json"
         )
 
     compute_end = time.time()
@@ -208,24 +212,28 @@ def explicit_scatter(prefix):
     keys = [obj["Key"] for obj in objects if obj["Key"][-1] != "/"]
 
     # split keys in list of length num_workers (no def fucntion)
-    iterdata = [keys[i: i + len(keys)//num_workers]
-                for i in range(0, len(keys), len(keys)//num_workers)]
+    iterdata = [
+        keys[i : i + len(keys) // num_workers]
+        for i in range(0, len(keys), len(keys) // num_workers)
+    ]
 
     return iterdata
 
+
 def clean():
-    s3 = boto3.client('s3')
-    bucket_name = 'octavio-flexecutor-bucket'
-    prefixes = ['video-chunks/', 'mainframes/', 'filtered-frames/', 'classification/']
+    s3 = boto3.client("s3")
+    bucket_name = "octavio-flexecutor-bucket"
+    prefixes = ["video-chunks/", "mainframes/", "filtered-frames/", "classification/"]
 
     for prefix in prefixes:
-        paginator = s3.get_paginator('list_objects_v2')
+        paginator = s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
-            if 'Contents' in page:
-                objects = [{'Key': obj['Key']} for obj in page['Contents']]
-                s3.delete_objects(Bucket=bucket_name, Delete={'Objects': objects})
+            if "Contents" in page:
+                objects = [{"Key": obj["Key"]} for obj in page["Contents"]]
+                s3.delete_objects(Bucket=bucket_name, Delete={"Objects": objects})
 
     print("Clean up (video) completed.")
+
 
 if __name__ == "__main__":
 
@@ -259,13 +267,12 @@ if __name__ == "__main__":
             stats = [f.stats for f in fexec.futures]
             # add to each stat the total time
             for stat in stats:
-                stat['total_time'] = t1 - t0
-                stat['init_timestamp'] = t0
-                stat['end_timestamp'] = t1
+                stat["total_time"] = t1 - t0
+                stat["init_timestamp"] = t0
+                stat["end_timestamp"] = t1
             # Save stats to a JSON file
-            with open(f'run_{i}.json', 'w') as f:
+            with open(f"run_{i}.json", "w") as f:
                 json.dump(stats, f, indent=4)
             clean()
-
 
     main()

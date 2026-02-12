@@ -82,19 +82,23 @@ def before_exec_dp3(
     elif dp3_type == "calibration":
         ms_zip = ctx.get_input_paths(parameters["msin"].id)[0]
         msin_path = unzip(Path(ms_zip))
-        
+
         input_paths = ctx.get_input_paths(parameters["cal.sourcedb"].id)
-        
+
         if not input_paths:
-            raise FileNotFoundError(f"No se encontró el archivo: {parameters['cal.sourcedb'].id} en {input_paths}")
-        
+            raise FileNotFoundError(
+                f"No se encontró el archivo: {parameters['cal.sourcedb'].id} en {input_paths}"
+            )
+
         if len(input_paths) > 1:
-            raise ValueError(f"Se encontraron múltiples archivos para {parameters['cal.sourcedb'].id}: {input_paths}")
-        
+            raise ValueError(
+                f"Se encontraron múltiples archivos para {parameters['cal.sourcedb'].id}: {input_paths}"
+            )
+
         [step2a_zip] = input_paths
-        
-        #[step2a_zip] = ctx.get_input_paths(parameters["cal.sourcedb"].id)
-        
+
+        # [step2a_zip] = ctx.get_input_paths(parameters["cal.sourcedb"].id)
+
         step2a_path = unzip(Path(step2a_zip))
         h5_path = "/tmp/cal.h5"
         parameters["msin"] = msin_path

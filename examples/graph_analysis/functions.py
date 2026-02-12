@@ -6,11 +6,12 @@ from flexecutor import StageContext
 
 N_DIJKSTRA = 150
 
+
 def compute_pagerank(ctx: StageContext):
 
     graph_path = ctx.get_input_paths("graphs")
 
-    for _,graph_path in enumerate(graph_path):
+    for _, graph_path in enumerate(graph_path):
         with open(graph_path, "rb") as f:
             graph = pickle.load(f)
 
@@ -21,11 +22,12 @@ def compute_pagerank(ctx: StageContext):
         with open(pr_path, "wb") as f:
             pickle.dump(pagerank, f)
 
+
 def community_detection(ctx: StageContext):
 
     graph_path = ctx.get_input_paths("graphs")
 
-    for _,graph_path in enumerate(graph_path):
+    for _, graph_path in enumerate(graph_path):
 
         with open(graph_path, "rb") as f:
             graph = pickle.load(f)
@@ -35,6 +37,7 @@ def community_detection(ctx: StageContext):
 
         with open(com_path, "wb") as f:
             pickle.dump(communities, f)
+
 
 def dijkstra_analysis(ctx: StageContext):
     graph_paths = ctx.get_input_paths("graphs")
