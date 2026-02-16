@@ -1,8 +1,8 @@
-from modelling.perfmodel import PerfModelEnum
-from scheduling.scheduler import Scheduler
-from utils.dataclass import StageConfig
-from utils.utils import load_profiling_results, get_my_exec_path
-from workflow.executor import AssetType, get_asset_path
+from flexecutor.modelling.perfmodel import PerfModelEnum
+from flexecutor.scheduling.scheduler import Scheduler
+from flexecutor.utils.dataclass import StageConfig
+from flexecutor.utils.utils import load_profiling_results, get_my_exec_path
+from flexecutor.workflow.executor import AssetType, get_asset_path
 
 
 class OptimizationStrategy:

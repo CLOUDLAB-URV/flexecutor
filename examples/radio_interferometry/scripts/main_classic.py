@@ -1,6 +1,6 @@
+from examples.radio_interferometry.scripts.cleaning import clean_radio_data
 from flexecutor.storage.chunker import Chunker
 from flexecutor.utils.enums import ChunkerTypeEnum
-from lithops import FunctionExecutor
 
 from dataplug.formats.astronomics.ms import MS, ms_partitioning_strategy
 
@@ -15,13 +15,23 @@ from flexecutor.utils.utils import flexorchestrator
 from flexecutor.workflow.dag import DAG
 from flexecutor.workflow.executor import DAGExecutor
 from flexecutor.workflow.stage import Stage
+from flexecutor.scheduling.extract import Extract
+from flexecutor.utils.dataclass import StageConfig
 
 if __name__ == "__main__":
 
-    @flexorchestrator(bucket="test-bucket")
-    def main():
+    @flexorchestrator(bucket="flexecutor-demo")
+    def main(args):
         rebinning_parameters = {
-            "msin": FlexInput(prefix="partitions-nozip", custom_data_id="partitions", chunker=Chunker(ChunkerTypeEnum.DYNAMIC, chunking_strategy=ms_partitioning_strategy, cloud_object_format=MS)),
+            "msin": FlexInput(
+                prefix="msfile",
+                custom_data_id="partitions",
+                chunker=Chunker(
+                    ChunkerTypeEnum.DYNAMIC,
+                    chunking_strategy=ms_partitioning_strategy,
+                    cloud_object_format=MS,
+                ),
+            ),
             "steps": "[aoflag, avg, count]",
             "aoflag.type": "aoflagger",
             "aoflag.strategy": FlexInput(
@@ -47,9 +57,7 @@ if __name__ == "__main__":
         }
 
         calibration_parameters = {
-            "msin": FlexInput(
-                prefix="rebinning_out/ms", custom_data_id="rebinning_ms"
-            ),
+            "msin": FlexInput(prefix="rebinning_out/ms", custom_data_id="rebinning_ms"),
             "msin.datacolumn": "DATA",
             "steps": "[cal]",
             "cal.type": "ddecal",
@@ -204,17 +212,55 @@ if __name__ == "__main__":
                 imaging_stage,
             ]
         )
-        executor = DAGExecutor(
-            dag,
-            executor=FunctionExecutor(
-                log_level="DEBUG", **{"runtime_memory": 2048, "runtime_cpu": 4}
-            ),
-        )
-        results = executor.execute(num_workers=1) #num workers?
+        executor = DAGExecutor(dag, scheduler=Extract(dag, target="time"))
 
-        i = 1
-        for result in results.values():
-            print(f"STAGE #{i}: {result.get_timings()}")
-            i += 1
+        def build_config_space():
+            # cpu_workers_dict tuned for OVH 32 (~22 free) cores cluster
+            cpu_workers_dict = {
+                1: [1, 4, 8, 16],
+                2: [1, 4, 8],
+                4: [1, 4],
+                8: [1, 2],
+                16: [1],
+            }
+            for cpu, worker_list in cpu_workers_dict.items():
+                for workers in worker_list:
+                    yield {
+                        "rebinning": StageConfig(
+                            cpu=cpu,
+                            memory=cpu * 1024,
+                            workers=workers,
+                        ),
+                        "full_calibration": StageConfig(
+                            cpu=cpu,
+                            memory=cpu * 1024,
+                            workers=workers,
+                        ),
+                        "imaging": StageConfig(cpu=cpu, memory=cpu * 1024, workers=1),
+                    }
 
-    main()
+        if args.profile:
+            executor.profile(
+                config_space=[config for config in build_config_space()],
+                callback=clean_radio_data,
+            )
+        if args.optimize:
+            for target in ["time", "usage", "performance"]:
+                print(f"***** Optimizing for target: {target} *****")
+                executor = DAGExecutor(dag, scheduler=Extract(dag, target))
+                executor.optimize()
+
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run the radio interferometry flexecutor workflow."
+    )
+    parser.add_argument(
+        "--profile", action="store_true", help="Whether to run the profiling phase."
+    )
+    parser.add_argument(
+        "--optimize", action="store_true", help="Whether to run the optimization phase."
+    )
+    args = parser.parse_args()
+
+    main(args)
