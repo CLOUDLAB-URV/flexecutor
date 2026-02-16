@@ -3,6 +3,8 @@ import os
 from enum import Enum
 from typing import Dict, Set, List, Optional, Callable
 
+from tabulate import tabulate
+
 from flexecutor.utils.dataclass import FunctionTimes, StageConfig
 from flexecutor.utils.utils import (
     load_profiling_results,
@@ -26,6 +28,12 @@ class AssetType(Enum):
     MODEL = ("model", ".pkl")
     PROFILE = ("profiling", ".json")
     IMAGE = ("image", ".png")
+
+
+def get_asset_path(base_path, dag, stage: Stage, asset_type: AssetType):
+    dir_name, file_extension = asset_type.value
+    os.makedirs(f"{base_path}/{dir_name}/{dag.dag_id}", exist_ok=True)
+    return f"{base_path}/{dir_name}/{dag.dag_id}/{stage.stage_id}{file_extension}"
 
 
 class DAGExecutor:
@@ -53,11 +61,6 @@ class DAGExecutor:
         self._finished_stages: Set[Stage] = set()
 
         self._scheduler = scheduler
-
-    def _get_asset_path(self, stage: Stage, asset_type: AssetType):
-        dir_name, file_extension = asset_type.value
-        os.makedirs(f"{self._base_path}/{dir_name}/{self._dag.dag_id}", exist_ok=True)
-        return f"{self._base_path}/{dir_name}/{self._dag.dag_id}/{stage.stage_id}{file_extension}"
 
     def _store_profiling(
         self,
@@ -87,7 +90,6 @@ class DAGExecutor:
     ) -> None:
 
         logger.info(f"Profiling DAG {self._dag.dag_id}")
-        print(config_space)
 
         for config in config_space:
             if len(config) != len(self._dag.stages):
@@ -101,7 +103,9 @@ class DAGExecutor:
                     )
         profile_data = {}
         for stage in self._dag.stages:
-            profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+            profiling_file = get_asset_path(
+                self._base_path, self._dag, stage, AssetType.PROFILE
+            )
             profile_data[stage.stage_id] = load_profiling_results(profiling_file)
 
         for iteration in range(num_reps):
@@ -136,7 +140,9 @@ class DAGExecutor:
                         logger.info(
                             f"Profiling data for {stage.stage_id} updated in memory"
                         )
-                        profiling_file = self._get_asset_path(stage, AssetType.PROFILE)
+                        profiling_file = get_asset_path(
+                            self._base_path, self._dag, stage, AssetType.PROFILE
+                        )
                         save_profiling_results(
                             profiling_file, profile_data[stage.stage_id]
                         )
@@ -200,10 +206,11 @@ class DAGExecutor:
         stages_list = [stage] if stage is not None else self._dag.stages
         for stage in stages_list:
             profile_data = load_profiling_results(
-                self._get_asset_path(stage, AssetType.PROFILE)
+                get_asset_path(self._base_path, self._dag, stage, AssetType.PROFILE)
             )
-            stage.perf_model.train(profile_data)
-            stage.perf_model.save_model()
+            if stage.perf_model:
+                stage.perf_model.train(profile_data)
+                stage.perf_model.save_model()
 
     def execute(self, num_workers=None) -> Dict[str, StageFuture]:
         """
@@ -274,13 +281,20 @@ class DAGExecutor:
         self.train()
         resource_config_list = self._scheduler.schedule()
 
+        stages_data = []
+
         for stage, resource_config in zip(self._dag.stages, resource_config_list):
-            stage.resource_config = resource_config
-            print(
-                f"··· STAGE #{stage.stage_idx} ···"
-                f"\tworkers: {stage.resource_config.workers}"
-                f"\tmemory: {stage.resource_config.memory}MB"
+            stages_data.append(
+                [
+                    stage.stage_id,
+                    resource_config.cpu,
+                    resource_config.memory,
+                    resource_config.workers,
+                ]
             )
+
+        headers = ["Stage #", "CPU (vCPU)", "Memory (MB)", "Workers"]
+        print(tabulate(stages_data, headers=headers, tablefmt="fancy_grid"))
 
     def shutdown(self):
         """

@@ -11,6 +11,7 @@ class PerfModelEnum(Enum):
     GENETIC = "genetic"
     DISTRIBUTION = "distribution"
     MIXED = "mixed"
+    NONE = "none"
 
 
 class PerfModel(ABC):
@@ -97,5 +98,8 @@ class PerfModel(ABC):
             from flexecutor.modelling.mixedperfmodel import MixedPerfModel
 
             return MixedPerfModel(stage)
+
+        elif model_type == PerfModelEnum.NONE.value:
+            return None
         else:
             raise ValueError("Invalid model type")

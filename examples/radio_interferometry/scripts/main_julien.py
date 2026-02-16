@@ -1,5 +1,3 @@
-from lithops import FunctionExecutor
-
 from examples.radio_interferometry.functions import (
     imaging,
     dp3,

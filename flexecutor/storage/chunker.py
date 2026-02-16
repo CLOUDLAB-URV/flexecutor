@@ -73,7 +73,7 @@ class Chunker:
         # TODO: parametrise dataplug dynamic target
         if self.cloud_object_format.is_folder:
             # only first level
-            files = [f"s3://{flex_data.bucket}/msfile/partition_2.ms"]
+            files = [f"s3://{flex_data.bucket}/msfile/flexecutor-test.ms"]
         else:
             files = [f"s3://{flex_data.bucket}/{file}" for file in flex_data.keys]
 

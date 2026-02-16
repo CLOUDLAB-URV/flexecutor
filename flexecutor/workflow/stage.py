@@ -3,8 +3,6 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Set, List, Optional, Callable
 
-from lithops import FunctionExecutor
-
 from flexecutor.modelling.perfmodel import PerfModel, PerfModelEnum
 from flexecutor.storage.storage import FlexData
 from flexecutor.utils.dataclass import StageConfig
@@ -213,7 +211,7 @@ class Stage:
 
         dag = DAG("single-stage-dag")
         dag.add_stage(self)
-        executor = DAGExecutor(executor=FunctionExecutor(), dag=dag)
+        executor = DAGExecutor(dag=dag)
         result = executor.execute()
         executor.shutdown()
         return list(result.values())[0]

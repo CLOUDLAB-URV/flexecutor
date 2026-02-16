@@ -11,7 +11,8 @@ class Scheduler(ABC):
         self._perf_model_type = perf_model_type
         for stage in self._dag.stages:
             perf_model = stage.init_perf_model(perf_model_type)
-            perf_model.init_from_dag(self._dag)
+            if perf_model:
+                perf_model.init_from_dag(self._dag)
 
     @abstractmethod
     def schedule(self) -> list[StageConfig]:
