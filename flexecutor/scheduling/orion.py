@@ -93,7 +93,7 @@ class Orion(Scheduler):
 
         # Setting the right size for each stage
         # FIXME: parametrize fixed vars
-        mode = "priority"  # | "priority"
+        mode = "simple"  # | "priority"
 
         # FIXME: convert workers_size_list to a dict "stage_id: memory"
         if mode == "simple":

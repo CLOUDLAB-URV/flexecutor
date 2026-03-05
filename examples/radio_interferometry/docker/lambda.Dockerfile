@@ -1,5 +1,5 @@
 # Python 3.10
-FROM python:3.10-slim-buster
+FROM python:3.10-slim-bookworm
 
 # Python 3.8, needed for COMPss
 # FROM python:3.8-slim-buster
@@ -84,7 +84,7 @@ ENV OPENBLAS_NUM_THREADS=1
 
 
 # Install AOFlagger from source
-RUN git clone https://gitlab.com/aroffringa/aoflagger.git /AOFlagger \
+RUN git clone https://gitlab.com/aroffringa/aoflagger.git /AOFlagger -b v3.4.0 \
     && cd /AOFlagger \
     && mkdir build && cd build \
     && cmake .. \

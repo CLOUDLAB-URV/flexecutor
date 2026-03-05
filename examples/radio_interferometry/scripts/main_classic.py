@@ -21,10 +21,10 @@ from flexecutor.utils.dataclass import StageConfig
 if __name__ == "__main__":
 
     @flexorchestrator(bucket="flexecutor-demo")
-    def main(args):
+    def profile(args, workers):
         rebinning_parameters = {
             "msin": FlexInput(
-                prefix="msfile",
+                prefix=f"msfile",
                 custom_data_id="partitions",
                 chunker=Chunker(
                     ChunkerTypeEnum.DYNAMIC,
@@ -212,7 +212,7 @@ if __name__ == "__main__":
                 imaging_stage,
             ]
         )
-        executor = DAGExecutor(dag, scheduler=Extract(dag, target="time"))
+        executor = DAGExecutor(dag)
 
         def build_config_space():
             # cpu_workers_dict tuned for OVH 32 (~22 free) cores cluster
@@ -223,21 +223,21 @@ if __name__ == "__main__":
                 8: [1, 2],
                 16: [1],
             }
-            for cpu, worker_list in cpu_workers_dict.items():
-                for workers in worker_list:
-                    yield {
-                        "rebinning": StageConfig(
-                            cpu=cpu,
-                            memory=cpu * 1024,
-                            workers=workers,
-                        ),
-                        "full_calibration": StageConfig(
-                            cpu=cpu,
-                            memory=cpu * 1024,
-                            workers=workers,
-                        ),
-                        "imaging": StageConfig(cpu=cpu, memory=cpu * 1024, workers=1),
-                    }
+            for cpu in cpu_workers_dict[workers]:
+                memory = cpu * 1024 * 4  # Assuming 4GB of memory per CPU core
+                yield {
+                    "rebinning": StageConfig(
+                        cpu=cpu,
+                        memory=memory,
+                        workers=workers,
+                    ),
+                    "full_calibration": StageConfig(
+                        cpu=cpu,
+                        memory=memory,
+                        workers=workers,
+                    ),
+                    "imaging": StageConfig(cpu=cpu, memory=memory, workers=1),
+                }
 
         if args.profile:
             executor.profile(
@@ -247,8 +247,10 @@ if __name__ == "__main__":
         if args.optimize:
             for target in ["time", "usage", "performance"]:
                 print(f"***** Optimizing for target: {target} *****")
-                executor = DAGExecutor(dag, scheduler=Extract(dag, target))
+                scheduler = Extract(dag, target=target)
+                executor = DAGExecutor(dag, scheduler=scheduler)
                 executor.optimize()
+            exit(0)
 
     import argparse
 
@@ -263,4 +265,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(args)
+    # for workers in [1, 2, 4, 8, 16]:
+    for workers in [8, 16]:
+        profile(args, workers)
